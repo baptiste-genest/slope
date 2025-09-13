@@ -17,14 +17,14 @@ find_package(OpenGL REQUIRED)
 
 ## External tools configuration
 find_package(LATEX COMPONENTS PDFLATEX REQUIRED)
-find_program(slope_CONVERT convert)
-if (NOT slope_CONVERT)
+find_program(SLOPE_CONVERT convert)
+if (NOT SLOPE_CONVERT)
   message(ERROR "Could not find the 'convert' tool (imagemagick)")
 endif()
-set(slope_PDFLATEX ${PDFLATEX_COMPILER})
+set(SLOPE_PDFLATEX ${PDFLATEX_COMPILER})
 
-message(STATUS "pdflatex compiler: ${slope_PDFLATEX}")
-message(STATUS "convert tool: ${slope_CONVERT}")
+message(STATUS "pdflatex compiler: ${SLOPE_PDFLATEX}")
+message(STATUS "convert tool: ${SLOPE_CONVERT}")
 configure_file(${PROJECT_SOURCE_DIR}/src/content/Options.cpp.in
                ${PROJECT_SOURCE_DIR}/src/content/Options.cpp)
 
@@ -62,6 +62,7 @@ install(TARGETS slope
 option(BUILD_SLOPE_TUTORIALS "Build the slope tutorials" OFF)
 
 if (BUILD_SLOPE_TUTORIALS)
+
 ## Tutorials
 add_executable(tuto_helloworld tutorials/tuto_helloworld.cpp)
 target_link_libraries(tuto_helloworld slope)
@@ -70,4 +71,3 @@ add_executable(tuto_mesh tutorials/tuto_mesh.cpp)
 target_link_libraries(tuto_mesh slope)
 
 endif()
-

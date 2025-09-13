@@ -18,6 +18,7 @@ struct StateInSlide {
     };
     AnchorPtr anchor = GlobalAnchor;
     scalar angle=0;
+    scalar scale = 1;
     bool offseted = false;
 
     Transform LocalToWorld;
@@ -62,6 +63,12 @@ struct StateInSlide {
 
     vec2 getPosition() const {
         return placer(anchor->getPos());
+    }
+
+    scalar getScale() const {
+        if (anchor->isPersistant())
+            return anchor->getScale();
+        return scale;
     }
 
     ImVec2 getAbsolutePosition() const {

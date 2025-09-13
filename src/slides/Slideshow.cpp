@@ -206,22 +206,35 @@ void slope::Slideshow::handleDragAndDrop()
 
 
     bool horizontal = ImGui::IsKeyDown(ImGuiKey_H);
+    bool vertical = ImGui::IsKeyDown(ImGuiKey_V);
 
     if (selected_primitive != nullptr) {
-        guizmo.draw();
+
         ImGui::SetNextFrameWantCaptureKeyboard(false);
         auto S = ImGui::GetWindowSize();
         auto x = double(io.MousePos.x)/S.x;
         auto y = double(io.MousePos.y)/S.y;
         auto& pis = slides[current_slide][selected_primitive];
         LabelAnchorPtr lab = std::dynamic_pointer_cast<LabelAnchor>(pis.anchor);
+
+        scalar zoom = 1.1;
+
+        if (io.MouseWheel > 0.0f)
+            lab->writeScaleAtLabel(lab->getScale()*zoom,true);
+        else if (io.MouseWheel < 0.0f){
+            lab->writeScaleAtLabel(lab->getScale()/zoom,true);
+        }
+
         if (horizontal) {
             x_offset = 0.5-x;
             x = 0.5;
-            lab->writeAtLabel(x,y+y_offset,true);
-        }
-        else
-            lab->writeAtLabel(x+x_offset,y+y_offset,true);
+            lab->writePosAtLabel(x,y+y_offset,true);
+        } else if (vertical) {
+            y_offset = 0.5-y;
+            y = 0.5;
+            lab->writePosAtLabel(x+x_offset,y,true);
+        } else
+            lab->writePosAtLabel(x+x_offset,y+y_offset,true);
         pis.alpha = (std::cos(TimeFrom(time_at_pick)*5) + 1)*0.8 + 0.2;
     }
     return;
@@ -260,7 +273,7 @@ void slope::Slideshow::handleDragAndDrop()
         spdlog::info("offset {} {}",x_offset,y_offset);
         auto& pis = slides[current_slide][selected_primitive];
         LabelAnchorPtr lab = std::dynamic_pointer_cast<LabelAnchor>(pis.anchor);
-        lab->writeAtLabel(x+x_offset,y+y_offset,true);
+        lab->writePosAtLabel(x+x_offset,y+y_offset,true);
     }
 }
 
@@ -455,7 +468,8 @@ slope::PrimitivePtr slope::Slideshow::getPrimitiveUnderMouse(scalar x,scalar y) 
         if (!pis.second.anchor->isPersistant())
             continue;
         auto p = pis.second.getPosition();
-        if (std::abs(p(0) - x) < pis.first->getSize()(0)/2/S.x && std::abs(p(1) - y) < pis.first->getSize()(1)/2/S.y)
+        auto prim_size = pis.first->getSize()*pis.second.getScale();
+        if (std::abs(p(0) - x) < prim_size(0)/2/S.x && std::abs(p(1) - y) < prim_size(1)/2/S.y)
             return pis.first;
     }
     return nullptr;

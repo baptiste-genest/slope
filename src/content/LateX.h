@@ -80,7 +80,7 @@ public:
 
     void display(const StateInSlide& sis) const{
         anchor->updatePos(sis.getPosition());
-        DisplayImage(data,sis,scale*getNormalizationFactor());
+        DisplayImage(data,sis,scale*getNormalizationFactor()*sis.getScale());
     }
 
     virtual void draw(const TimeObject &time, const StateInSlide &sis) override {

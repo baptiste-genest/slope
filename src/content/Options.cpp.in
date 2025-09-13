@@ -12,8 +12,8 @@ std::string Options::ProjectViewsPath;
 size_t Options::ScreenResolutionWidth = 1920;
 size_t Options::ScreenResolutionHeight = 1080;
 
-std::string Options::PathToPDFLATEX = "@Slope_PDFLATEX@";
-std::string Options::PathToCONVERT = "@Slope_CONVERT@";
+std::string Options::PathToPDFLATEX = "@SLOPE_PDFLATEX@";
+std::string Options::PathToCONVERT = "@SLOPE_CONVERT@";
 
 size_t Options::PDFtoPNGDensity = 600;
 

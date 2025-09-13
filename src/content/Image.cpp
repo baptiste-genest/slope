@@ -93,7 +93,7 @@ slope::Primitive::Size slope::Image::getSize() const {
 void slope::Image::display(const StateInSlide &sis) const
 {
     anchor->updatePos(sis.getPosition());
-    DisplayImage(data,sis,scale);
+    DisplayImage(data,sis,scale*sis.getScale());
 }
 
 void slope::ImageRotated(ImTextureID tex_id, ImVec2 center, ImVec2 size, float angle, const RGBA &color_mult)

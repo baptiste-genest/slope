@@ -88,14 +88,15 @@ void slope::GenerateLatex(const path &filename,
         formula_file << "\\end{align*}"<< std::endl;
     formula_file << "\\end{document}"<< std::endl;
 
-    std::string latex_cmd = Options::PathToPDFLATEX+" -output-directory=/tmp /tmp/formula.tex  >>/tmp/UPS.log";
+    std::string latex_cmd = Options::PathToPDFLATEX+" -output-directory=/tmp /tmp/formula.tex  >>/tmp/slope.log";
     if (std::system(latex_cmd.c_str())) {
-        spdlog::error("[error while generating latex]");
-        exit(1);
+        spdlog::error("[error while generating latex] cmd fail {}",latex_cmd);
+        throw std::runtime_error("could not generate latex");
     }
-    if (std::system((Options::PathToCONVERT+" -density "+std::to_string(Options::PDFtoPNGDensity)+" -quality 100 -trim -border 10 -bordercolor none /tmp/formula.pdf -colorspace RGB " + filename.string() + " >>/tmp/UPS.log").c_str())) {
-        std::cerr << "[error while converting to png]" << std::endl;
-        assert(false);
+    std::string convert_cmd = Options::PathToCONVERT+" -density "+std::to_string(Options::PDFtoPNGDensity)+" -quality 100 -trim -border 10 -bordercolor none /tmp/formula.pdf -colorspace RGB " + filename.string() + " >>/tmp/slope.log";
+    if (std::system(convert_cmd.c_str())) {
+        spdlog::error("[error while converting to png] cmd fail {}",latex_cmd);
+        throw std::runtime_error("could not convert pdf to png");
     }
 //    int h = (1080.*height_ratio/99.)*Image::getSize(filename).y;
     /*

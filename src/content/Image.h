@@ -65,7 +65,7 @@ public:
 
     void display(const StateInSlide& sis) const {
         anchor->updatePos(sis.getPosition());
-        DisplayImage(images[current_img],sis,scale);
+        DisplayImage(images[current_img],sis,scale*sis.getScale());
     }
 
     static GifPtr Add(std::string filename,int fps = 10,scalar scale = 1.,bool loop = true);

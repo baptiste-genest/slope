@@ -1,32 +1,40 @@
 #include "Anchor.h"
+#include <spdlog/spdlog.h>
 
 namespace slope {
 
 AnchorPtr GlobalAnchor = AbsoluteAnchor::Add(vec2(0,0));
 
-void LabelAnchor::writeAtLabel(double x, double y, bool overwrite) const
+void LabelAnchor::writeAtLabel(double x, double y,scalar s, bool overwrite) const
 {
     int rslt = system(("mkdir " + slope::Options::ProjectViewsPath + " 2>/dev/null").c_str());
     std::string filepath = slope::Options::ProjectViewsPath + label + ".pos";
     if (!io::file_exists(filepath) || overwrite){
         std::ofstream file(filepath);
         if (!file.is_open()){
-            std::cerr << "couldn't open file" << std::endl;
-            exit(1);
+            spdlog::error("could not open file {}",filepath);
+            throw std::runtime_error("could not open file");
         }
-        file << x << " " << y << std::endl;
+        file << x << " " << y << " " << s << std::endl;
     }
 }
 
-vec2 LabelAnchor::readFromLabel() const
+vec LabelAnchor::readFromLabel() const
 {
     std::ifstream file (slope::Options::ProjectViewsPath + label + ".pos");
     if (!file.is_open()){
         std::cerr << "couldn't read label file" << std::endl;
         exit(1);
     }
-    vec2 rslt;
+    vec rslt;
     file >> rslt(0) >> rslt(1);
+
+    // check if can read scale
+    if (!(file >> rslt(2))){
+        spdlog::info("could not read scale");
+        rslt(2) = 1;
+    }
+
     return rslt;
 }
 

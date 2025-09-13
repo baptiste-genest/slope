@@ -21,6 +21,7 @@ inline StateInSlide transition(parameter t, const StateInSlide &sa, const StateI
     St.alpha = std::lerp(sa.alpha,sb.alpha,t);
     St.angle = std::lerp(sa.angle,sb.angle,t);
     St.LocalToWorld = Transform::Interpolate(sa.getLocalToWorld(),sb.getLocalToWorld(),t);
+    St.scale = std::lerp(sa.getScale(),sb.getScale(),t);
     return St;
 }
 

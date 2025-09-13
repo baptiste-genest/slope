@@ -18,6 +18,8 @@ public:
     virtual void updatePos(const vec2& p) = 0;
 
     virtual vec2 getPos() const = 0;
+
+    virtual scalar getScale() const {return 1;}
 };
 
 class AbsoluteAnchor;
@@ -53,7 +55,7 @@ public:
     virtual bool isPersistant() const override { return true; }
 
     LabelAnchor(std::string l) : label(l) {
-        writeAtLabel(0.5,0.5,false);
+        writeAtLabel(0.5,0.5,1,false);
     }
 
     static LabelAnchorPtr Add(const std::string& l) {
@@ -61,14 +63,26 @@ public:
     }
 
     virtual vec2 getPos() const override {
-        return GlobalAnchor->getPos() + readFromLabel();
+        return GlobalAnchor->getPos() + readFromLabel().head(2);
     }
 
     virtual void updatePos(const vec2& p) override {
         std::cerr << "[WARNING] cannot change labeled anchor position by hand" << std::endl;
     }
-    void writeAtLabel(double x, double y,bool overwrite) const;
-    vec2 readFromLabel() const;
+
+    virtual scalar getScale() const override {
+        return readFromLabel()(2);
+    }
+
+    void writeAtLabel(double x, double y,scalar scale, bool overwrite) const;
+    void writePosAtLabel(scalar x,scalar y,bool overwrite) const {
+        writeAtLabel(x,y,readFromLabel()(2),overwrite);
+    }
+    void writeScaleAtLabel(scalar s,bool overwrite) const {
+        vec p = readFromLabel();
+        writeAtLabel(p(0),p(1),s,overwrite);
+    }
+    vec readFromLabel() const;
 };
 
 vec2 WorldToScreen(const vec& p);
