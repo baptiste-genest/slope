@@ -10,7 +10,7 @@ slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitive
     auto Y = this->Y;
 
     RelativePlacer rp = [X,Y,ptr,paddingy,paddingx,other] (vec2 other_position) {
-        auto S = other.first->getRelativeSize()*other.second.getScale();
+        vec2 S = other.first->getRelativeSize()*other.second.getScale();
         vec2 P;
         switch(X) {
         case REL_LEFT:
