@@ -1,0 +1,66 @@
+name: CI (linux/macOS)
+
+on:
+  pull_request:
+    branches: [ main ]
+
+env:
+  # if needed
+  CONFIG_GLOBAL:
+  CONFIG_LINUX:
+  CONFIG_MAC:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macOS-latest]
+        BUILD_TYPE: [Debug,Release]
+
+    steps:
+     - uses: actions/checkout@v3
+       with:
+          fetch-depth: 10
+
+     - name: Install linux deps
+       if: matrix.os == 'ubuntu-latest'
+       run: |
+           sudo apt-get update
+           sudo apt-get install xorg-dev libglu1-mesa-dev libeigen3-dev texlive
+
+     - name: Install macOS deps
+       if: matrix.os == 'macOS-latest'
+       run: |
+            brew install eigen
+            brew install --cask mactex-no-gui
+            eval "$(/usr/libexec/path_helper)"
+
+     - name: Create Build Environment
+       run: cmake -E make_directory ${{runner.workspace}}/build
+
+     - name: Configure CMake (linux)
+       if: matrix.os == 'ubuntu-latest'
+       shell: bash
+       working-directory: ${{runner.workspace}}/build
+       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{ matrix.BUILD_TYPE }} $CONFIG_GLOBAL $CONFIG_LINUX
+
+     - name: Configure CMake (macOS)
+       if: matrix.os == 'macOS-latest'
+       shell: bash
+       working-directory: ${{runner.workspace}}/build
+       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{ matrix.BUILD_TYPE }}  $CONFIG_GLOBAL $CONFIG_MAC
+
+     - name: Build
+       working-directory: ${{runner.workspace}}/build
+       shell: bash
+       run: cmake --build . --config ${{ matrix.BUILD_TYPE }} --parallel 3
+
+     - name: Test
+       working-directory: ${{runner.workspace}}/build
+       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+       shell: bash
+       run: |
+           echo ctest -C ${{ matrix.BUILD_TYPE }}  --output-on-failure
+           ctest -C $${{ matrix.BUILD_TYPE }}  --output-on-failure
