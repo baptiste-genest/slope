@@ -89,6 +89,8 @@ public:
         return Image::getScaledSize(images[current_img],scale);
     }
 
+    void restart() { current_img = 0; }
+
 private:
     bool loop;
     int current_img = 0,fps = 24;
