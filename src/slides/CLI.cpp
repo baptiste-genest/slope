@@ -5,10 +5,13 @@
 #include "spdlog/spdlog.h"
 #include <cassert>
 
-int parseCLI(int argc,char** argv) {
-    using namespace slope;
+
+int slope::parseCLI(int argc,char** argv) {
     CLI::App app("slope - 3D slides generator");
     bool clear_cache = false;
+
+
+    using namespace slope;
 
     argv = app.ensure_utf8(argv);
     app.add_flag("--clear_cache",clear_cache,"cache will be cleared and every resources of all projects will have to be regenerated");
@@ -25,13 +28,14 @@ int parseCLI(int argc,char** argv) {
     int seed = -1;
     app.add_option("--seed",seed,"seed for random generator");
 
-    CLI11_PARSE(app,argc,argv);
+//    app.add_flag("--export_pdf",Options::ExportMode,"if set then headless rendering add exports in pdf file");
+
     try {
         app.parse(argc,argv);
-    } catch (const CLI::ParseError& e) {
+    } catch (const CLI::ParseError &e) {
         app.exit(e);
+        return 1;
     }
-
     Options::ProjectPath += std::string("/");
 
     slope::Options::ProjectViewsPath = slope::Options::ProjectPath+std::string("views/");

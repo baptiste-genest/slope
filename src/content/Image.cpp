@@ -150,11 +150,11 @@ slope::Gif::GifPtr slope::Gif::Add(std::string filename,int fps,scalar scale,boo
 
 void slope::Gif::draw(const TimeObject &t, const StateInSlide &sis)
 {
-    display(sis);
     if (loop)
         current_img = (int)std::floor(t.inner_time*fps) % int(images.size());
     else
         current_img = std::min((int)std::floor(t.inner_time*fps),int(images.size())-1);
+    display(sis);
 }
 
 std::vector<slope::ImageData> slope::loadGif(path filename)

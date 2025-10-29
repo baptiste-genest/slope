@@ -1,6 +1,7 @@
 #ifndef MESH_H
 #define MESH_H
 #include "../libslope.h"
+#include "io.h"
 #include "PolyscopePrimitive.h"
 #include "polyscope/surface_mesh.h"
 #include "geometrycentral/surface/meshio.h"
@@ -71,6 +72,8 @@ namespace slope {
     }
 
     MeshPtr copy() const { return translate(vec::Zero());}
+
+    void normalize();
 
 private:
     vecs vertices,original_vertices;

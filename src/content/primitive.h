@@ -48,10 +48,16 @@ struct Primitive {
         inner_time = Time::now();
     }
 
+    static int updater_framerate;
+
     void play(const TimeObject& t,const StateInSlide& sis) {
         enable();
         auto it = t(this);
-        updater(it,this);
+        static int frame_count = 0;
+        frame_count %= updater_framerate;
+        if (frame_count == 0)
+            updater(it,this);
+        frame_count++;
         draw(it,sis);
     }
 

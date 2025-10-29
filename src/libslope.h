@@ -19,11 +19,13 @@
 #include <regex>
 
 #ifdef __APPLE__
-#include "Eigen/Dense"
+//#include "Eigen/Dense"
 #include "Eigen/Sparse"
+#include "Eigen/Core"
 #else
-#include "eigen3/Eigen/Dense"
+//#include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Sparse"
+#include "eigen3/Eigen/Core"
 #endif
 
 #include "polyscope/polyscope.h"

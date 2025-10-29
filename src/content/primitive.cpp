@@ -1,5 +1,7 @@
 #include "primitive.h"
 
+int slope::Primitive::updater_framerate = 1;
+
 std::vector<slope::PrimitivePtr> slope::Primitive::primitives;
 
 slope::TimeObject slope::TimeObject::operator()(Primitive* p) const {

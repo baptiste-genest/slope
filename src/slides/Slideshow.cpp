@@ -318,8 +318,9 @@ void slope::Slideshow::ImGuiWindowConfig()
 
 void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 {
-    if (parseCLI(argc,argv))
-        throw std::runtime_error("exiting for option checking");
+    help_wanted = slope::parseCLI(argc,argv);
+    if (help_wanted)
+        return;
     from_action = Time::now();
     from_begin = Time::now();
 
@@ -344,6 +345,8 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
     std::cout << "  - p : take a screenshot" << std::endl;
     std::cout << "  - d : show polyscope interface" << std::endl;
     std::cout << "  - ctrl + left click : drag labeled screen primitives" << std::endl;
+
+    polyscope::options::allowHeadlessBackends = slope::Options::ExportMode;
 
     polyscope::init();
     polyscope::options::buildGui = false;
@@ -415,6 +418,20 @@ int slope::Slideshow::getRelativeSlideNumber(Primitive *p)
     return p->relativeSlideIndex(slides.size()-1);
 }
 
+void slope::Slideshow::run()
+{
+    if (help_wanted)
+        return;
+    if (!Options::ExportMode){
+        polyscope::state::userCallback = [this](){
+            play();
+        };
+        polyscope::show();
+    } else {
+        exportPDF();
+    }
+}
+
 void slope::Slideshow::saveCamera(std::string file)
 {
     std::ofstream camfile(file);
@@ -436,6 +453,29 @@ void slope::Slideshow::computeFirstSlideNumbers()
         for (auto& p : v)
             p.first->upFirstSlideNumber(i);
         i++;
+    }
+}
+
+
+void slope::Slideshow::exportPDF()
+{
+    ImGuiWindowConfig();
+    ImGui::Begin("Slope",NULL,window_flags);
+
+    if (!initialized)
+        initializeSlides();
+
+    bool triggerIT = false;
+
+    for (int i = 0;i<slides.size();i++) {
+        spdlog::info("export slide {} over {}",i+1,slides.size());
+        current_slide = i;
+        auto& CS = slides[current_slide];
+        setInnerTime();
+        TimeObject T = getTimeObject();
+        for (auto& s : CS.getDepthSorted())
+            s.first->play(T,CS[s.first]);
+        polyscope::screenshot(("/tmp/slide_" + std::to_string(i) + ".png").c_str());
     }
 }
 

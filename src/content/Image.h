@@ -5,6 +5,7 @@
 #include "GLFW/glfw3.h"
 #include "../math/kernels.h"
 #include "../math/geometry.h"
+#include "io.h"
 
 namespace slope {
 
@@ -21,10 +22,6 @@ void ImageRotated(ImTextureID tex_id, ImVec2 center, ImVec2 size, float angle,co
 
 std::vector<ImageData> loadGif(path filename);
 
-inline std::string formatPath(std::string path) {
-    if (path[0] == '/') return path;
-    return Options::ProjectPath + path;
-}
 
 class Image : public ScreenPrimitive {
 public:
@@ -89,13 +86,9 @@ public:
         return Image::getScaledSize(images[current_img],scale);
     }
 
-    void restart() { current_img = 0; }
-
-    int current_img = 0;
-
 private:
     bool loop;
-    int fps = 24;
+    int current_img = 0,fps = 24;
     std::vector<ImageData> images;
     scalar scale = 1;
 };

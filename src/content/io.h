@@ -7,10 +7,17 @@
 #include <Eigen/Dense>
 #include <fstream>
 #include <filesystem>
+#include "Options.h"
 
 #include <fstream>
 
 namespace slope {
+
+inline std::string formatPath(std::string path) {
+    std::filesystem::path fs(path);
+    if (fs.is_absolute()) return path;
+    return Options::ProjectDataPath + path;
+}
 
 namespace io {
 

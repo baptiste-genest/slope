@@ -21,17 +21,17 @@ void LabelAnchor::writeAtLabel(double x, double y,scalar s, bool overwrite) cons
 
 vec LabelAnchor::readFromLabel() const
 {
-    std::string path = slope::Options::ProjectViewsPath + label + ".pos";
-    std::ifstream file (path);
+    std::ifstream file (slope::Options::ProjectViewsPath + label + ".pos");
     if (!file.is_open()){
-        spdlog::error("could not read label file {}",path);
-        throw std::runtime_error("could not open file");
+        std::cerr << "couldn't read label file" << std::endl;
+        exit(1);
     }
     vec rslt;
     file >> rslt(0) >> rslt(1);
 
     // check if can read scale
     if (!(file >> rslt(2))){
+        spdlog::info("could not read scale");
         rslt(2) = 1;
     }
 

@@ -18,6 +18,8 @@ static   std::string ProjectPath;
 static   std::string ProjectViewsPath;
 static   std::string CachePath;
 
+static bool ExportMode;
+
 /// Latex paths
 static std::string PathToPDFLATEX;
 static std::string PathToCONVERT;

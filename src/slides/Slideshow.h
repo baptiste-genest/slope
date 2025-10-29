@@ -55,6 +55,8 @@ public:
 
     int getRelativeSlideNumber(Primitive* p);
 
+    void run();
+
 private:
     TimeTypeSec transitionTime = 0.5;
 
@@ -64,6 +66,8 @@ private:
 
     void initializeSlides();
     void computeFirstSlideNumbers();
+
+    void exportPDF();
 
     void loadSlides();
     std::vector<int> slide_numbers;
@@ -98,6 +102,8 @@ private:
     TimeStamp from_action,from_begin;
     size_t current_slide = 0;
     ImGuiWindowFlags window_flags = 0;
+
+    bool help_wanted = false;
 };
 
 

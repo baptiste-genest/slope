@@ -21,6 +21,7 @@ double Options::TitleScale = 1.5;
 double Options::DefaultLatexScale = 1.;
 
 bool Options::ignore_cache = false;
+bool Options::ExportMode = false;
 
 Eigen::Vector3d Options::DefaultBackgroundColor = Eigen::Vector3d(1,1,1);
 

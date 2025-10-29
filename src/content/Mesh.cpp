@@ -2,16 +2,16 @@
 
 slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,const vec& scale,bool smooth)
 {
+
     std::vector<std::array<double,3>> V;
     Faces F;
     std::unique_ptr<geometrycentral::surface::ManifoldSurfaceMesh> mesh;
     std::unique_ptr<geometrycentral::surface::VertexPositionGeometry> geometry;
-    std::tie(mesh, geometry) = geometrycentral::surface::readManifoldSurfaceMesh(objfile);
+    std::tie(mesh, geometry) = geometrycentral::surface::readManifoldSurfaceMesh(formatPath(objfile));
 
     //load faces
-    for (auto f : mesh->getFaceVertexList()){
+    for (auto f : mesh->getFaceVertexList())
         F.push_back(f);
-    }
 
     vecs verts(mesh->nVertices());
     for (auto v : mesh->vertices()){
@@ -86,6 +86,24 @@ void slope::Mesh::updateMesh(const vecs &X)
 {
     vertices = X;
     pc->updateVertexPositions(vertices);
+}
+
+void slope::Mesh::normalize()
+{
+    //scale bounding box to fit in unit cube
+    vec minv = vec::Constant(std::numeric_limits<double>::max());
+    vec maxv = vec::Constant(std::numeric_limits<double>::lowest());
+    for (const auto& v : vertices) {
+        minv = minv.cwiseMin(v);
+        maxv = maxv.cwiseMax(v);
+    }
+    vec center = 0.5 * (minv + maxv);
+    double max_extent = (maxv - minv).maxCoeff();
+    for (auto& v : vertices) {
+        v = (v - center) / max_extent;
+    }
+    updateMesh(vertices);
+    original_vertices = vertices;
 }
 
 void slope::Mesh::initPolyscope()
