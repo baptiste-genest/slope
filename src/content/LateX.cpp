@@ -111,7 +111,7 @@ void slope::GenerateLatex(const path &filename,
 
 void slope::LatexLoader::Init(path P)
 {
-    source_path = P;
+    source_path = formatPath(P);
     parseJson();
     source_last_modified = std::filesystem::last_write_time(source_path);
     initialized = true;
