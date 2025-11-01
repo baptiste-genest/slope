@@ -31,7 +31,6 @@ vec LabelAnchor::readFromLabel() const
 
     // check if can read scale
     if (!(file >> rslt(2))){
-        spdlog::info("could not read scale");
         rslt(2) = 1;
     }
 
