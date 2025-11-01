@@ -3,8 +3,6 @@
 #include "../libslope.h"
 #include "io.h"
 #include "PolyscopePrimitive.h"
-#include "polyscope/surface_mesh.h"
-#include "geometrycentral/surface/meshio.h"
 #include "../math/geometry.h"
 
 namespace slope {
@@ -28,14 +26,14 @@ namespace slope {
     Mesh(const vecs &vertices,const vecs& original_vertices, const Faces &faces,bool smooth = false);
     
     
-    static MeshPtr Add(const std::string& objfile,const vec& scale = vec(1.,1.,1.),bool smooth = false);
+    static MeshPtr Add(const std::string& objfile,const vec& scale = vec(1.,1.,1.),bool smooth = true);
     
-    static MeshPtr Add(const std::string& objfile,scalar scale,bool smooth = false)
+    static MeshPtr Add(const std::string& objfile,scalar scale,bool smooth = true)
     {
       return Add(objfile,vec::Ones()*scale,smooth);
     }
     
-    static MeshPtr Add(const vecs& V,const Faces& F,bool smooth = false){
+    static MeshPtr Add(const vecs& V,const Faces& F,bool smooth = true){
       return NewPrimitive<Mesh>(V,V,F,smooth);
     }
     
