@@ -86,9 +86,11 @@ public:
         return Image::getScaledSize(images[current_img],scale);
     }
 
+    int current_img = 0;
+
 private:
     bool loop;
-    int current_img = 0,fps = 24;
+    int fps = 24;
     std::vector<ImageData> images;
     scalar scale = 1;
 };
