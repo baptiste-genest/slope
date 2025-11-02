@@ -185,7 +185,7 @@ std::vector<slope::ImageData> slope::loadGif(path filename)
 {
     auto H = std::to_string(std::hash<std::string>{}(filename));
     std::vector<slope::ImageData> data;
-    std::string folder = slope::Options::ProjectDataPath + "cache/" + H;
+    std::string folder = slope::Options::CachePath + H;
     if (!io::folder_exists(folder) || Options::ignore_cache){
         spdlog::info("Decomposing gif " + filename.string());
         system(("rm -rf " + folder + " 2> /dev/null").data());
