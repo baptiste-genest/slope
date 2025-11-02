@@ -31,21 +31,21 @@ void slope::Primitive::handleInnerTime() {
 void slope::Primitive::play(const TimeObject &t, const StateInSlide &sis) {
     enable();
     auto it = t(this);
-    updater(it,this);
     draw(it,sis);
+    updater(it,this);
 }
 
 void slope::Primitive::intro(const TimeObject &t, const StateInSlide &sis) {
     enable();
     auto it = t(this);
-    updater(it,this);
     playIntro(it,transition.intro(it,sis));
+    updater(it,this);
 }
 
 void slope::Primitive::outro(const TimeObject &t, const StateInSlide &sis) {
     auto it = t(this);
-    updater(it,this);
     playOutro(it,transition.outro(it,sis));
+    updater(it,this);
 }
 
 bool slope::Primitive::isEnabled() const {return enabled;}
