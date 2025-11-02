@@ -1,11 +1,9 @@
 #ifndef LATEXMACROS_H
 #define LATEXMACROS_H
 
-#include <string>
 #include "../libslope.h"
 #include "Image.h"
 #include "io.h"
-#include <stdarg.h>
 #include "Options.h"
 
 namespace slope {

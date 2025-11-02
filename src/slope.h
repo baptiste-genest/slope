@@ -15,9 +15,8 @@
 #include "content/io.h"
 #include "content/Graphics2D/Curve2D.h"
 #include "content/CameraView.h"
-#include "content/Sliders.h"
+#include "content/ImGuiWidgets.h"
 #include "slides/Panel.h"
-#include "extern/svg.hpp"
 #include "content/BackgroundColor.h"
 #include "content/plots/Plot.h"
 

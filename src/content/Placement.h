@@ -27,46 +27,22 @@ struct RelativePlacement {
     ScreenPrimitivePtr ptr_other = nullptr;
 };
 
-/*
-inline PrimitiveInSlide PlaceABelowB(ScreenPrimitivePtr ptr,const PrimitiveInSlide& other,scalar padding = 0.01) {
-    vec2 P;
-    P(0) = other.second.relative_anchor_pos(0);
-    P(0) = other.second.relative_anchor_pos(0)
-            + other.first->getRelativeSize()(0)*0.5
-            + padding
-            + ptr->getRelativeSize()(0)*0.5
-            ;
-    return {ptr,P};
-}
 
-inline PrimitiveInSlide PlaceANextToB(ScreenPrimitivePtr ptr,const PrimitiveInSlide& other,int side = 1,scalar padding = 0.01) {
-    vec2 P;
-    P(0) = other.second.relative_anchor_pos(0);
-    P(0) = other.second.relative_anchor_pos(0)
-          + side*(other.first->getRelativeSize()(0)*0.5
-                    + padding
-                    + ptr->getRelativeSize()(0)*0.5)
-        ;
-    return {ptr,P};
-}
-*/
-
-
-    enum placeX {
-        REL_LEFT,
-        ABS_LEFT,
-        CENTER_X,
-        SAME_X,
-        REL_RIGHT,
-        ABS_RIGHT
-    };
-    enum placeY {
-        REL_TOP,
-        ABS_TOP,
-        CENTER_Y,
-        SAME_Y,
-        REL_BOTTOM,
-        ABS_BOTTOM
+enum placeX {
+    REL_LEFT,
+    ABS_LEFT,
+    CENTER_X,
+    SAME_X,
+    REL_RIGHT,
+    ABS_RIGHT
+};
+enum placeY {
+    REL_TOP,
+    ABS_TOP,
+    CENTER_Y,
+    SAME_Y,
+    REL_BOTTOM,
+    ABS_BOTTOM
     };
 
 struct PlaceRelative : public RelativePlacement {
@@ -107,13 +83,7 @@ inline PlaceRelative PlaceAbove(ScreenPrimitivePtr ptr,ScreenPrimitivePtr other,
 }
 
 
-inline PrimitiveInSlide PlaceLeft(ScreenPrimitivePtr ptr,scalar y = 0.5,scalar padding = 0.1) {
-    vec2 P;
-    auto S =ptr->getRelativeSize();
-    P(0) = S(0)*0.5+padding;
-    P(1) = y;
-    return {ptr,StateInSlide(P)};
-}
+PrimitiveInSlide PlaceLeft(ScreenPrimitivePtr ptr,scalar y = 0.5,scalar padding = 0.1);
 
 
 inline PrimitiveInSlide PlaceRight(ScreenPrimitivePtr ptr,scalar y = 0.5,scalar padding = 0.1) {

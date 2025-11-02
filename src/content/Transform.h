@@ -2,7 +2,6 @@
 #define TRANSFORM_H
 
 #include "libslope.h"
-#include <glm/gtx/matrix_interpolation.hpp>
 #include "io.h"
 #include "Options.h"
 

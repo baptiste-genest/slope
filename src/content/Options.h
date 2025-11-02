@@ -5,7 +5,7 @@
 #define TOSTRING(x) STRING(x)
 #include <string>
 
-#include "Eigen/Dense"
+#include "../libslope.h"
 
 namespace slope {
 struct Options{

@@ -2,8 +2,6 @@
 #define POLYSCOPEPRIMITIVE_H
 
 #include "primitive.h"
-#include "polyscope/structure.h"
-#include "polyscope/surface_mesh.h"
 #include "StateInSlide.h"
 #include "color_tools.h"
 #include "Options.h"
@@ -15,75 +13,35 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
 class PolyscopePrimitive : public Primitive
 {
 public:
-    PolyscopePrimitive() {}
+    PolyscopePrimitive();
 
-    void initPolyscopeData(polyscope::Structure* pcptr) {
-        polyscope_ptr = pcptr;
-        polyscope_ptr->setEnabled(false);
-        count++;
-    }
+    void initPolyscopeData(polyscope::Structure* pcptr);
 
-    inline std::string getPolyscopeName() const {
-        return "polyscope_obj" + std::to_string(pid);
-    }
+    std::string getPolyscopeName() const;
 
-    inline PrimitiveInSlide at(scalar alpha=1) {
-        StateInSlide sis;
-        sis.alpha = alpha;
-        return {get(pid),sis};
-    }
+    PrimitiveInSlide at(scalar alpha=1);
 
     // Primitive interface
 public:
-    void draw(const TimeObject& t, const StateInSlide &sis) override {
-        polyscope_ptr->setTransparency(sis.alpha);
-        polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
-        updater(t,this);
-    }
-    void playIntro(const TimeObject& t,const StateInSlide &sis) override {
-        polyscope_ptr->setTransparency(sis.alpha);
-        polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
-        updater(t,this);
-    }
-    void playOutro(const TimeObject& t,const StateInSlide &sis) override {
-        polyscope_ptr->setTransparency(sis.alpha);
-        polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
-        updater(t,this);
-    }
+    void draw(const TimeObject& t, const StateInSlide &sis) override;
+    void playIntro(const TimeObject& t,const StateInSlide &sis) override;
+    void playOutro(const TimeObject& t,const StateInSlide &sis) override;
 
-    inline PrimitiveInSlide at(const Transform& T,scalar alpha=1) {
-        StateInSlide sis(T);
-        sis.alpha = alpha;
-        return {get(pid),sis};
-    }
+    PrimitiveInSlide at(const Transform& T,scalar alpha=1);
 
-    inline PrimitiveInSlide at(scalar x,scalar y,scalar z,scalar alpha=1) {
-        return at(vec(x,y,z),alpha);
-    }
+    PrimitiveInSlide at(scalar x,scalar y,scalar z,scalar alpha=1);
 
-    inline PrimitiveInSlide at(const vec& x,scalar alpha=1) {
-        return at(Transform::Translation(x),alpha);
-    }
+    PrimitiveInSlide at(const vec& x,scalar alpha=1);
 
-    inline PrimitiveInSlide at(const std::string& label,scalar alpha = 1){
-        StateInSlide sis;
-        sis.alpha = alpha;
-        sis.persistentTransform = PersistentTransform(label);
-        return {get(pid),sis};
-    }
+    PrimitiveInSlide at(const std::string& label,scalar alpha = 1);
 
 
-    void forceDisable() override {
-        polyscope_ptr->setEnabled(false);
-    }
+    void forceDisable() override;
 
-    void forceEnable() override {
-        polyscope_ptr->setEnabled(true);
-        polyscope_ptr->setTransparency(0);
-    }
-    bool isScreenSpace() const override {return false;}
+    void forceEnable() override;
+    bool isScreenSpace() const override;
 
-    static void resetColorId() {current_color_id = 0;}
+    static void resetColorId();
 
     static glm::vec3 getColor();
 

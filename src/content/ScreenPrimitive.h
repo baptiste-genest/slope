@@ -15,75 +15,35 @@ class ScreenPrimitive : public Primitive
 protected:
     AnchorPtr anchor;
 public:
-    ScreenPrimitive() {
-        anchor = AbsoluteAnchor::Add(vec2(0,0));
-    }
+    ScreenPrimitive();
 
-    static ScreenPrimitivePtr get(PrimitiveID id) {
-        return std::dynamic_pointer_cast<ScreenPrimitive>(Primitive::get(id));
-    }
+    static ScreenPrimitivePtr get(PrimitiveID id);
 
-    bool isScreenSpace() const override {
-        return true;
-    }
+    bool isScreenSpace() const override;
 
-    AnchorPtr getAnchor() const {return anchor;}
+    AnchorPtr getAnchor() const;
 
-    inline void updateAnchor(const vec2& p){
-        anchor->updatePos(p);
-    }
+    void updateAnchor(const vec2& p);
 
 
-    inline ScreenPrimitiveInSlide at(const vec2& p,scalar alpha=1) {
-        StateInSlide sis(p);
-        anchor->updatePos(p);
-        sis.alpha = alpha;
-        return {get(pid),sis};
-    }
+    ScreenPrimitiveInSlide at(const vec2& p,scalar alpha=1);
 
-    inline ScreenPrimitiveInSlide at(StateInSlide sis) {
-        return {get(pid),sis};
-    }
+    ScreenPrimitiveInSlide at(StateInSlide sis);
 
 
-    inline ScreenPrimitiveInSlide at(scalar x,scalar y,scalar alpha=1) {
-        return at(vec2(x,y),alpha);
-    }
+    ScreenPrimitiveInSlide at(scalar x,scalar y,scalar alpha=1);
 
 
-    inline ScreenPrimitiveInSlide at(std::string label,scalar alpha = 1) {
-        StateInSlide sis;
-        sis.anchor = LabelAnchor::Add(label);
-        sis.alpha = alpha;
-        return {get(pid),sis};
-    }
+    ScreenPrimitiveInSlide at(std::string label,scalar alpha = 1);
 
-    inline ScreenPrimitiveInSlide at(const std::function<vec2()>& placer) {
-        StateInSlide sis;
-        sis.anchor = DynamicAnchor::Add(placer);
-        return {get(pid),sis};
-    }
-    inline ScreenPrimitiveInSlide track(const std::function<vec()>& toTrack,vec2 offset = vec2::Zero()) {
-        StateInSlide sis;
-        sis.anchor = DynamicAnchor::AddTracker(toTrack);
-        offset(1) *= -1;
-        sis.placer = [offset](vec2 p) { return vec2(p+offset); };
-        return {get(pid),sis};
-    }
-    inline ScreenPrimitiveInSlide at(const vec& worldPos,const vec2& offset = vec2::Zero()) {
-        StateInSlide sis;
-        sis.anchor = DynamicAnchor::Add(worldPos);
-        sis.placer = [offset](vec2 p) { return vec2(p+offset); };
-        return {get(pid),sis};
-    }
+    ScreenPrimitiveInSlide at(const std::function<vec2()>& placer);
+    ScreenPrimitiveInSlide track(const std::function<vec()>& toTrack,vec2 offset = vec2::Zero());
+    ScreenPrimitiveInSlide at(const vec& worldPos,const vec2& offset = vec2::Zero());
 
 
     virtual vec2 getSize() const = 0;
 
-    Size getRelativeSize() const {
-        auto s = getSize();
-        return Size(s(0)/Options::ScreenResolutionWidth,s(1)/Options::ScreenResolutionHeight);
-    }
+    Size getRelativeSize() const;
 
 };
 

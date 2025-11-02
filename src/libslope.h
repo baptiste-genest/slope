@@ -1,37 +1,7 @@
 #ifndef LIBSLOPE_H
 #define LIBSLOPE_H
 
-#include <string>
-
-#include <vector>
-#include <map>
-#include <set>
-#include <memory>
-
-#include <cmath>
-#include <iostream>
-
-#include <chrono>
-#include <ratio>
-#include <functional>
-
-#include <filesystem>
-#include <regex>
-
-#ifdef __APPLE__
-//#include "Eigen/Dense"
-#include "Eigen/Sparse"
-#include "Eigen/Core"
-#else
-//#include "eigen3/Eigen/Dense"
-#include "eigen3/Eigen/Sparse"
-#include "eigen3/Eigen/Core"
-#endif
-
-#include "polyscope/polyscope.h"
-#include "polyscope/floating_quantity_structure.h"
-
-#include "extern/json.hpp"
+#include "PCH.h"
 
 namespace slope {
 

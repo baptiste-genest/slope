@@ -1,7 +1,6 @@
 #ifndef CAMERAVIEW_H
 #define CAMERAVIEW_H
 
-#include "polyscope/polyscope.h"
 #include "PolyscopePrimitive.h"
 #include <fstream>
 

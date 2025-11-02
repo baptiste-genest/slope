@@ -148,20 +148,46 @@ slope::Gif::GifPtr slope::Gif::Add(std::string filename,int fps,scalar scale,boo
     return rslt;
 }
 
+slope::Gif::Gif(const std::vector<ImageData> &images, int fps, scalar scale, bool loop) : images(images),fps(fps),scale(scale),loop(loop) {}
+
+bool slope::Gif::isValid() {return images[0].width != -1;}
+
+void slope::Gif::display(const StateInSlide &sis) const {
+    anchor->updatePos(sis.getPosition());
+    DisplayImage(images[current_img],sis,scale*sis.getScale());
+}
+
 void slope::Gif::draw(const TimeObject &t, const StateInSlide &sis)
 {
-    display(sis);
     if (loop)
         current_img = (int)std::floor(t.inner_time*fps) % int(images.size());
     else
         current_img = std::min((int)std::floor(t.inner_time*fps),int(images.size())-1);
+    display(sis);
+}
+
+void slope::Gif::playIntro(const TimeObject &t, const StateInSlide &sis) {
+    auto sist = sis;
+    sist.alpha = smoothstep(t.transitionParameter)*sis.alpha;
+    display(sist);
+}
+
+void slope::Gif::playOutro(const TimeObject &t, const StateInSlide &sis)
+{
+    auto sist = sis;
+    sist.alpha = smoothstep(1-t.transitionParameter)*sis.alpha;
+    display(sist);
+}
+
+slope::Primitive::Size slope::Gif::getSize() const {
+    return Image::getScaledSize(images[current_img],scale);
 }
 
 std::vector<slope::ImageData> slope::loadGif(path filename)
 {
     auto H = std::to_string(std::hash<std::string>{}(filename));
     std::vector<slope::ImageData> data;
-    std::string folder = slope::Options::CachePath + H;
+    std::string folder = slope::Options::ProjectDataPath + "cache/" + H;
     if (!io::folder_exists(folder) || Options::ignore_cache){
         spdlog::info("Decomposing gif " + filename.string());
         system(("rm -rf " + folder + " 2> /dev/null").data());

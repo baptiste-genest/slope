@@ -2,7 +2,6 @@
 #define CURVE3D_H
 
 #include "PolyscopePrimitive.h"
-#include "polyscope/curve_network.h"
 #include "../math/Parametrization.h"
 
 namespace slope {

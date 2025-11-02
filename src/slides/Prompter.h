@@ -3,12 +3,6 @@
 
 #include "../libslope.h"
 #include "../content/primitive.h"
-#include <iostream>
-#include <fstream>
-#include <sys/types.h>
-#include <iostream>
-#include <signal.h>
-#include <unistd.h>
 
 
 namespace slope {

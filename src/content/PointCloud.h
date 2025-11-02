@@ -2,7 +2,6 @@
 #define POINTCLOUD_H
 
 #include "PolyscopePrimitive.h"
-#include "polyscope/point_cloud.h"
 
 namespace slope {
 

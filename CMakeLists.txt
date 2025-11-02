@@ -46,6 +46,9 @@ add_library(slope STATIC ${SRC_lib})
 target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog  OpenGL::GL geometry-central)
 target_compile_features(slope PUBLIC cxx_std_20)
 target_include_directories(slope PUBLIC src/ PRIVATE)
+
+target_precompile_headers(slope PUBLIC src/PCH.h)
+
 set_target_properties(slope PROPERTIES PUBLIC_HEADER "${HEADER_LIST}")
 
 ##INSTALL

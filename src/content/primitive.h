@@ -26,98 +26,54 @@ struct Primitive {
 
     virtual bool isScreenSpace() const = 0;
 
-    static void addPrimitive(PrimitivePtr ptr) {
-        ptr->pid = primitives.size();
-        primitives.push_back(ptr);
-    }
+    static void addPrimitive(PrimitivePtr ptr);
 
-    static PrimitivePtr get(PrimitiveID id){
-        return primitives[id];
-    }
+    static PrimitivePtr get(PrimitiveID id);
 
     template<class T>
     static std::shared_ptr<T> get(PrimitiveID id){
         return std::static_pointer_cast<T>(primitives[id]);
     }
 
-    index relativeSlideIndex(index in) {
-        return in - first_slide_to_appear;
-    }
+    index relativeSlideIndex(index in);
 
-    void handleInnerTime() {
-        inner_time = Time::now();
-    }
+    void handleInnerTime();
 
-    static int updater_framerate;
+    void play(const TimeObject& t,const StateInSlide& sis);
 
-    void play(const TimeObject& t,const StateInSlide& sis) {
-        enable();
-        auto it = t(this);
-        static int frame_count = 0;
-        frame_count %= updater_framerate;
-        if (frame_count == 0)
-            updater(it,this);
-        frame_count++;
-        draw(it,sis);
-    }
+    void intro(const TimeObject& t,const StateInSlide& sis);
 
-    void intro(const TimeObject& t,const StateInSlide& sis) {
-        enable();
-        auto it = t(this);
-        playIntro(it,transition.intro(it,sis));
-    }
+    void outro(const TimeObject& t,const StateInSlide& sis);
 
-    void outro(const TimeObject& t,const StateInSlide& sis) {
-        auto it = t(this);
-        playOutro(it,transition.outro(it,sis));
-    }
-
-    bool isEnabled() const {return enabled;}
+    bool isEnabled() const;
 
 
-    void disable() {
-        if (!enabled)
-            return;
-        enabled = false;
-        forceDisable();
-    }
+    void disable();
 
-    void enable() {
-        if (enabled)
-            return;
-        enabled = true;
-        forceEnable();
-        handleInnerTime();
-    }
+    void enable();
 
-    TimeTypeSec getInnerTime(){
-        return TimeFrom(inner_time);
-    }
+    TimeTypeSec getInnerTime();
 
 
     bool exclusive = false;
-    bool isExclusive() const {
-        return exclusive;
-    }
+    bool isExclusive() const;
 
-    virtual void initPolyscope() {}
+    virtual void initPolyscope();
 
-    void setDepth(int d) {depth = d;}
-    int getDepth() const {return depth;}
+    void setDepth(int d);
+    int getDepth() const;
 
     TransitionAnimator transition;
     static TransitionAnimator DefaultTransition;
 
-    void upFirstSlideNumber(int f) {
-        first_slide_to_appear = std::min(first_slide_to_appear,f);
-    }
+    void upFirstSlideNumber(int f);
 
 protected:
     virtual void draw(const TimeObject& time,const StateInSlide& sis) = 0;
     virtual void playIntro(const TimeObject& t,const StateInSlide& sis) = 0;
     virtual void playOutro(const TimeObject& t,const StateInSlide& sis) = 0;
-    virtual void forceDisable() {};
-    virtual void forceEnable() {};
+    virtual void forceDisable();;
+    virtual void forceEnable();;
 
     int depth = 0;
 

@@ -4,7 +4,6 @@
 #include "../libslope.h"
 #include "Image.h"
 #include "io.h"
-#include <stdarg.h>
 #include "Options.h"
 #include "LateXMacros.h"
 

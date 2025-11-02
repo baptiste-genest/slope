@@ -57,40 +57,24 @@ class Gif : public ScreenPrimitive {
 public:
     using GifPtr = std::shared_ptr<Gif>;
 
-    Gif(const std::vector<ImageData>& images,int fps,scalar scale,bool loop) : images(images),fps(fps),scale(scale),loop(loop) {}
-    bool isValid() {return images[0].width != -1;}
+    Gif(const std::vector<ImageData>& images,int fps,scalar scale,bool loop);
+    bool isValid();
 
-    void display(const StateInSlide& sis) const {
-        anchor->updatePos(sis.getPosition());
-        DisplayImage(images[current_img],sis,scale*sis.getScale());
-    }
+    void display(const StateInSlide& sis) const;
 
     static GifPtr Add(std::string filename,int fps = 10,scalar scale = 1.,bool loop = true);
 
     void draw(const TimeObject& t, const StateInSlide &sis) override;
 
-    void playIntro(const TimeObject& t, const StateInSlide &sis) override {
-        auto sist = sis;
-        sist.alpha = smoothstep(t.transitionParameter)*sis.alpha;
-        display(sist);
-    }
+    void playIntro(const TimeObject& t, const StateInSlide &sis) override;
 
-    void playOutro(const TimeObject& t, const StateInSlide &sis) override
-    {
-        auto sist = sis;
-        sist.alpha = smoothstep(1-t.transitionParameter)*sis.alpha;
-        display(sist);
-    }
+    void playOutro(const TimeObject& t, const StateInSlide &sis) override;
 
-    Size getSize() const override {
-        return Image::getScaledSize(images[current_img],scale);
-    }
-
-    int current_img = 0;
+    Size getSize() const override;
 
 private:
     bool loop;
-    int fps = 24;
+    int current_img = 0,fps = 24;
     std::vector<ImageData> images;
     scalar scale = 1;
 };

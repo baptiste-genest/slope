@@ -8,36 +8,12 @@
 #include "../content/PrimitiveGroup.h"
 //#include "Panel.h"
 
-#include <glm/gtx/matrix_interpolation.hpp>
 
 namespace slope {
 
-inline StateInSlide transition(parameter t, const StateInSlide &sa, const StateInSlide &sb){
-    StateInSlide St;
+StateInSlide transition(parameter t, const StateInSlide &sa, const StateInSlide &sb);
 
-    t = smoothstep(t);
-
-    St.setOffset(lerp(sa.getPosition(),sb.getPosition(),t));
-    St.alpha = std::lerp(sa.alpha,sb.alpha,t);
-    St.angle = std::lerp(sa.angle,sb.angle,t);
-    St.LocalToWorld = Transform::Interpolate(sa.getLocalToWorld(),sb.getLocalToWorld(),t);
-    St.scale = std::lerp(sa.getScale(),sb.getScale(),t);
-    return St;
-}
-
-inline vec2 computeOffsetToMean(const Slide& buffer) {
-    double x_min = 100,y_min = 100,x_max = -100,y_max = -100;
-    for (auto&& [ptr,sis] : buffer) {
-        auto pos = sis.getPosition();
-        auto size = std::dynamic_pointer_cast<ScreenPrimitive>(ptr)->getRelativeSize();
-        x_min = std::min(x_min,pos(0)-size(0)*0.5f);
-        y_min = std::min(y_min,pos(1)-size(1)*0.5f);
-        x_max = std::max(x_max,pos(0)+size(0)*0.5f);
-        y_max = std::max(y_max,pos(1)+size(1)*0.5f);
-    }
-    vec2 bbox = vec2(x_max-x_min,y_max-y_min);
-    return bbox*0.5f;
-}
+vec2 computeOffsetToMean(const Slide& buffer);
 
 class SlideManager;
 using PlacementTemplate = std::function<void(SlideManager&,ScreenPrimitivePtr)>;
@@ -54,9 +30,9 @@ protected:
 
     std::vector<TransitionSets> transitions;
 
-    Primitives& common(TransitionSets& S) {return std::get<0>(S);}
-    Primitives& uniquePrevious(TransitionSets& S) {return std::get<1>(S);}
-    Primitives& uniqueNext(TransitionSets& S) {return std::get<2>(S);}
+    Primitives& common(TransitionSets& S);
+    Primitives& uniquePrevious(TransitionSets& S);
+    Primitives& uniqueNext(TransitionSets& S);
 
     std::vector<Primitives> appearing_primitives;
 
@@ -75,100 +51,45 @@ public:
         show.addToLastSlide(ptr,StateInSlide(vec2(0.5,0.5)));
     };
 
-    void newFrame() {
-        handleCenter();
-        addSlide(Slide());
-        PolyscopePrimitive::resetColorId();
-        last_primitive_inserted = nullptr;
-        last_screen_primitive_inserted = nullptr;
-    }
+    void newFrame();
 
-    void duplicateLastSlide(){slides.push_back(slides.back());}
+    void duplicateLastSlide();
 
-    void addSlide(const Slide& s) {
-        initialized = false;
-        slides.push_back(s);
-    }
+    void addSlide(const Slide& s);
 
     template<typename... S>
     void addSlides(const S& ... x) {
         (addSlide(x), ...);
     }
 
-    inline int getNumberSlides() const {
-        return slides.size();
-    }
+    int getNumberSlides() const;
 
-    inline Slide& getCurrentSlide(){return slides.back();}
-    inline Slide& getSlide(index i){return slides[i];}
+    Slide& getCurrentSlide();
+    Slide& getSlide(index i);
 
-    void addToLastSlide(const PrimitiveInSlide& pis) {
-        addToLastSlide(pis.first,pis.second);
-    }
+    void addToLastSlide(const PrimitiveInSlide& pis);
 
-    void addToLastSlide(PrimitivePtr ptr,const StateInSlide& sis) {
-        initialized = false;
-        if (slides.empty())
-            slides.push_back(Slide());
-        if (ptr->isScreenSpace()){
-            last_screen_primitive_inserted = std::static_pointer_cast<ScreenPrimitive>(ptr);
-            last_screen_primitive_inserted->updateAnchor(sis.getPosition());
-            if (centering){
-                if (center_buffer.empty())
-                    centering_root = last_screen_primitive_inserted;
-                center_buffer.add(ptr,sis);
-            }
-        }
-        last_primitive_inserted = ptr;
-        slides.back().add(ptr,sis);
-    }
+    void addToLastSlide(PrimitivePtr ptr,const StateInSlide& sis);
 
 
-    void removeFromCurrentSlide(PrimitivePtr ptr) {
-        slides.back().remove(ptr);
-    }
+    void removeFromCurrentSlide(PrimitivePtr ptr);
 
-    void removeFromCurrentSlide(const PrimitiveGroup& G) {
-        for (const auto& p : G.buffer)
-            removeFromCurrentSlide(p.first);
-    }
+    void removeFromCurrentSlide(const PrimitiveGroup& G);
 
-    Slide& getLastSlide() {
-        return slides.back();
-    }
+    Slide& getLastSlide();
 
-    ScreenPrimitivePtr getLastScreenPrimitive() {
-        return last_screen_primitive_inserted;
-    }
-    PrimitivePtr getLastPrimitive() {
-        return last_primitive_inserted;
-    }
+    ScreenPrimitivePtr getLastScreenPrimitive();
+    PrimitivePtr getLastPrimitive();
     struct remove_last{};
     struct in_next_frame{};
     struct new_frame{
         bool same_title = false;
     };
 
-    void handleCenter() {
-        if (!centering)
-            return;
-        centering = false;
-        vec2 root_offset =  computeOffsetToMean(center_buffer) - centering_root->getRelativeSize()*0.5;
-        for (int i = center_start;i<getNumberSlides();++i)
-            slides[i][centering_root].setOffset(-root_offset);
-        center_buffer = Slide();
-    }
+    void handleCenter();
 
     struct center_tag{bool open;};
-    SlideManager& operator<<(center_tag ct) {
-        if (ct.open){
-            centering = true;
-            center_start = getNumberSlides()-1;
-        } else {
-            handleCenter();
-        }
-        return *this;
-    }
+    SlideManager& operator<<(center_tag ct);
 };
 
 constexpr SlideManager::remove_last removeLast;
@@ -196,39 +117,11 @@ inline SlideManager& operator<<(SlideManager& SM,SlideManager::remove_last) {
 }
 
 
-inline SlideManager& operator<<(SlideManager& SM,SlideManager::new_frame nf) {
-    SM.newFrame();
-    if (nf.same_title){
-        int i = SM.getNumberSlides()-2;
-        auto ex = SM.getSlide(i).title_primitive;
-        if (ex != nullptr){
-            SM.addToLastSlide(ex,SM.getSlide(i)[ex]);
-        }
-    }
-    return SM;
-}
+SlideManager& operator<<(SlideManager& SM,SlideManager::new_frame nf);
 
-inline SlideManager& operator<<(SlideManager& SM,const Replace& R) {
-    PrimitiveInSlide old;
-    if (!R.ptr_other)
-        old = {SM.getLastScreenPrimitive(),SM.getLastSlide()[SM.getLastScreenPrimitive()]};
-    else
-        old = {R.ptr_other,SM.getLastSlide()[R.ptr_other]};
-    auto pos = old.second;
-    SM.removeFromCurrentSlide(old.first);
-    SM.addToLastSlide(R.ptr,pos);
-    return SM;
-}
+SlideManager& operator<<(SlideManager& SM,const Replace& R);
 
-inline SlideManager& operator<<(SlideManager& SM,const RelativePlacement& P) {
-    StateInSlide sis;
-    if (!P.ptr_other)
-        sis = P.computePlacement({SM.getLastScreenPrimitive(),SM.getLastSlide()[SM.getLastScreenPrimitive()]});
-    else
-        sis = P.computePlacement({P.ptr_other,SM.getLastSlide()[P.ptr_other]});
-    SM.addToLastSlide(P.ptr,sis);
-    return SM;
-}
+SlideManager& operator<<(SlideManager& SM,const RelativePlacement& P);
 
 
 inline SlideManager& operator<<(SlideManager& SM,PrimitiveInSlide obj) {
@@ -236,14 +129,7 @@ inline SlideManager& operator<<(SlideManager& SM,PrimitiveInSlide obj) {
     return SM;
 }
 
-inline SlideManager& operator<<(SlideManager& SM,PrimitivePtr ptr) {
-    if (!SM.getLastScreenPrimitive() || !ptr->isScreenSpace())
-        SM.addToLastSlide(ptr,StateInSlide(vec2(0.5,0.5)));
-    else {
-        SM.templater(SM,std::static_pointer_cast<ScreenPrimitive>(ptr));
-    }
-    return SM;
-}
+SlideManager& operator<<(SlideManager& SM,PrimitivePtr ptr);
 
 inline SlideManager& operator<<(SlideManager& SM,const StateInSlide& sis) {
     SM.getLastSlide()[SM.getLastScreenPrimitive()] = sis;
