@@ -137,7 +137,6 @@ void slope::DisplayImage(const ImageData &data, const StateInSlide &sis, scalar 
         P.y -= data.height*0.5*scale;
         ImGui::SetCursorPos(P);
         ImGui::ImageWithBg(data.texture, ImVec2(data.width*scale,data.height*scale), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),ImVec4(0, 0, 0, 0), color_multiplier);
-//        ImGui::Image((intptr_t)data.texture, ImVec2(data.width*scale,data.height*scale), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), color_multiplier);
     }
 }
 
@@ -159,17 +158,15 @@ void slope::Gif::display(const StateInSlide &sis) const {
 
 void slope::Gif::draw(const TimeObject &t, const StateInSlide &sis)
 {
-    if (loop)
-        current_img = (int)std::floor(t.inner_time*fps) % int(images.size());
-    else
-        current_img = std::min((int)std::floor(t.inner_time*fps),int(images.size())-1);
     display(sis);
+    upframe();
 }
 
 void slope::Gif::playIntro(const TimeObject &t, const StateInSlide &sis) {
     auto sist = sis;
     sist.alpha = smoothstep(t.transitionParameter)*sis.alpha;
     display(sist);
+    upframe();
 }
 
 void slope::Gif::playOutro(const TimeObject &t, const StateInSlide &sis)
@@ -177,6 +174,7 @@ void slope::Gif::playOutro(const TimeObject &t, const StateInSlide &sis)
     auto sist = sis;
     sist.alpha = smoothstep(1-t.transitionParameter)*sis.alpha;
     display(sist);
+    upframe();
 }
 
 slope::Primitive::Size slope::Gif::getSize() const {

@@ -10,8 +10,7 @@ slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitive
     auto Y = this->Y;
 
     RelativePlacer rp = [X,Y,ptr,paddingy,paddingx,other] (vec2 other_position) {
-        auto S = other.first->getRelativeSize()*other.second.getScale();
-//        std::cout << S << std::endl;
+        vec2 S = other.first->getRelativeSize()*other.second.getScale();
         vec2 P;
         switch(X) {
         case REL_LEFT:
@@ -69,7 +68,6 @@ slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitive
             P(1) = 1-paddingy - ptr->getRelativeSize()(1)*0.5;
             break;
         }
-//        std::cout << P.transpose() << std::endl;;
         return P;
     };
     StateInSlide sis;

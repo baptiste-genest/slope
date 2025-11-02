@@ -72,9 +72,18 @@ public:
 
     Size getSize() const override;
 
+    int current_img = 0;
+
+
 private:
+    void upframe() {
+        if (loop)
+            current_img = (int)std::floor(t.inner_time*fps) % int(images.size());
+        else
+            current_img = std::min((int)std::floor(t.inner_time*fps),int(images.size())-1);
+    }
     bool loop;
-    int current_img = 0,fps = 24;
+    int fps = 24;
     std::vector<ImageData> images;
     scalar scale = 1;
 };
