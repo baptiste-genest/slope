@@ -76,7 +76,7 @@ public:
 
 
 private:
-    void upframe() {
+    void upframe(const TimeObject& t) {
         if (loop)
             current_img = (int)std::floor(t.inner_time*fps) % int(images.size());
         else

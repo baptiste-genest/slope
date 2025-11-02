@@ -159,14 +159,14 @@ void slope::Gif::display(const StateInSlide &sis) const {
 void slope::Gif::draw(const TimeObject &t, const StateInSlide &sis)
 {
     display(sis);
-    upframe();
+    upframe(t);
 }
 
 void slope::Gif::playIntro(const TimeObject &t, const StateInSlide &sis) {
     auto sist = sis;
     sist.alpha = smoothstep(t.transitionParameter)*sis.alpha;
     display(sist);
-    upframe();
+    upframe(t);
 }
 
 void slope::Gif::playOutro(const TimeObject &t, const StateInSlide &sis)
@@ -174,7 +174,7 @@ void slope::Gif::playOutro(const TimeObject &t, const StateInSlide &sis)
     auto sist = sis;
     sist.alpha = smoothstep(1-t.transitionParameter)*sis.alpha;
     display(sist);
-    upframe();
+    upframe(t);
 }
 
 slope::Primitive::Size slope::Gif::getSize() const {
