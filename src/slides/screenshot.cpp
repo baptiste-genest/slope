@@ -3,6 +3,7 @@
 #ifdef __APPLE__
 void slope::screenshot(std::string file)
 {
+  spdlog::error("not implemented yet for APPLE");
 }
 #else
 
