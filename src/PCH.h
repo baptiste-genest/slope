@@ -62,8 +62,10 @@
 #include <unistd.h>
 
 #include "polyscope/screenshot.h"
+#ifdef !__APPLE__
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#endif
 #include <cstdint>
 #include <cstring>
 #include <vector>
