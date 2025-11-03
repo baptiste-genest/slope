@@ -1,17 +1,11 @@
-#include "polyscope/polyscope.h"
-#include "../../src/slope.h"
+#include "slope.h"
 
 using namespace slope;
 
 Slideshow show;
 
 void init() {
-  //Slideshow title
-  show << Title("Hello World!")->at(slope::CENTER);
-  
-  //New slide
-  auto title = Title("The beauty of $\\pi$ ")->at(slope::TOP);
-  show << newFrame << title;
+  show << Title("Hello World!")->at(CENTER);
 }
 
 int main(int argc,char** argv)
@@ -19,10 +13,6 @@ int main(int argc,char** argv)
   show.init("slope_PROJECT_NAME",argc,argv);
   
   init();
-  
-  polyscope::state::userCallback = [](){
-    show.play();
-  };
-  polyscope::show();
+  show.run();
   return 0;
 }
