@@ -13,7 +13,7 @@ class Slide;
 struct Position {
     virtual vec2 getPosition() const = 0;
     virtual void writeAtLabel(scalar,scalar,bool) const {}
-    virtual bool isPersistant() const { return false; }
+    virtual bool isPersistent() const { return false; }
 };
 
 using PositionPtr = std::shared_ptr<Position>;
@@ -47,15 +47,15 @@ struct RelativePosition : public Position {
     }
 };
 
-struct PersistantPosition : public Position {
+struct PersistentPosition : public Position {
     std::string label;
 
-    PersistantPosition(std::string label) : label(label) {}
+    PersistentPosition(std::string label) : label(label) {}
 
     void setLabel(std::string label);
     void writeAtLabel(double x,double y,bool overwrite) const override;
     vec2 readFromLabel() const;
-    virtual bool isPersistant() const override { return true; }
+    virtual bool isPersistent() const override { return true; }
 
     virtual vec2 getPosition() const override {
         return readFromLabel();

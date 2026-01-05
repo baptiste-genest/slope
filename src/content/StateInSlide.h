@@ -66,7 +66,7 @@ struct StateInSlide {
     }
 
     scalar getScale() const {
-        if (anchor->isPersistant())
+        if (anchor->isPersistent())
             return anchor->getScale();
         return scale;
     }

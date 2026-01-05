@@ -1,5 +1,5 @@
-#ifndef PERSISTANTQUANTITY_H
-#define PERSISTANTQUANTITY_H
+#ifndef PERSISTENTQUANTITY_H
+#define PERSISTENTQUANTITY_H
 
 #include "../slope.h"
 
@@ -29,7 +29,7 @@ T ReadFromFile(const std::string& path) {
 
 
 template<class T>
-class PersistantQuantity
+class PersistentQuantity
 {
     std::string label;
 
@@ -39,7 +39,7 @@ public:
         return !label.empty();
     }
 
-    PersistantQuantity(std::string label);
+    PersistentQuantity(std::string label);
 
     std::string getPath() const {
         std::string type_name = typeid(T).name();
@@ -57,4 +57,4 @@ public:
 
 }
 
-#endif // PERSISTANTQUANTITY_H
+#endif // PERSISTENTQUANTITY_H
