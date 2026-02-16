@@ -60,6 +60,8 @@ struct Latex : public TextualPrimitive {
             context += "\\usepackage{"+pkg+"}\n";
     }
 
+    static void AddFileToPrefix(const path& p);
+
 
     bool isFormula;
     scalar scale;

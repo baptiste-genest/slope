@@ -47,6 +47,14 @@ void slope::Latex::DeclareMathOperator(const TexObject &name, const TexObject &c
     context += "\\DeclareMathOperator*{\\" + name + "}{" + content + "}";
 }
 
+void slope::Latex::AddFileToPrefix(const path &p)
+{
+    std::ifstream t(formatPath(p));
+    std::stringstream buffer;
+    buffer << t.rdbuf();
+    context += buffer.str();
+}
+
 slope::path slope::GetLatexPath(const TexObject &tex,bool formula)
 {
     std::string bit = formula ? "1" : "0";
