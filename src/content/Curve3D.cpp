@@ -5,6 +5,10 @@ slope::Curve3D::Curve3DPtr slope::Curve3D::Add(const vecs &nodes, bool loop,scal
     return NewPrimitive<Curve3D>(nodes,loop,r);
 }
 
+slope::Curve3D::Curve3DPtr slope::Curve3D::AddSegments(const vecs &nodes,scalar r)
+{
+    return NewPrimitive<Curve3D>(nodes,r);
+}
 slope::Curve3D::Curve3DPtr slope::Curve3D::Add(const curve_param &param,int N, bool loop,scalar r)
 {
     return NewPrimitive<Curve3D>(param,N,loop,r);
@@ -50,9 +54,15 @@ void slope::Curve3D::initPolyscope()
 
 
 namespace slope {
-Curve3D::Curve3D(const vecs &nodes,bool loop,scalar r) : loop(loop),
+Curve3D::Curve3D(const vecs &nodes, scalar r) : loop(false),
     nodes(nodes),radius(r)
 {
+    pc = polyscope::registerCurveNetworkSegments(getPolyscopeName(),nodes);
+    if (radius > 0 ) {
+        pc->setRadius(radius,false);
+        pc->setColor(getColor());
+    }
+    initPolyscopeData(pc);
 }
 
 Curve3D::Curve3D(const curve_param &param, int N, bool loop,scalar r) : loop(loop),radius(r)

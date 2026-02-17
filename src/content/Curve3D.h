@@ -13,6 +13,7 @@ public:
     using Curve3DPtr = std::shared_ptr<Curve3D>;
 
     static Curve3DPtr Add(const vecs& nodes, bool loop = false, scalar r = -0.01);
+    static Curve3DPtr AddSegments(const vecs& nodes, scalar r = -0.01);
     static Curve3DPtr Add(const curve_param& param,int N = 100,bool loop = false,scalar r = -0.01);
     static Curve3DPtr Add(const dynamic_curve_param& param,int N = 100,bool loop = false,scalar r = -0.01);
     using edge = std::array<int,2>;
@@ -39,6 +40,7 @@ protected:
     // PolyscopePrimitive interface
 public:
     Curve3D(const vecs &nodes,bool loop,scalar r);
+    Curve3D(const vecs &nodes,scalar r);
     Curve3D(const curve_param& param,int N = 100,bool loop = false,scalar r = -0.01);
     virtual void initPolyscope() override;
 };
