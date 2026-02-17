@@ -56,7 +56,9 @@ public:
 
     virtual void initPolyscope() override;
     static CurveNetworkPtr Add(const vecs& nodes,const edges& E,scalar r = -0.01);
+    static CurveNetworkPtr AddSegments(const vecs& nodes,scalar r = -0.01);
     CurveNetwork(const vecs &nodes,const edges& E,scalar r);
+    CurveNetwork(const vecs &nodes,scalar r);
 
     void updateEdges(const edges& E) {
         this->E = E;
