@@ -78,6 +78,7 @@ CurveNetwork::CurveNetworkPtr CurveNetwork::Add(const vecs &nodes, const edges &
 {
     return NewPrimitive<CurveNetwork>(nodes,E,r);
 }
+
 CurveNetwork::CurveNetworkPtr CurveNetwork::AddSegments(const vecs &nodes, scalar r)
 {
     int n = nodes.size();

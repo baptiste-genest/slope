@@ -66,6 +66,13 @@ public:
         polyscope_ptr = pc;
     }
 
+    void updateSegments(const vecs& V) {
+        nodes = V;
+        E.clear();
+        for (int i = 0;i<V.size()-1;i++)
+            E.push_back({i,i+1});
+        updateEdges(E);
+    }
 };
 
 
