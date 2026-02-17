@@ -68,9 +68,10 @@ public:
 
     void updateSegments(const vecs& V) {
         nodes = V;
-        E.clear();
-        for (int i = 0;i<V.size()-1;i++)
-            E.push_back({i,i+1});
+        int n = V.size();
+        E.resize(n/2);
+        for (int i = 0;i<n/2;i++)
+            E[i] = {i*2,i*2+1};
         updateEdges(E);
     }
 };
