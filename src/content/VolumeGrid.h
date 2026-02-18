@@ -30,7 +30,7 @@ public:
     }
 
     int ix(int i,int j,int k) const {
-        return i*Ny*Nz + j*Nz + k;
+        return k*Ny*Nx + j*Nx + i;
     }
 
     Vec eval(const std::function<scalar(vec)>& f) const;
