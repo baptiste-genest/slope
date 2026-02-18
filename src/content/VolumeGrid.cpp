@@ -13,6 +13,19 @@ VolumeGrid::VolumeGridPtr VolumeGrid::Add(int Nx, int Ny, int Nz, vec l, vec h)
 }
 
 
+Vec VolumeGrid::eval(const std::function<scalar (vec)> &f) const {
+    Vec rslt(getNbVariables());
+    for(int i=0;i<Nx;++i) {
+        for(int j=0;j<Ny;++j) {
+            for(int k=0;k<Nz;++k) {
+                vec pos = low + vec(i/(scalar)(Nx-1),j/(scalar)(Ny-1),k/(scalar)(Nz-1)).cwiseProduct(high-low);
+                rslt(ix(i,j,k)) = f(pos);
+            }
+        }
+    }
+    return rslt;
+}
+
 scalar VolumeGrid::interpolate(const vec& x, const Vec& f) const
 {
     // trilinear interpolation
