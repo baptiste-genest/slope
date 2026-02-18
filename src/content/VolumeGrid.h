@@ -29,6 +29,10 @@ public:
         return Nx*Ny*Nz;
     }
 
+    int ix(int i,int j,int k) const {
+        return i*Ny*Nz + j*Nz + k;
+    }
+
     template<class func>
     Vec eval(func f) const {
         Vec rslt(getNbVariables());
@@ -43,6 +47,8 @@ public:
         }
         return rslt;
     }
+
+    scalar interpolate(const vec& x,const Vec& f) const;
 
     // Primitive interface
 public:
