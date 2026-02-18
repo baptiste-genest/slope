@@ -19,5 +19,6 @@
 #include "slides/Panel.h"
 #include "content/BackgroundColor.h"
 #include "content/plots/Plot.h"
+#include "content/VolumeGrid.h"
 
 #endif // SLOPE_H
