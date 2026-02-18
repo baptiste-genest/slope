@@ -40,7 +40,7 @@ public:
         for(int i=0;i<Nx;++i) {
             for(int j=0;j<Ny;++j) {
                 for(int k=0;k<Nz;++k) {
-                    vec pos = low + vec(i/(scalar)(Nx-1),j/(scalar)(Ny-1),k/(scalar)(Nz-1))*(high-low);
+                    vec pos = low + vec(i/(scalar)(Nx-1),j/(scalar)(Ny-1),k/(scalar)(Nz-1)).cwiseProduct(high-low);
                     rslt(idx++) = f(pos);
                 }
             }
