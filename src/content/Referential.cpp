@@ -2,13 +2,13 @@
 
 
 /*
-void slope::PersistantPosition::setLabel(std::string l) {
+void slope::PersistentPosition::setLabel(std::string l) {
     label = l;
     writeAtLabel(0.5,0.5,false);
     readFromLabel();
 }
 
-void slope::PersistantPosition::writeAtLabel(double x, double y,bool overwrite) const
+void slope::PersistentPosition::writeAtLabel(double x, double y,bool overwrite) const
 {
     if (label == "")
         return;
@@ -24,7 +24,7 @@ void slope::PersistantPosition::writeAtLabel(double x, double y,bool overwrite) 
     }
 }
 
-slope::vec2 slope::PersistantPosition::readFromLabel() const
+slope::vec2 slope::PersistentPosition::readFromLabel() const
 {
     std::ifstream file (slope::Options::ProjectViewsPath + label + ".pos");
     if (!file.is_open()){

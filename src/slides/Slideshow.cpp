@@ -505,7 +505,7 @@ slope::PrimitivePtr slope::Slideshow::getPrimitiveUnderMouse(scalar x,scalar y) 
     auto io = ImGui::GetIO();
     auto S = ImGui::GetWindowSize();
     for (auto& pis : slides[current_slide].getScreenPrimitives()){
-        if (!pis.second.anchor->isPersistant())
+        if (!pis.second.anchor->isPersistent())
             continue;
         auto p = pis.second.getPosition();
         auto prim_size = pis.first->getSize()*pis.second.getScale();

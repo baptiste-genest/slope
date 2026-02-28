@@ -13,7 +13,7 @@ using AnchorPtr = std::shared_ptr<Anchor>;
 class Anchor
 {
 public:
-    virtual bool isPersistant() const {return false;}
+    virtual bool isPersistent() const {return false;}
 
     virtual void updatePos(const vec2& p) = 0;
 
@@ -52,7 +52,7 @@ protected:
     std::string label = "";
 public:
 
-    virtual bool isPersistant() const override { return true; }
+    virtual bool isPersistent() const override { return true; }
 
     LabelAnchor(std::string l) : label(l) {
         writeAtLabel(0.5,0.5,1,false);
