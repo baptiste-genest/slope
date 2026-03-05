@@ -58,6 +58,12 @@ void slope::Slideshow::forceNextFrame()
 }
 
 void slope::Slideshow::play() {
+
+    handleGuizmos();
+    if (halt_slope)
+        return;
+
+
     ImGuiWindowConfig();
     ImGui::Begin("Slope",NULL,window_flags);
 
@@ -135,7 +141,6 @@ void slope::Slideshow::play() {
 
     handleInputs();
 
-    displayPopUps();
 
     if (LatexLoader::initialized)
         LatexLoader::HotReloadIfModified();
@@ -144,7 +149,9 @@ void slope::Slideshow::play() {
     if (display_slide_number)
         displaySlideNumber();
 
+
     ImGui::End();
+    displayPopUps();
 }
 
 void slope::Slideshow::setInnerTime()
@@ -164,14 +171,11 @@ void slope::Slideshow::handleDragAndDrop()
     static double y_offset = 0;
     static double original_alpha = 0;
     static auto time_at_pick = Time::now();
-    static polyscope::PersistentValue<glm::mat4> transform("gizmo transform", glm::mat4(1.0f));
-    static polyscope::TransformationGizmo guizmo("slope guizmo",transform.get(),&transform);//("slope transfo",transform);
 
     bool ctrl = ImGui::IsKeyDown(ImGuiKey_LeftCtrl);
     bool click = io.MouseClicked[0];
-//    spdlog::info("ctrl {} click {}",ctrl,click);
 
-    if (ctrl && click && selected_primitive == nullptr){//CTRL {
+    if (ctrl && click && selected_primitive == nullptr){
         auto S = ImGui::GetWindowSize();
         auto x = double(io.MousePos.x)/S.x;
         auto y = double(io.MousePos.y)/S.y;
@@ -186,19 +190,9 @@ void slope::Slideshow::handleDragAndDrop()
                 time_at_pick = Time::now();
             }
         }
-        auto pick = polyscope::pick::pickAtScreenCoords(glm::vec2(io.MousePos.x,io.MousePos.y));
-        if (pick.first) {
-            spdlog::info("Picked primitive: {}", pick.first->getName());
-            pick.first->drawPick();
-            transform = pick.first->getTransform();
-            guizmo.prepare();
-//            guizmo.draw();
-        }
-
     }
 
     if (!ctrl && click && selected_primitive != nullptr) {
-//        spdlog::info("unselected {}",selected_primitive->pid);
         slides[current_slide][selected_primitive].alpha = original_alpha;
         selected_primitive = nullptr;
         return;
@@ -237,44 +231,6 @@ void slope::Slideshow::handleDragAndDrop()
             lab->writePosAtLabel(x+x_offset,y+y_offset,true);
         pis.alpha = (std::cos(TimeFrom(time_at_pick)*5) + 1)*0.8 + 0.2;
     }
-    return;
-
-    if (!ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || io.MouseReleased[0] > 0){//CTRL {
-//    if (!ImGui::IsKeyPressed(ImGuiKey_LeftCtrl) || io.MouseReleased[0] > 0){//CTRL {
-        selected_primitive = nullptr;
-     //   io.WantCaptureMouse = false;
-        ImGui::SetNextFrameWantCaptureMouse(false);
-
-        return;
-    }
-
-    ImGui::SetNextFrameWantCaptureMouse(true);
-//    io.WantCaptureMouse = true;
-
-
-    auto S = ImGui::GetWindowSize();
-    auto x = double(io.MousePos.x)/S.x;
-    auto y = double(io.MousePos.y)/S.y;
-    if (selected_primitive == nullptr && io.MouseDown[0] > 0){
-        selected_primitive = getPrimitiveUnderMouse(x,y);
-        if (selected_primitive != nullptr) {
-            auto& pis = slides[current_slide][selected_primitive];
-            LabelAnchorPtr lab = std::dynamic_pointer_cast<LabelAnchor>(pis.anchor);
-            if (lab != nullptr) {
-                x_offset = lab->getPos()(0) - x;
-                y_offset = lab->getPos()(1) - y;
-            }
-        }
-    }
-    else if (io.MouseReleased[0] > 0. && selected_primitive != nullptr) {
-        selected_primitive = nullptr;
-    }
-    if (io.MouseDown[0] > 0 && selected_primitive != nullptr) {
-        spdlog::info("offset {} {}",x_offset,y_offset);
-        auto& pis = slides[current_slide][selected_primitive];
-        LabelAnchorPtr lab = std::dynamic_pointer_cast<LabelAnchor>(pis.anchor);
-        lab->writePosAtLabel(x+x_offset,y+y_offset,true);
-    }
 }
 
 void slope::Slideshow::prompt()
@@ -309,7 +265,6 @@ void slope::Slideshow::handleTransition()
 void slope::Slideshow::ImGuiWindowConfig()
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-//    io.WantCaptureMouse = true;
     ImGui::SetNextWindowPos(ImVec2(0,0));
     ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x,io.DisplaySize.y));
     ImGui::SetNextFrameWantCaptureMouse(false);
@@ -325,11 +280,9 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
     from_begin = Time::now();
 
     slope::Options::ProjectName = project_name;
-//    slope::Options::ProjectPath = slope::Options::SlopePath+std::string("/projects/")+slope::Options::ProjectName+std::string("/");
 
     std::cout << "			[ slope PROJECT : " << slope::Options::ProjectName << " ]" << std::endl;
 
-//    std::cout << "[ slope PATH ] " << slope::Options::SlopePath << std::endl;
     std::cout << "[ PROJECT PATH ] " << slope::Options::ProjectPath << std::endl;
     std::cout << "[ PROJECT DATA PATH ] " << slope::Options::ProjectDataPath << std::endl;
     std::cout << "[ PROJECT CACHE PATH ] " << slope::Options::CachePath << std::endl;
@@ -523,52 +476,26 @@ void slope::Slideshow::displaySlideNumber()
 
 void slope::Slideshow::TransformEditor()
 {
-    ImGui::Begin("Edit labeled transform");
-
-    // ImGui::BeginChild("accordion_scroll", ImVec2(0,0), false,
-    //                   ImGuiWindowFlags_AlwaysVerticalScrollbar);
-
-
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth
-                               | ImGuiTreeNodeFlags_FramePadding;
-
-    ImGui::SetWindowFocus();
-    ImGui::SetNextFrameWantCaptureMouse(true);
-
-    std::map<std::string,PersistentTransform> unique_transforms;
     for (auto& pis : slides[current_slide].getPolyscopePrimitives()){
-        if (!pis.second.persistentTransform.isActive())
+        auto& pt = slides[current_slide][pis.first].persistentTransform;
+        if (!pt.isActive())
             continue;
-        unique_transforms[pis.second.persistentTransform.getLabel()] = pis.second.persistentTransform;
-    }
-
-    for (const auto& [label,PT] : unique_transforms){
-        ImGui::PushID(label.c_str());
-        // pis.first->editTransform(pis.second.persistentTransform);
-        if (ImGui::CollapsingHeader(label.c_str(), flags))
-        {
-            ImGui::Indent();
-            Transform T = PT.readFromLabel();;
-            if (PT.ImGuiInterface(T)) {
-                PT.writeAtLabel(T);
-            }
-            if (ImGui::Button("reset")) {
-                PT.writeAtLabel(Transform());
-            }
-            ImGui::Unindent();
+        if (pt.guizmo == nullptr){
+            pt.guizmo = new polyscope::TransformationGizmo(pis.first->getPolyscopeName()+pt.getLabel());
+            pt.guizmo->setAllowTranslation(true);
+            pt.guizmo->setAllowRotation(true);
+            pt.guizmo->setAllowScaling(true);
+            pt.guizmo->setInteractInLocalSpace(true);
+            pt.writeAtLabel(pt.readFromLabel());
+            pt.guizmo->setTransform(pt.readFromLabel().getMatrix());
+            pt.guizmo->setEnabled(true);
         }
-        ImGui::PopID();
+        else {
+            Transform T;T.fromGLMMat4(pt.guizmo->getTransform());
+            pt.writeAtLabel(T);
+            pis.first->setTransform(pis.second);
+        }
     }
-
-    // ImGui::EndChild();
-
-    if (ImGui::Button("close")){
-        transform_editor = false;
-        // ImGui::SetNextFrameWantCaptureMouse(false);
-    }
-    // ImGui::SetNextFrameWantCaptureMouse(false);
-
-    ImGui::End();
 }
 
 void slope::Slideshow::handleInputs()
@@ -588,8 +515,6 @@ void slope::Slideshow::handleInputs()
     }
     if (ImGui::IsKeyDown(ImGuiKey_Tab))
         slideMenu();
-    if (ImGui::IsKeyDown(ImGuiKey_T))
-        transform_editor = true;
     if (ImGui::IsKeyPressed(ImGuiKey_C)){
         camera_popup = true;
     }
@@ -607,6 +532,31 @@ void slope::Slideshow::handleInputs()
     if (ImGui::IsKeyPressed(ImGuiKey_R)){
         slope::LatexLoader::ReloadContentAndUpdate();
     }
+
+}
+
+void slope::Slideshow::handleGuizmos()
+{
+    if (ImGui::IsKeyPressed(ImGuiKey_T,false)){
+        if (transform_editor){
+            transform_editor = false;
+            halt_slope = false;
+            for (auto& pis : slides[current_slide].getPolyscopePrimitives()){
+                auto& pt = slides[current_slide][pis.first].persistentTransform;
+                if (!pt.isActive())
+                    continue;
+                pt.guizmo->setEnabled(false);
+                pt.guizmo->remove();
+                pt.guizmo = nullptr;
+            }
+        }
+        else {
+            transform_editor = true;
+            halt_slope = true;
+        }
+    }
+    if (transform_editor)
+        TransformEditor();
 
 }
 
@@ -640,9 +590,9 @@ void slope::Slideshow::displayPopUps()
             ImGui::EndPopup();
         }
     }
-    if (transform_editor)
-    {
-        TransformEditor();
-    }
+    // if (transform_editor)
+    // {
+    //     TransformEditor();
+    // }
 }
 

@@ -53,7 +53,7 @@ void ImGuiWidgets::draw(const TimeObject &time, const StateInSlide &sis) {
     io.WantCaptureMouse = true;
 //    io.WantCaptureKeyboard = true;
     ImGui::SetWindowFocus();
-    func(time);
+    updater(time);
     ImGui::End();
 }
 

@@ -1,6 +1,7 @@
 #ifndef STATEINSLIDE_H
 #define STATEINSLIDE_H
 #include "../libslope.h"
+#include "content/TimeObject.h"
 #include "io.h"
 #include "Options.h"
 #include "Anchor.h"
@@ -23,6 +24,9 @@ struct StateInSlide {
 
     Transform LocalToWorld;
     PersistentTransform persistentTransform;
+
+    bool updaterOverrided = false;
+    Updater updaterOverride;
 
     StateInSlide() {
     }

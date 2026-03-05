@@ -17,9 +17,8 @@ public:
 
     Point(const vec &x,scalar radius) : x(x),radius(radius) {
         phi = [x](TimeObject){return x;};
-        updater = [](const TimeObject& t,Primitive* ptr){
-            auto p = Primitive::get<Point>(ptr->pid);
-            p->updateVectors(t);
+        updater = [&](const TimeObject& t){
+            updateVectors(t);
         };
     }
 

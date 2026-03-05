@@ -20,12 +20,11 @@ slope::PointCloud::PointCloudPtr slope::PointCloud::apply(const mapping &phi)
 slope::PointCloud::PointCloudPtr slope::PointCloud::applyDynamic(const VertexTimeMap &phi)
 {
     PointCloudPtr rslt = NewPrimitive<PointCloud>(original_points,radius);
-    rslt->updater = [phi] (const TimeObject& t,Primitive* ptr) {
-        auto M = Primitive::get<PointCloud>(ptr->pid);
-        auto V = M->original_points;
+    rslt->updater = [phi,rslt] (const TimeObject& t) {
+        auto V = rslt->original_points;
         for (int i = 0;i<V.size();i++)
             V[i] = phi({V[i],i},t);
-        M->updateCloud(V);
+        rslt->updateCloud(V);
     };
     return rslt;
 }

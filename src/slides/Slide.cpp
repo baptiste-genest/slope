@@ -8,7 +8,17 @@ void slope::Slide::add(PrimitivePtr p, const StateInSlide &sis){
                 this->erase(title_primitive);
             title_primitive = std::static_pointer_cast<TextualPrimitive>(p);
         }
+    bool already_present = this->contains(p);
+    StateInSlide old_sis;
+    if (already_present)
+        old_sis = (*this)[p];
     (*this)[p] = sis;
+    if (already_present){
+        if (old_sis.updaterOverrided && !sis.updaterOverrided){
+            (*this)[p].updaterOverrided = true;
+            (*this)[p].updaterOverride = old_sis.updaterOverride;
+        }
+    }
 }
 
 void slope::Slide::add(PrimitivePtr p, const vec2 &pos){

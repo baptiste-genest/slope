@@ -89,9 +89,8 @@ slope::Point::Point(const DynamicParam &phi, scalar radius) :
     phi(phi),
     radius(radius)
 {
-    updater = [phi](const TimeObject& t,Primitive* ptr){
-        auto p = Primitive::get<Point>(ptr->pid);
-        p->setPos(phi(t));
-        p->updateVectors(t);
+    updater = [this](const TimeObject& t){
+        setPos(this->phi(t));
+        updateVectors(t);
     };
 }

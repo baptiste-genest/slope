@@ -83,10 +83,13 @@ private:
     bool locked = true;
     bool camera_popup = false;
     bool transform_editor = false;
+    bool halt_slope = false;
 
     void TransformEditor();
 
     void handleInputs();
+
+    void handleGuizmos();
 
     bool keyboardOpen() const {
         return !camera_popup;

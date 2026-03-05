@@ -8,6 +8,7 @@ std::string Options::ProjectPath;
 std::string Options::CachePath;
 std::string Options::ProjectDataPath;
 std::string Options::ProjectViewsPath;
+std::string Options::LogPath = "/tmp/slope.log";
 
 size_t Options::ScreenResolutionWidth = 1920;
 size_t Options::ScreenResolutionHeight = 1080;

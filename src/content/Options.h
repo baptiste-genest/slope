@@ -17,6 +17,7 @@ static   std::string ProjectName;
 static   std::string ProjectPath;
 static   std::string ProjectViewsPath;
 static   std::string CachePath;
+static   std::string LogPath;
 
 static bool ExportMode;
 

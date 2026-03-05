@@ -81,3 +81,8 @@ glm::vec3 slope::PolyscopePrimitive::getColor() {
     }
     return colors[(current_color_id++)%colors.size()];
 }
+
+void slope::PolyscopePrimitive::setTransform(const StateInSlide &sis)
+{
+    polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
+}

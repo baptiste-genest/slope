@@ -137,7 +137,7 @@ inline SlideManager& operator<<(SlideManager& SM,const StateInSlide& sis) {
 }
 
 inline SlideManager& operator<<(SlideManager& SM,const PrimitiveGroup& G) {
-    for (auto [ptr,sis] : G.buffer){
+    for (auto& [ptr,sis] : G.buffer){
         SM.addToLastSlide(ptr,sis);
     }
     return SM;
@@ -148,6 +148,13 @@ inline SlideManager& operator<<(SlideManager& SM,CameraViewPtr cam) {
     return SM;
 }
 
+inline SlideManager& operator<<(SlideManager& SM,OverrideUpdater update) {
+    auto& S = SM.getCurrentSlide();
+    auto primitive = Primitive::get(update.pid);
+    S[primitive].updaterOverrided = true;
+    S[primitive].updaterOverride = update.func;
+    return SM;
+}
 
 
 inline SlideManager& operator>>(SlideManager& SM,PrimitivePtr ptr) {

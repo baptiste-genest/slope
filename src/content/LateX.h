@@ -10,8 +10,10 @@
 namespace slope {
 
 
-void GenerateLatex(const path& filename,const TexObject& tex,bool formula);
-path GetLatexPath(const TexObject& tex,bool formula);
+void GenerateLatex(const path& filename,const TexObject& texcontent);
+std::string WriteTexFile(const TexObject& tex,bool formula, int width = -1);
+path GetLatexPath(const TexObject& tex);
+std::string Tail(const path& p,std::size_t n);
 
 struct Latex;
 using LatexPtr = std::shared_ptr<Latex>;
@@ -37,12 +39,22 @@ struct LatexLoader {
 
     static void HotReloadIfModified();
 
+    static int GetWidth(const json& content) {
+        if (!content.is_array())
+            throw std::runtime_error("Latex source object is not an array");
+        if (content.size() > 2)
+            return content[2];
+        return -1;
+    }
+
 };
 
 
 struct Latex : public TextualPrimitive {
 
-    static LatexPtr Add(const TexObject& tex,scalar scale = 1);
+    static LatexPtr Add(const TexObject& tex,scalar scale = 1,int width = -1);
+
+    static LatexPtr MakeObject(const TexObject& tex,scalar scale = 1,int width = -1,bool formula = false);
 
     static TexObject context;
     static void Define(const TexObject& tex) {context += tex;}
@@ -67,7 +79,8 @@ struct Latex : public TextualPrimitive {
     scalar scale;
     ImageData data;
 
-    void updateContent(const TexObject& tex,scalar hr);
+
+    void updateContent(json content);
 
 
     // Primitive interface
@@ -108,7 +121,7 @@ public:
 };
 
 struct Formula : public Latex {
-    static LatexPtr Add(const TexObject& tex,scalar scale = 1.);
+    static LatexPtr Add(const TexObject& tex,scalar scale = 1.,int width = -1);
 };
 
 inline LatexPtr Title(TexObject s,bool center = true) {

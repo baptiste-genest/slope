@@ -35,12 +35,11 @@ slope::Mesh::MeshPtr slope::Mesh::apply(const VertexMap &phi,bool smooth) const
 slope::Mesh::MeshPtr slope::Mesh::applyDynamic(const VertexTimeMap &phi,bool smooth) const
 {
     MeshPtr rslt = NewPrimitive<Mesh>(vertices,original_vertices,faces,smooth);
-    rslt->updater = [phi] (const TimeObject& t,Primitive* ptr) {
-        auto M = Primitive::get<Mesh>(ptr->pid);
-        auto V = M->original_vertices;
+    rslt->updater = [rslt,phi] (const TimeObject& t) {
+        auto V = rslt->original_vertices;
         for (int i = 0;i<V.size();i++)
             V[i] = phi({V[i],i},t);
-        M->updateMesh(V);
+        rslt->updateMesh(V);
     };
     return rslt;
 }

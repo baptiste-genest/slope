@@ -9,10 +9,38 @@ namespace slope {
 
 using TransformMat = glm::mat4;
 
+
 class Transform {
 public:
     float angle;
     glm::vec3 axis,translation,scale;
+
+    void fromGLMMat4(const glm::mat4& matrix){
+            // Translation
+            translation = glm::vec3(matrix[3]);
+
+            // Scale
+            scale.x = glm::length(glm::vec3(matrix[0]));
+            scale.y = glm::length(glm::vec3(matrix[1]));
+            scale.z = glm::length(glm::vec3(matrix[2]));
+
+            // Rotation matrix
+            glm::mat3 rotationMatrix;
+            rotationMatrix[0] = glm::vec3(matrix[0]) / scale.x;
+            rotationMatrix[1] = glm::vec3(matrix[1]) / scale.y;
+            rotationMatrix[2] = glm::vec3(matrix[2]) / scale.z;
+
+            // Handle negative determinant
+            if (glm::determinant(rotationMatrix) < 0.0f) {
+                scale *= -1.0f;
+                rotationMatrix *= -1.0f;
+            }
+
+            // Quaternion → axis-angle
+            glm::quat q = glm::quat_cast(rotationMatrix);
+            angle = glm::angle(q);
+            axis = glm::axis(q);
+    }
 
     Transform() {
         angle = 0;
@@ -140,7 +168,10 @@ public:
 class PersistentTransform {
     std::string label;
 
+
 public:
+
+    polyscope::TransformationGizmo* guizmo = nullptr;
 
     PersistentTransform() {}
     PersistentTransform(std::string l) : label(l) {}

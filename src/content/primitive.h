@@ -12,14 +12,19 @@
 
 namespace slope {
 
+
 using PrimitiveInSlide = std::pair<PrimitivePtr,StateInSlide>;
+
+struct OverrideUpdater {
+    PrimitiveID pid;
+    Updater func;
+};
 
 struct Primitive {
 
     using Size = vec2;
-    using Updater = std::function<void(TimeObject,Primitive*)>;
 
-    Updater updater = [] (TimeObject,Primitive*) {};
+    Updater updater = [] (TimeObject) {};
 
     PrimitiveID pid;
     static std::vector<PrimitivePtr> primitives;
@@ -67,6 +72,8 @@ struct Primitive {
     static TransitionAnimator DefaultTransition;
 
     void upFirstSlideNumber(int f);
+
+    OverrideUpdater setUpdater(const Updater& up);
 
 protected:
     virtual void draw(const TimeObject& time,const StateInSlide& sis) = 0;

@@ -32,20 +32,29 @@ void slope::Primitive::play(const TimeObject &t, const StateInSlide &sis) {
     enable();
     auto it = t(this);
     draw(it,sis);
-    updater(it,this);
+    if (sis.updaterOverrided)
+        sis.updaterOverride(it);
+    else
+        updater(it);
 }
 
 void slope::Primitive::intro(const TimeObject &t, const StateInSlide &sis) {
     enable();
     auto it = t(this);
     playIntro(it,transition.intro(it,sis));
-    updater(it,this);
+    if (sis.updaterOverrided)
+        sis.updaterOverride(it);
+    else
+        updater(it);
 }
 
 void slope::Primitive::outro(const TimeObject &t, const StateInSlide &sis) {
     auto it = t(this);
     playOutro(it,transition.outro(it,sis));
-    updater(it,this);
+    if (sis.updaterOverrided)
+        sis.updaterOverride(it);
+    else
+        updater(it);
 }
 
 bool slope::Primitive::isEnabled() const {return enabled;}
@@ -81,6 +90,11 @@ int slope::Primitive::getDepth() const {return depth;}
 
 void slope::Primitive::upFirstSlideNumber(int f) {
     first_slide_to_appear = std::min(first_slide_to_appear,f);
+}
+
+slope::OverrideUpdater slope::Primitive::setUpdater(const Updater &up)
+{
+    return {pid,up};
 }
 
 void slope::Primitive::forceDisable() {}

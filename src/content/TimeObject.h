@@ -25,6 +25,8 @@ struct TimeObject
     }
 };
 
+using Updater = std::function<void(TimeObject)>;
+
 using VertexTimeMap = std::function<vec(const Vertex&,const TimeObject&)>;
 
 }

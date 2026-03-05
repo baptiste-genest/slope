@@ -45,6 +45,8 @@ public:
 
     static glm::vec3 getColor();
 
+    void setTransform(const StateInSlide& sis);
+
     Transform localTransform;
 protected:
     polyscope::Structure* polyscope_ptr;

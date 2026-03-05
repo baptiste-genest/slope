@@ -13,8 +13,7 @@ slope::Curve3D::Curve3DPtr slope::Curve3D::Add(const curve_param &param,int N, b
 slope::Curve3D::Curve3DPtr slope::Curve3D::Add(const dynamic_curve_param &param,int N, bool loop,scalar r)
 {
     auto C = NewPrimitive<Curve3D>(vecs(N,vec::Zero()),loop,r);
-    C->updater = [param,loop,N](const TimeObject& time,Primitive* ptr) {
-        auto C = Primitive::get<Curve3D>(ptr->pid);
+    C->updater = [C,param,loop,N](const TimeObject& time) {
         auto X = C->nodes;
         scalar dt = loop ? 1./N : 1./(N-1);
         for (int i = 0;i<X.size();i++){

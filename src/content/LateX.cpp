@@ -2,44 +2,47 @@
 #include <spdlog/spdlog.h>
 #include "Options.h"
 #include <string>
+#include <format>
 
-slope::LatexPtr slope::Latex::Add(const TexObject &tex,scalar scale)
+slope::LatexPtr slope::Latex::Add(const TexObject &tex,scalar scale,int width)
 {
-    path filename = GetLatexPath(tex,false);
+    return MakeObject(tex,scale,width,false);
+}
+
+slope::LatexPtr slope::Formula::Add(const TexObject &tex,scalar scale,int width)
+{
+    return MakeObject(tex,scale,width,true);
+}
+
+slope::LatexPtr slope::Latex::MakeObject(const TexObject &tex, scalar scale, int width, bool formula)
+{
+    auto content = WriteTexFile(tex,formula,width);
+    path filename = GetLatexPath(content);
 
     if (!io::file_exists(filename) || Options::ignore_cache)
-        GenerateLatex(filename,tex,false);
+        GenerateLatex(filename,content);
     LatexPtr rslt = NewPrimitive<Latex>();
     rslt->content = tex;
     rslt->data = loadImage(filename);
-    rslt->isFormula = false;
+    rslt->isFormula = formula;
     rslt->scale = scale;
     return rslt;
 }
 
-slope::LatexPtr slope::Formula::Add(const TexObject &tex,scalar scale)
+void slope::Latex::updateContent(json j)
 {
-    path filename = GetLatexPath(tex,true);
+    isFormula = j[0] == 1;
+    auto new_content = j[1];
+    int width = LatexLoader::GetWidth(j);
 
-    if (!io::file_exists(filename) || Options::ignore_cache)
-        GenerateLatex(filename,tex,true);
-    LatexPtr rslt = NewPrimitive<Latex>();
-    rslt->content = tex;
-    rslt->data = loadImage(filename);
-    rslt->isFormula = true;
-    rslt->scale = scale;
-    return rslt;
-}
+    auto tex_content = WriteTexFile(new_content,isFormula,width);
+    path filename = GetLatexPath(tex_content);
 
-void slope::Latex::updateContent(const TexObject &new_content, scalar s)
-{
-    path filename = GetLatexPath(new_content,isFormula);
-
-    if (!io::file_exists(filename))
-        GenerateLatex(filename,new_content,isFormula);
-    content = new_content;
-    data = loadImage(filename);
-    scale = s;
+    if (!io::file_exists(filename)){
+        GenerateLatex(filename,tex_content);
+        content = new_content;
+        data = loadImage(filename);
+    }
 }
 
 
@@ -55,66 +58,51 @@ void slope::Latex::AddFileToPrefix(const path &p)
     context += buffer.str();
 }
 
-slope::path slope::GetLatexPath(const TexObject &tex,bool formula)
+slope::path slope::GetLatexPath(const TexObject &tex)
 {
-    std::string bit = formula ? "1" : "0";
-    auto H = std::hash<std::string>{}(Latex::context + tex+ bit +std::to_string(slope::Options::PDFtoPNGDensity));
+    auto H = std::hash<std::string>{}(tex);
     return Options::CachePath + std::to_string(H) + ".png";
-//    return Options::ProjectDataPath + "formulas/" + std::to_string(H) + ".png";
 }
 
 slope::TexObject slope::Latex::context = "";
 
 void slope::GenerateLatex(const path &filename,
-                         const TexObject &tex,
-                         bool formula)
+                          const TexObject &texcontent)
 {
-    spdlog::info("Generating latex for '{}'...", tex);
-    std::ofstream formula_file("/tmp/formula.tex");
-    //formula_file << "\\documentclass[varwidth,border=3pt]{standalone}" << std::endl;
-    formula_file << "\\documentclass{article}" << std::endl;
-//    formula_file << "\\usepackage{standalone}" << std::endl;
-    formula_file << "\\thispagestyle{empty}"<< std::endl;
-    //formula_file << "\\usepackage[top=0cm,bottom=0cm,left=0cm,right=0cm]{geometry}"<< std::endl;
-    formula_file << "\\usepackage[top=0cm,bottom=0cm,right=7cm]{geometry}"<< std::endl;
-    formula_file << "\\usepackage{amsmath}"<< std::endl;
-    formula_file << "\\usepackage{amsfonts}"<< std::endl;
-    formula_file << "\\usepackage{xcolor}"<< std::endl;
-    formula_file << "\\usepackage{url}"<< std::endl;
-    formula_file << "\\usepackage{aligned-overset}"<< std::endl;
-    formula_file << "\\usepackage{ragged2e}"<< std::endl;
-    formula_file << "\\usepackage{booktabs}"<< std::endl;
-    formula_file << "\\setlength{\\parindent}{0pt}"<< std::endl;
+    spdlog::info("Generating latex for '{}'...", texcontent);
 
-    formula_file << Latex::context << std::endl;
-    formula_file << "\\begin{document}"<< std::endl;
-    formula_file << "\\pdfpageheight=80pt" << std::endl;
-    if (formula)
-        formula_file << "\\begin{align*}"<< std::endl;
-    formula_file << tex  << std::endl;
-    if (formula)
-        formula_file << "\\end{align*}"<< std::endl;
-    formula_file << "\\end{document}"<< std::endl;
+    static path tex_file = "formula.tex";
+    static path pdf_file = "formula.pdf";
 
-    std::string latex_cmd = Options::PathToPDFLATEX+" -output-directory=/tmp /tmp/formula.tex  >>/tmp/slope.log";
+    {
+        std::ofstream formula_file(tex_file);
+        formula_file << texcontent;
+    }
+
+    std::string latex_cmd = std::format("{} {} >> {}",
+                                        Options::PathToPDFLATEX,
+                                        tex_file.string(),
+                                        Options::LogPath
+                                        );
+
     if (std::system(latex_cmd.c_str())) {
         spdlog::error("[error while generating latex] cmd fail {}",latex_cmd);
-        throw std::runtime_error("could not generate latex");
+        std::cerr << Tail(Options::LogPath,20) << std::endl;
+        throw std::runtime_error("Fail to generate latex");
     }
-    std::string convert_cmd = Options::PathToCONVERT+" -density "+std::to_string(Options::PDFtoPNGDensity)+" -quality 100 -trim -border 10 -bordercolor none /tmp/formula.pdf -colorspace RGB " + filename.string() + " >>/tmp/slope.log";
+
+    std::string convert_cmd = std::format("{} -density {} -quality 100 -trim -border 10 -bordercolor none {} -colorspace RGB {} >> {}",
+                                          Options::PathToCONVERT,
+                                          Options::PDFtoPNGDensity,
+                                          pdf_file.string(),
+                                          filename.string(),
+                                          Options::LogPath
+                                          );
     if (std::system(convert_cmd.c_str())) {
         spdlog::error("[error while converting to png] cmd fail {}",latex_cmd);
         throw std::runtime_error("could not convert pdf to png");
     }
-//    int h = (1080.*height_ratio/99.)*Image::getSize(filename).y;
-    /*
-    spdlog::info((Options::Slope_CONVERT+" " + filename.string() + " -resize x" + std::to_string(h) + " " + filename.string() + " >>/tmp/UPS.log"));
-    if (std::system((Options::Slope_CONVERT+" " + filename.string() + " -resize x" + std::to_string(h) + " " + filename.string() + " >>/tmp/UPS.log").c_str())){
-        spdlog::error("[error while resizing]");
-        assert(false);
-    }
-*/
-    spdlog::info("Generating latex for '{}' done.", tex);
+    spdlog::info("Generating latex for '{}' done.", texcontent);
 }
 
 void slope::LatexLoader::Init(path P)
@@ -132,12 +120,18 @@ slope::ScreenPrimitiveInSlide slope::LatexLoader::LoadWithAnchor(key k)
 
 slope::LatexPtr slope::LatexLoader::Load(key k)
 {
+    if (! source.contains(k))
+        throw std::runtime_error("Latex source does not contain key " + k);
+
     auto obj = source[k];
     LatexPtr rslt;
-    if (obj[0] == 0)
-        rslt = Latex::Add(obj[1],obj[2]);
-    else
-        rslt = Formula::Add(obj[1],obj[2]);
+
+    if (!obj.is_array())
+        throw std::runtime_error("Latex source object " + k + " is not an array");
+
+    int width = GetWidth(obj);
+
+    rslt = Latex::MakeObject(obj[1],1,width,obj[0] == 1);
     loaded[k] = rslt;
     return rslt;
 }
@@ -145,8 +139,7 @@ slope::LatexPtr slope::LatexLoader::Load(key k)
 void slope::LatexLoader::parseJson()
 {
     if (!io::file_exists(source_path)){
-        spdlog::critical("invalid path {}",source_path.string());
-        exit(1);
+        throw std::runtime_error("did not find latex source json file");
     }
     std::ifstream t(source_path);
     std::stringstream buffer;
@@ -156,12 +149,8 @@ void slope::LatexLoader::parseJson()
     std::regex backslash_regex(R"(\\)");
     content = std::regex_replace(content, backslash_regex, R"(\\)");
 
-
-
-
     if (!json::accept(content)){
-        spdlog::critical("invalid json file {}",content);
-        exit(1);
+        throw std::runtime_error("invalid json in latex source");
     }
     source = json::parse(content);
 }
@@ -169,17 +158,17 @@ void slope::LatexLoader::parseJson()
 void slope::LatexLoader::ReloadContentAndUpdate()
 {
     spdlog::info("reloading latex from latex source...");
-    parseJson();
-
-
-    for (auto& [key,objptr] : loaded) {
-        const auto& content = source[key];
-        int isFormula = content[0];
-        if (objptr->isFormula != isFormula)
-            objptr->isFormula = isFormula;
-        objptr->updateContent(content[1],content[2]);
+    try {
+        parseJson();
+        for (auto& [key,objptr] : loaded) {
+            const auto& content = source[key];
+            objptr->updateContent(content);
+        }
+        spdlog::info("... done!");
     }
-    spdlog::info("... done!");
+    catch (const std::exception& e) {
+        spdlog::error("Failed to reload latex: {}", e.what());
+    }
 }
 
 void slope::LatexLoader::HotReloadIfModified()
@@ -201,3 +190,54 @@ std::map<slope::LatexLoader::key,slope::LatexPtr> slope::LatexLoader::loaded;
 std::filesystem::file_time_type slope::LatexLoader::source_last_modified;
 bool slope::LatexLoader::initialized = false;
 
+
+std::string slope::WriteTexFile(const TexObject &tex, bool formula, int width)
+{
+    std::string width_block;
+    if (width != -1)
+        width_block = "\\geometry{textwidth=" + std::to_string(width) + "pt}\n";
+
+    std::string align_begin = formula ? "\\begin{align*}\n" : "";
+    std::string align_end   = formula ? "\\end{align*}\n"   : "";
+
+    return R"(\documentclass{article}
+\thispagestyle{empty}
+\usepackage[top=0cm,bottom=0cm,left=1cm]{geometry}
+)" + width_block +
+           R"(\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{aligned-overset}
+\usepackage{ragged2e}
+\usepackage{booktabs}
+\setlength{\parindent}{0pt}
+)" + Latex::context + "\n" +
+           R"(\begin{document}
+\pdfpageheight=120pt
+)" + align_begin +
+           tex + "\n" +
+           align_end +
+           R"(\end{document}
+)";
+}
+
+std::string slope::Tail(const path &p, std::size_t n)
+{
+    // read last n lines of file at p
+    std::ifstream file(p);
+    std::deque<std::string> lines;
+    std::string line;
+    while (std::getline(file, line)) {
+        lines.push_back(line);
+        if (lines.size() > n) {
+            lines.pop_front();
+        }
+    }
+    std::string result;
+    for (const auto& l : lines) {
+        result += l + "\n";
+    }
+    return result;
+
+}
