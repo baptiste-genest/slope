@@ -361,6 +361,7 @@ void slope::Slideshow::goToSlide(int slide_nb)
     current_slide = slide_nb;
     for (auto& p : slides[current_slide])
         p.first->enable();
+    slides[current_slide].setCam();
     from_action = Time::now();
     from_action = Time::now();
 }
@@ -398,6 +399,7 @@ void slope::Slideshow::initializeSlides()
     loadSlides();
     computeFirstSlideNumbers();
     from_begin = Time::now();
+    slides[current_slide].setCam();
 }
 
 void slope::Slideshow::computeFirstSlideNumbers()
