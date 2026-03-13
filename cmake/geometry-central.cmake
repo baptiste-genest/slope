@@ -3,7 +3,7 @@ if (TARGET geometry-central)
 endif()
 
 CPMAddPackage(
-  NAME geometry-centeral
+  NAME geometry-central
   GIT_TAG master
   GITHUB_REPOSITORY "nmwsharp/geometry-central"
 )
