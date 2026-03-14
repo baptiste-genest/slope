@@ -32,8 +32,10 @@ configure_file(${PROJECT_SOURCE_DIR}/src/content/Options.cpp.in
 
 file(GLOB SRC_lib
      "src/content/*"
+     "src/content/screen_primitives/*"
+     "src/content/polyscope_primitives/*"
      "src/content/Graphics2D/*"
-     "src/content/plots/*"
+     "src/content/screen_primitives/plots/*"
      "src/math/*"
      "src/slides/*"
      "src/style/*"
@@ -47,9 +49,6 @@ add_library(slope STATIC ${SRC_lib})
 target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog  OpenGL::GL geometry-central fmt)
 target_compile_features(slope PUBLIC cxx_std_20)
 target_include_directories(slope PUBLIC src/ PRIVATE)
-
-target_precompile_headers(slope PUBLIC src/PCH.h)
-
 set_target_properties(slope PROPERTIES PUBLIC_HEADER "${HEADER_LIST}")
 
 ##INSTALL
