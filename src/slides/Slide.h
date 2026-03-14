@@ -2,8 +2,8 @@
 #define SLIDE_H
 
 #include "../content/primitive.h"
-#include "../content/ScreenPrimitive.h"
-#include "../content/CameraView.h"
+#include "../content/screen_primitives/ScreenPrimitive.h"
+#include "../content/polyscope_primitives/CameraView.h"
 
 namespace slope {
 

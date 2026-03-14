@@ -1,5 +1,5 @@
 #include "Slideshow.h"
-#include "content/LateX.h"
+#include "content/screen_primitives/LateX.h"
 #include "spdlog/spdlog.h"
 #include "polyscope/pick.h"
 

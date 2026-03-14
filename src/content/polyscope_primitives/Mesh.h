@@ -1,9 +1,9 @@
 #ifndef MESH_H
 #define MESH_H
-#include "../libslope.h"
-#include "io.h"
+#include "../../libslope.h"
+#include "../io.h"
 #include "PolyscopePrimitive.h"
-#include "../math/geometry.h"
+#include "../../math/geometry.h"
 
 namespace slope {
   

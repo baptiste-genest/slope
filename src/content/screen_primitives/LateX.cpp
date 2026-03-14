@@ -1,6 +1,6 @@
 #include "LateX.h"
 #include <spdlog/spdlog.h>
-#include "Options.h"
+#include "../Options.h"
 #include <string>
 #include <fmt/core.h>
 //#include <format>

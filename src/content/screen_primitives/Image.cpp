@@ -4,7 +4,7 @@ size_t slope::Image::count = 0;
 std::vector<slope::Image> slope::Image::images;
 
 //#define STB_IMAGE_IMPLEMENTATION
-#include "../extern/stb_image.h"
+#include "../../extern/stb_image.h"
 
 #include <spdlog/spdlog.h>
 

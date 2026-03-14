@@ -1,7 +1,6 @@
 #ifndef PRIMITIVEGROUP_H
 #define PRIMITIVEGROUP_H
 #include "primitive.h"
-#include "Placement.h"
 #include "../slides/Slide.h"
 
 namespace slope {

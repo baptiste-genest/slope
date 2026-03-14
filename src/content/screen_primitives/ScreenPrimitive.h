@@ -1,8 +1,8 @@
 #ifndef SCREENPRIMITIVE_H
 #define SCREENPRIMITIVE_H
 
-#include "primitive.h"
-#include "StateInSlide.h"
+#include "../primitive.h"
+#include "../StateInSlide.h"
 #include "Anchor.h"
 
 namespace slope {

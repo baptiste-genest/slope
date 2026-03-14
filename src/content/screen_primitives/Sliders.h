@@ -1,43 +1,10 @@
-#ifndef IMGUIWIDGETS_H
-#define IMGUIWIDGETS_H
+#ifndef SLIDERS_H
+#define SLIDERS_H
 
-#include "primitive.h"
+#include "../primitive.h"
 
 namespace slope {
 
-class ImGuiWidgets : public Primitive
-{
-    public:
-    using WidgetPtr = std::shared_ptr<ImGuiWidgets>;
-    using callback = std::function<void(TimeObject t)>;
-
-private:
-
-    callback func;
-    std::string label;
-
-    // Primitive interface
-public:
-
-    ImGuiWidgets(const callback& f,const std::string& title) : func(f),label(title)  {
-    }
-
-    virtual void draw(const TimeObject &time, const StateInSlide &sis) override;
-
-    virtual void playIntro(const TimeObject &t, const StateInSlide &sis) override {}
-    virtual void playOutro(const TimeObject &t, const StateInSlide &sis) override {}
-
-    static ImGuiWidgets::WidgetPtr Add(const callback& f,const std::string& title="") {
-        return NewPrimitive<ImGuiWidgets>(f,title);
-    }
-    static ImGuiWidgets::WidgetPtr Add(const std::function<void()>& f,const std::string& title="") {
-        return NewPrimitive<ImGuiWidgets>([f](TimeObject){f();},title);
-    }
-
-    // Primitive interface
-public:
-    bool isScreenSpace() const override {return false;}
-};
 
 class Sliders : public Primitive
 {
@@ -55,6 +22,7 @@ private:
 public:
     using SlidersPtr = std::shared_ptr<Sliders>;
 
+    virtual bool isScreenSpace() const override {return false;}
 
     Sliders(const std::vector<int> &int_vals, const std::string &label, const std::pair<float, float> &bounds);
     Sliders(const std::vector<float> &float_vals, const std::string &label, const std::pair<float, float> &bounds);
@@ -76,9 +44,6 @@ public:
             float_vals[index] = v;
 
     }
-    // Primitive interface
-public:
-    bool isScreenSpace() const override {return false;}
 };
 
 Sliders::SlidersPtr AddIntSliders(int nb, const std::string &label,int default_val, const std::pair<float, float> &bounds);
@@ -87,4 +52,4 @@ Sliders::SlidersPtr AddFloatSliders(int nb, const std::string &label,float defau
 
 }
 
-#endif // IMGUIWIDGETS_H
+#endif // SLIDERS_H

@@ -1,9 +1,8 @@
 #ifndef TRANSFORM_H
 #define TRANSFORM_H
 
-#include "libslope.h"
-#include "io.h"
-#include "Options.h"
+#include "../io.h"
+#include "../Options.h"
 
 namespace slope {
 

@@ -4,8 +4,8 @@
 #include "Slide.h"
 #include "PrompterModule.h"
 #include "screenshot.h"
-#include "../content/Text.h"
-#include "../content/plots/Plot.h"
+#include "../content/screen_primitives/Text.h"
+#include "../content/screen_primitives/plots/Plot.h"
 #include "CLI.h"
 
 namespace slope {

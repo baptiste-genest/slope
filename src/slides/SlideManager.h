@@ -4,8 +4,7 @@
 #include "Slide.h"
 #include "../math/utils.h"
 #include "../content/PrimitiveGroup.h"
-#include "../content/Placement.h"
-#include "../content/PrimitiveGroup.h"
+#include "../content/screen_primitives/Placement.h"
 //#include "Panel.h"
 
 

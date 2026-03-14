@@ -1,10 +1,10 @@
 #ifndef POLYSCOPEPRIMITIVE_H
 #define POLYSCOPEPRIMITIVE_H
 
-#include "primitive.h"
-#include "StateInSlide.h"
-#include "color_tools.h"
-#include "Options.h"
+#include "../primitive.h"
+#include "../StateInSlide.h"
+#include "../color_tools.h"
+#include "../Options.h"
 
 namespace slope {
 class PolyscopePrimitive;
