@@ -7,7 +7,6 @@
 
 namespace slope {
 
-
 class BackgroundColor;
 using BackgroundColorPtr = std::shared_ptr<BackgroundColor>;
 
