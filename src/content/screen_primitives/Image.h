@@ -3,9 +3,9 @@
 
 #include "ScreenPrimitive.h"
 #include "GLFW/glfw3.h"
-#include "../math/kernels.h"
-#include "../math/geometry.h"
-#include "io.h"
+#include "../../math/kernels.h"
+#include "../../math/geometry.h"
+#include "../io.h"
 
 namespace slope {
 

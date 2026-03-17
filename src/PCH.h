@@ -2,7 +2,7 @@
 #define PCH_H
 
 
-#define EIGEN_MPL2_ONLY
+//#define EIGEN_MPL2_ONLY
 #define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
 #define EIGEN_NO_DEBUG
 
@@ -10,10 +10,12 @@
 //#include "Eigen/Dense"
 #include "Eigen/Sparse"
 #include "Eigen/Core"
+#include "Eigen/Geometry"
 #else
 //#include "eigen3/Eigen/Dense"
 #include "eigen3/Eigen/Sparse"
 #include "eigen3/Eigen/Core"
+#include "eigen3/Eigen/Geometry"
 #endif
 
 #include "polyscope/polyscope.h"
@@ -23,8 +25,6 @@
 #include "polyscope/structure.h"
 
 #include "extern/json.hpp"
-#include "geometrycentral/surface/meshio.h"
-#include <geometrycentral/surface/vertex_position_geometry.h>
 #include "polyscope/color_management.h"
 #include <stdarg.h>
 

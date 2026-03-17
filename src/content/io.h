@@ -108,27 +108,6 @@ inline bool VecCache(std::string file,Vector<T>& V){
 }
 
 
-struct GeometryCentralMesh {
-    std::unique_ptr<geometrycentral::surface::ManifoldSurfaceMesh> mesh;
-    std::unique_ptr<geometrycentral::surface::VertexPositionGeometry> position_geometry;
-    GeometryCentralMesh() {
-    }
-    void init(std::string filename) {
-        std::tie(mesh, position_geometry) = geometrycentral::surface::readManifoldSurfaceMesh(filename);
-    }
-    GeometryCentralMesh(std::string filename) {
-        init(filename);
-    }
-    vec getPos(geometrycentral::surface::Vertex v) const {
-        const auto& x = position_geometry->vertexPositions[v];
-        return vec(x[0],x[1],x[2]);
-    }
-    vec getPos(int v) const {
-        const auto& x = position_geometry->vertexPositions[mesh->vertex(v)];
-        return vec(x[0],x[1],x[2]);
-    }
-};
-
 inline std::vector<std::string> list_directory(std::string folder,bool sorted = true) {
     std::vector<std::string> ls;
     namespace fs = std::filesystem;

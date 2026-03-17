@@ -1,12 +1,12 @@
 #ifndef STATEINSLIDE_H
 #define STATEINSLIDE_H
 #include "../libslope.h"
-#include "content/TimeObject.h"
+#include "TimeObject.h"
 #include "io.h"
 #include "Options.h"
-#include "Anchor.h"
+#include "screen_primitives/Anchor.h"
 
-#include "Transform.h"
+#include "polyscope_primitives/Transform.h"
 
 namespace slope {
 

@@ -1,7 +1,9 @@
 #include "Slideshow.h"
-#include "content/LateX.h"
+#include "content/screen_primitives/LateX.h"
 #include "spdlog/spdlog.h"
 #include "polyscope/pick.h"
+#include "content/color_tools.h"
+#include "content/polyscope_primitives/BackgroundColor.h"
 
 
 void slope::Slideshow::nextFrame()
@@ -63,6 +65,7 @@ void slope::Slideshow::play() {
     if (halt_slope)
         return;
 
+    polyscope::view::bgColor = BackgroundColor::Default.toArray();
 
     ImGuiWindowConfig();
     ImGui::Begin("Slope",NULL,window_flags);
@@ -205,6 +208,7 @@ void slope::Slideshow::handleDragAndDrop()
     if (selected_primitive != nullptr) {
 
         ImGui::SetNextFrameWantCaptureKeyboard(false);
+        ImGui::SetNextFrameWantCaptureMouse(true);
         auto S = ImGui::GetWindowSize();
         auto x = double(io.MousePos.x)/S.x;
         auto y = double(io.MousePos.y)/S.y;
@@ -361,6 +365,7 @@ void slope::Slideshow::goToSlide(int slide_nb)
     current_slide = slide_nb;
     for (auto& p : slides[current_slide])
         p.first->enable();
+    slides[current_slide].setCam();
     from_action = Time::now();
     from_action = Time::now();
 }
@@ -398,6 +403,7 @@ void slope::Slideshow::initializeSlides()
     loadSlides();
     computeFirstSlideNumbers();
     from_begin = Time::now();
+    slides[current_slide].setCam();
 }
 
 void slope::Slideshow::computeFirstSlideNumbers()
@@ -518,6 +524,9 @@ void slope::Slideshow::handleInputs()
     if (ImGui::IsKeyPressed(ImGuiKey_C)){
         camera_popup = true;
     }
+    if (ImGui::IsKeyPressed(ImGuiKey_W)){
+        palette_mode = !palette_mode;
+    }
     if (ImGui::IsKeyPressed(ImGuiKey_D)){
         polyscope::options::buildGui = !polyscope::options::buildGui;
     }
@@ -590,6 +599,8 @@ void slope::Slideshow::displayPopUps()
             ImGui::EndPopup();
         }
     }
+    else if (palette_mode)
+        PaletteHandler::ShowColorPickingModule();
     // if (transform_editor)
     // {
     //     TransformEditor();

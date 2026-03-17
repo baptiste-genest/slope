@@ -1,9 +1,8 @@
 #ifndef PANEL_H
 #define PANEL_H
 
-#include "../content/Anchor.h"
-#include "../content/Placement.h"
-#include "../content/ScreenPrimitive.h"
+#include "../content/screen_primitives/Anchor.h"
+#include "../content/screen_primitives/Placement.h"
 #include "SlideManager.h"
 #include "Slide.h"
 

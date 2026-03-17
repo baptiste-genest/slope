@@ -1,12 +1,45 @@
-#ifndef SLIDERS_H
-#define SLIDERS_H
+#ifndef IMGUIWIDGETS_H
+#define IMGUIWIDGETS_H
 
-#include "PolyscopePrimitive.h"
+#include "../primitive.h"
 
 namespace slope {
 
+class ImGuiWidgets : public Primitive
+{
+    public:
+    using WidgetPtr = std::shared_ptr<ImGuiWidgets>;
+    using callback = std::function<void(TimeObject t)>;
 
-class Sliders : public PolyscopePrimitive
+private:
+
+    callback func;
+    std::string label;
+
+    // Primitive interface
+public:
+
+    ImGuiWidgets(const callback& f,const std::string& title) : func(f),label(title)  {
+    }
+
+    virtual void draw(const TimeObject &time, const StateInSlide &sis) override;
+
+    virtual void playIntro(const TimeObject &t, const StateInSlide &sis) override {}
+    virtual void playOutro(const TimeObject &t, const StateInSlide &sis) override {}
+
+    static ImGuiWidgets::WidgetPtr Add(const callback& f,const std::string& title="") {
+        return NewPrimitive<ImGuiWidgets>(f,title);
+    }
+    static ImGuiWidgets::WidgetPtr Add(const std::function<void()>& f,const std::string& title="") {
+        return NewPrimitive<ImGuiWidgets>([f](TimeObject){f();},title);
+    }
+
+    // Primitive interface
+public:
+    bool isScreenSpace() const override {return false;}
+};
+
+class Sliders : public Primitive
 {
 public:
 
@@ -43,6 +76,9 @@ public:
             float_vals[index] = v;
 
     }
+    // Primitive interface
+public:
+    bool isScreenSpace() const override {return false;}
 };
 
 Sliders::SlidersPtr AddIntSliders(int nb, const std::string &label,int default_val, const std::pair<float, float> &bounds);
@@ -51,4 +87,4 @@ Sliders::SlidersPtr AddFloatSliders(int nb, const std::string &label,float defau
 
 }
 
-#endif // SLIDERS_H
+#endif // IMGUIWIDGETS_H

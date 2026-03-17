@@ -1,16 +1,15 @@
 #ifndef MESH_H
 #define MESH_H
-#include "../libslope.h"
-#include "io.h"
+#include "../../libslope.h"
+#include "../io.h"
 #include "PolyscopePrimitive.h"
-#include "../math/geometry.h"
+#include "../../math/geometry.h"
 
 namespace slope {
   
-  class Mesh : public PolyscopePrimitive
+class Mesh : public PolyscopePrimitive
   {
   public:
-    
     
     using VertexMap = std::function<vec(const Vertex&)>;
     
@@ -23,26 +22,14 @@ namespace slope {
     /// @param original_vertices the list of original vertex positions
     /// @param faces the list of faces
     /// @param smooth if true, enable smooth rendering (default: false)
-    Mesh(const vecs &vertices,const vecs& original_vertices, const Faces &faces,bool smooth = false);
+    Mesh(const vecs &vertices, const Faces &faces,bool smooth = false);
     
     
-    static MeshPtr Add(const std::string& objfile,const vec& scale = vec(1.,1.,1.),bool smooth = true);
-    
-    static MeshPtr Add(const std::string& objfile,scalar scale,bool smooth = true)
-    {
-      return Add(objfile,vec::Ones()*scale,smooth);
-    }
+    static MeshPtr Add(const std::string& objfile,bool smooth = true);
     
     static MeshPtr Add(const vecs& V,const Faces& F,bool smooth = true){
-      return NewPrimitive<Mesh>(V,V,F,smooth);
+      return NewPrimitive<Mesh>(V,F,smooth);
     }
-    
-    MeshPtr apply(const VertexMap& phi,bool smooth = true) const;
-   
-    MeshPtr apply(const mapping& phi,bool smooth = true) const {
-      return apply([phi](Vertex v){return phi(v.pos);},smooth);
-    }
-    MeshPtr applyDynamic(const VertexTimeMap& phi,bool smooth = true) const;
     
     void setSmooth(bool set);
     
@@ -61,20 +48,10 @@ namespace slope {
     
     void updateMesh(const vecs& X);
 
-    MeshPtr translate(const vec& x) const {
-      return apply([x](const vec& v) {return vec(x+v);});
-    }
-
-    MeshPtr scale(scalar x) const {
-      return apply([x](const vec& v) {return vec(x*v);});
-    }
-
-    MeshPtr copy() const { return translate(vec::Zero());}
-
     void normalize();
 
 private:
-    vecs vertices,original_vertices;
+    vecs vertices;
     bool smooth = false;
     Faces faces;
 

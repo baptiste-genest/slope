@@ -1,8 +1,8 @@
 #ifndef ANCHOR_H
 #define ANCHOR_H
 
-#include "Options.h"
-#include "io.h"
+#include "../Options.h"
+#include "../io.h"
 
 namespace slope {
 

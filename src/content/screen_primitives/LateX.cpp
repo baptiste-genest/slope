@@ -1,8 +1,9 @@
 #include "LateX.h"
 #include <spdlog/spdlog.h>
-#include "Options.h"
+#include "../Options.h"
 #include <string>
-#include <format>
+#include <fmt/core.h>
+//#include <format>
 
 slope::LatexPtr slope::Latex::Add(const TexObject &tex,scalar scale,int width)
 {
@@ -79,7 +80,7 @@ void slope::GenerateLatex(const path &filename,
         formula_file << texcontent;
     }
 
-    std::string latex_cmd = std::format("{} {} >> {}",
+    std::string latex_cmd = fmt::format("{} {} >> {}",
                                         Options::PathToPDFLATEX,
                                         tex_file.string(),
                                         Options::LogPath
@@ -91,7 +92,7 @@ void slope::GenerateLatex(const path &filename,
         throw std::runtime_error("Fail to generate latex");
     }
 
-    std::string convert_cmd = std::format("{} -density {} -quality 100 -trim -border 10 -bordercolor none {} -colorspace RGB {} >> {}",
+    std::string convert_cmd = fmt::format("{} -density {} -quality 100 -trim -border 10 -bordercolor none {} -colorspace RGB {} >> {}",
                                           Options::PathToCONVERT,
                                           Options::PDFtoPNGDensity,
                                           pdf_file.string(),

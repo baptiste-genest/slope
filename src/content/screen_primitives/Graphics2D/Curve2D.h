@@ -2,8 +2,8 @@
 #define CURVE2D_H
 
 #include "../Image.h"
-#include "../io.h"
-#include "../../extern/svg.hpp"
+#include "../../io.h"
+#include "../../../extern/svg.hpp"
 
 namespace slope {
 

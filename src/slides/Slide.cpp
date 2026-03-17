@@ -1,5 +1,4 @@
 #include "Slide.h"
-#include "../content/Referential.h"
 
 void slope::Slide::add(PrimitivePtr p, const StateInSlide &sis){
     if (p->isScreenSpace())

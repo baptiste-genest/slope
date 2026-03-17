@@ -1,10 +1,10 @@
 #ifndef LATEX_H
 #define LATEX_H
 
-#include "../libslope.h"
+#include "../../libslope.h"
 #include "Image.h"
-#include "io.h"
-#include "Options.h"
+#include "../io.h"
+#include "../Options.h"
 #include "LateXMacros.h"
 
 namespace slope {

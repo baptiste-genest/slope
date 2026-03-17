@@ -2,9 +2,9 @@
 #define TEXT_H
 
 #include "ScreenPrimitive.h"
-#include "../math/kernels.h"
-#include "../style/Style.h"
-#include "../style/FontManager.h"
+#include "../../math/kernels.h"
+#include "../../style/Style.h"
+#include "../../style/FontManager.h"
 
 namespace slope {
 

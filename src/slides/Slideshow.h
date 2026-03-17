@@ -4,8 +4,8 @@
 #include "Slide.h"
 #include "PrompterModule.h"
 #include "screenshot.h"
-#include "../content/Text.h"
-#include "../content/plots/Plot.h"
+#include "../content/screen_primitives/Text.h"
+#include "../content/screen_primitives/plots/Plot.h"
 #include "CLI.h"
 
 namespace slope {
@@ -82,6 +82,7 @@ private:
     bool backward = false;
     bool locked = true;
     bool camera_popup = false;
+    bool palette_mode = false;
     bool transform_editor = false;
     bool halt_slope = false;
 

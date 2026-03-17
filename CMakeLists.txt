@@ -10,8 +10,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(CPM)
 include(eigen)
 include(polyscope)
-include(geometry-central)
 include(spdlog)
+include(fmt)
 
 find_package(OpenGL REQUIRED)
 
@@ -31,8 +31,10 @@ configure_file(${PROJECT_SOURCE_DIR}/src/content/Options.cpp.in
 
 file(GLOB SRC_lib
      "src/content/*"
+     "src/content/screen_primitives/*"
+     "src/content/polyscope_primitives/*"
      "src/content/Graphics2D/*"
-     "src/content/plots/*"
+     "src/content/screen_primitives/plots/*"
      "src/math/*"
      "src/slides/*"
      "src/style/*"
@@ -43,12 +45,9 @@ file(GLOB HEADER_LIST CONFIGURE_DEPENDS "src/*.h*")
 
 ## The library
 add_library(slope STATIC ${SRC_lib})
-target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog  OpenGL::GL geometry-central)
+target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog OpenGL::GL fmt)
 target_compile_features(slope PUBLIC cxx_std_20)
 target_include_directories(slope PUBLIC src/ PRIVATE)
-
-target_precompile_headers(slope PUBLIC src/PCH.h)
-
 set_target_properties(slope PROPERTIES PUBLIC_HEADER "${HEADER_LIST}")
 
 ##INSTALL
@@ -74,3 +73,4 @@ add_executable(tuto_mesh tutorials/tuto_mesh.cpp)
 target_link_libraries(tuto_mesh slope)
 
 endif()
+

@@ -1,46 +1,60 @@
 #include "Mesh.h"
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "../../extern/tiny_obj_loader.h"
 
-slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,const vec& scale,bool smooth)
+slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,bool smooth)
 {
-
-    std::vector<std::array<double,3>> V;
+    vecs V;
     Faces F;
-    std::unique_ptr<geometrycentral::surface::ManifoldSurfaceMesh> mesh;
-    std::unique_ptr<geometrycentral::surface::VertexPositionGeometry> geometry;
-    std::tie(mesh, geometry) = geometrycentral::surface::readManifoldSurfaceMesh(formatPath(objfile));
+    struct CallbackData {
+        vecs* V;
+        Faces* F;
+    };
 
-    //load faces
-    for (auto f : mesh->getFaceVertexList())
-        F.push_back(f);
+    CallbackData data{&V, &F};
 
-    vecs verts(mesh->nVertices());
-    for (auto v : mesh->vertices()){
-        auto x = geometry->vertexPositions[v];
-        verts[v.getIndex()] = vec(x[0]*scale(0),x[1]*scale(1),x[2]*scale(2));
+    tinyobj::callback_t cb{};
+
+    // --- vertex callback ---
+    cb.vertex_cb = [](void* user_data, float x, float y, float z, float /*w*/) {
+        auto* d = reinterpret_cast<CallbackData*>(user_data);
+        d->V->emplace_back(x, y, z);
+    };
+
+    // --- face callback (polygonal) ---
+    cb.index_cb = [](void* user_data, tinyobj::index_t* indices, int num_indices) {
+        auto* d = reinterpret_cast<CallbackData*>(user_data);
+
+        std::vector<unsigned long> face;
+        face.reserve(num_indices);
+
+        for (int i = 0; i < num_indices; ++i) {
+            // OBJ is 1-based → convert to 0-based
+            face.push_back(static_cast<unsigned long>(indices[i].vertex_index - 1));
+        }
+
+        d->F->push_back(std::move(face));
+    };
+
+    std::ifstream ifs(formatPath(objfile));
+
+    std::string warn, err;
+
+    bool ret = tinyobj::LoadObjWithCallback(
+        ifs,
+        cb,
+        &data,
+        nullptr,   // no materials
+        &warn,
+        &err);
+
+    // if (!warn.empty()) spdlog::warn("WARN: {}", warn);
+    if (!err.empty())  spdlog::error("ERROR: {}", err);
+    if (!ret) {
+        throw std::runtime_error("Failed to parse obj\n");
     }
 
-    MeshPtr rslt = NewPrimitive<Mesh>(verts,verts,F,smooth);
-    return rslt;
-}
-
-slope::Mesh::MeshPtr slope::Mesh::apply(const VertexMap &phi,bool smooth) const
-{
-    auto Vphi = vertices;
-    for (int i = 0;i<Vphi.size();i++)
-        Vphi[i] = phi({Vphi[i],i});
-    MeshPtr rslt = NewPrimitive<Mesh>(Vphi,original_vertices,faces,smooth);
-    return rslt;
-}
-
-slope::Mesh::MeshPtr slope::Mesh::applyDynamic(const VertexTimeMap &phi,bool smooth) const
-{
-    MeshPtr rslt = NewPrimitive<Mesh>(vertices,original_vertices,faces,smooth);
-    rslt->updater = [rslt,phi] (const TimeObject& t) {
-        auto V = rslt->original_vertices;
-        for (int i = 0;i<V.size();i++)
-            V[i] = phi({V[i],i},t);
-        rslt->updateMesh(V);
-    };
+    MeshPtr rslt = NewPrimitive<Mesh>(V,F,smooth);
     return rslt;
 }
 
@@ -102,7 +116,6 @@ void slope::Mesh::normalize()
         v = (v - center) / max_extent;
     }
     updateMesh(vertices);
-    original_vertices = vertices;
 }
 
 void slope::Mesh::initPolyscope()
@@ -115,8 +128,6 @@ void slope::Mesh::initPolyscope()
 }
 
 
-slope::Mesh::Mesh(const vecs &vertices, const vecs &original_vertices, const Faces &faces, bool smooth) : vertices(vertices),
-    original_vertices(original_vertices),
-    faces(faces),smooth(smooth)
+slope::Mesh::Mesh(const vecs &vertices, const Faces &faces, bool smooth) : vertices(vertices),faces(faces),smooth(smooth)
 {
 }
