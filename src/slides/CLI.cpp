@@ -1,39 +1,52 @@
 #include "CLI.h"
 
-#include "../extern/CLI11.hpp"
+// #include "../extern/CLI11.hpp"
 #include "../content/Options.h"
 #include "spdlog/spdlog.h"
 #include <cassert>
 
 
 int slope::parseCLI(int argc,char** argv) {
-    CLI::App app("slope - 3D slides generator");
-    bool clear_cache = false;
-
-
     using namespace slope;
 
-    argv = app.ensure_utf8(argv);
-    app.add_flag("--clear_cache",clear_cache,"cache will be cleared and every resources of all projects will have to be regenerated");
-    app.add_flag("--ignore_cache",Options::ignore_cache,"cache will be ignored and every requested resource will be regenerated");
+    bool clear_cache = false;
+    Options::ignore_cache = false;
 
     std::string resolution = "1920x1080";
-    app.add_option("--resolution",resolution,"screen resolution (default 1920x1080)");
-
-    app.add_option("--project_path",Options::ProjectPath,"path to project")->required();
-
     std::string data_path;
-    app.add_option("--data_path",data_path,"path to data (default same as project)");
-
     int seed = -1;
-    app.add_option("--seed",seed,"seed for random generator");
 
-//    app.add_flag("--export_pdf",Options::ExportMode,"if set then headless rendering add exports in pdf file");
+    // Simple manual parsing
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
 
-    try {
-        app.parse(argc,argv);
-    } catch (const CLI::ParseError &e) {
-        app.exit(e);
+        if (arg == "--clear_cache") {
+            clear_cache = true;
+        }
+        else if (arg == "--ignore_cache") {
+            Options::ignore_cache = true;
+        }
+        else if (arg == "--resolution" && i + 1 < argc) {
+            resolution = argv[++i];
+        }
+        else if (arg == "--project_path" && i + 1 < argc) {
+            Options::ProjectPath = argv[++i];
+        }
+        else if (arg == "--data_path" && i + 1 < argc) {
+            data_path = argv[++i];
+        }
+        else if (arg == "--seed" && i + 1 < argc) {
+            seed = std::stoi(argv[++i]);
+        }
+        else {
+            std::cerr << "Unknown or incomplete argument: " << arg << std::endl;
+            return 1;
+        }
+    }
+
+    // Required argument check
+    if (Options::ProjectPath.empty()) {
+        std::cerr << "--project_path is required\n";
         return 1;
     }
     Options::ProjectPath += std::string("/");

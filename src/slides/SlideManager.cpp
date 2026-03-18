@@ -113,6 +113,8 @@ void slope::SlideManager::removeFromCurrentSlide(const PrimitiveGroup &G) {
 }
 
 slope::Slide &slope::SlideManager::getLastSlide() {
+    if (slides.empty())
+        slides.push_back(Slide());
     return slides.back();
 }
 
