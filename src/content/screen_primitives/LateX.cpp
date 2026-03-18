@@ -24,6 +24,7 @@ slope::LatexPtr slope::Latex::MakeObject(const TexObject &tex, scalar scale, int
         GenerateLatex(filename,content);
     LatexPtr rslt = NewPrimitive<Latex>();
     rslt->content = tex;
+    rslt->full_content = content;
     rslt->data = loadImage(filename);
     rslt->isFormula = formula;
     rslt->scale = scale;
@@ -39,9 +40,10 @@ void slope::Latex::updateContent(json j)
     auto tex_content = WriteTexFile(new_content,isFormula,width);
     path filename = GetLatexPath(tex_content);
 
-    if (!io::file_exists(filename)){
+    if (full_content != tex_content) {
         GenerateLatex(filename,tex_content);
         content = new_content;
+        full_content = tex_content;
         data = loadImage(filename);
     }
 }
@@ -174,14 +176,18 @@ void slope::LatexLoader::ReloadContentAndUpdate()
 
 void slope::LatexLoader::HotReloadIfModified()
 {
-    try {
-        auto last_write = std::filesystem::last_write_time(source_path);
-        if (source_last_modified < last_write) {
-            source_last_modified = last_write;
-            ReloadContentAndUpdate();
+    static auto last_refresh = Time::now();
+    if (TimeFrom(last_refresh) > 0.2){
+        last_refresh = Time::now();
+        try {
+            auto last_write = std::filesystem::last_write_time(source_path);
+            if (source_last_modified < last_write ){
+                source_last_modified = last_write ;
+                ReloadContentAndUpdate();
+            }
+        } catch (std::exception& e) {
+            spdlog::warn("Latex source unavailable {}",e.what());
         }
-    } catch (...) {
-        spdlog::warn("Latex source unavailable");
     }
 }
 

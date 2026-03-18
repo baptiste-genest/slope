@@ -78,6 +78,8 @@ struct Latex : public TextualPrimitive {
     bool isFormula;
     scalar scale;
     ImageData data;
+    std::string full_content;
+
 
 
     void updateContent(json content);
