@@ -2,6 +2,7 @@
 
 slope::ScreenPrimitive::ScreenPrimitive() {
     anchor = AbsoluteAnchor::Add(vec2(0,0));
+
 }
 
 slope::ScreenPrimitivePtr slope::ScreenPrimitive::get(PrimitiveID id) {

@@ -32,7 +32,7 @@ static size_t ScreenResolutionHeight;
 ///Density for the PDF -> PNG export
 static size_t PDFtoPNGDensity;
 
-static float DefaultFrameRoundness;
+static float DefaultBoxRoundness;
 
 static bool ignore_cache;
 

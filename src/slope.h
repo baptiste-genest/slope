@@ -20,6 +20,6 @@
 #include "content/polyscope_primitives/BackgroundColor.h"
 #include "content/screen_primitives/plots/Plot.h"
 #include "content/polyscope_primitives/VolumeGrid.h"
-#include "content/screen_primitives/Frame.h"
+#include "content/screen_primitives/Box.h"
 
 #endif // SLOPE_H

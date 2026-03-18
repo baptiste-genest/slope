@@ -13,6 +13,13 @@ slope::TransitionAnimator slope::Primitive::DefaultTransition;
 
 void slope::Primitive::addPrimitive(PrimitivePtr ptr) {
     ptr->pid = primitives.size();
+
+    ptr->initPolyscope();
+    ptr->transition = Primitive::DefaultTransition;
+
+    static int depth_stack = 0;
+    ptr->setDepth(depth_stack++);
+
     primitives.push_back(ptr);
 }
 

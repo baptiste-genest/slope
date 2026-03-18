@@ -24,6 +24,6 @@ double Options::DefaultLatexScale = 1.;
 bool Options::ignore_cache = false;
 bool Options::ExportMode = false;
 
-float Options::DefaultFrameRoundness = 1.f;
+float Options::DefaultBoxRoundness = 1.f;
 
 }

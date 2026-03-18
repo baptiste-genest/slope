@@ -101,8 +101,6 @@ template <class T,typename... Args>
 std::shared_ptr<T> NewPrimitive(Args&& ... args){
     auto ptr = std::make_shared<T>(std::forward<Args>(args)...);
     Primitive::addPrimitive(ptr);
-    ptr->initPolyscope();
-    ptr->transition = Primitive::DefaultTransition;
     return ptr;
 }
 
