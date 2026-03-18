@@ -1,57 +1,55 @@
 #include "Mesh.h"
-#define TINYOBJLOADER_IMPLEMENTATION
-#include "../../extern/tiny_obj_loader.h"
+
 
 slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,bool smooth)
 {
     vecs V;
     Faces F;
-    struct CallbackData {
-        vecs* V;
-        Faces* F;
-    };
 
-    CallbackData data{&V, &F};
+    std::ifstream in(formatPath(objfile));
 
-    tinyobj::callback_t cb{};
+    std::string line;
 
-    // --- vertex callback ---
-    cb.vertex_cb = [](void* user_data, float x, float y, float z, float /*w*/) {
-        auto* d = reinterpret_cast<CallbackData*>(user_data);
-        d->V->emplace_back(x, y, z);
-    };
+    while (std::getline(in, line)) {
+        if (line.empty()) continue;
 
-    // --- face callback (polygonal) ---
-    cb.index_cb = [](void* user_data, tinyobj::index_t* indices, int num_indices) {
-        auto* d = reinterpret_cast<CallbackData*>(user_data);
+        std::istringstream iss(line);
+        std::string tag;
+        iss >> tag;
 
-        std::vector<unsigned long> face;
-        face.reserve(num_indices);
-
-        for (int i = 0; i < num_indices; ++i) {
-            // OBJ is 1-based → convert to 0-based
-            face.push_back(static_cast<unsigned long>(indices[i].vertex_index - 1));
+        // --- vertex ---
+        if (tag == "v") {
+            double x, y, z;
+            iss >> x >> y >> z;
+            V.emplace_back(x, y, z);
         }
 
-        d->F->push_back(std::move(face));
-    };
+        // --- face ---
+        else if (tag == "f") {
+            Face face;
+            std::string token;
 
-    std::ifstream ifs(formatPath(objfile));
+            while (iss >> token) {
+                std::istringstream tss(token);
+                std::string v_str;
 
-    std::string warn, err;
+                // read only vertex index before '/'
+                std::getline(tss, v_str, '/');
 
-    bool ret = tinyobj::LoadObjWithCallback(
-        ifs,
-        cb,
-        &data,
-        nullptr,   // no materials
-        &warn,
-        &err);
+                long vi = std::stol(v_str);
 
-    // if (!warn.empty()) spdlog::warn("WARN: {}", warn);
-    if (!err.empty())  spdlog::error("ERROR: {}", err);
-    if (!ret) {
-        throw std::runtime_error("Failed to parse obj\n");
+                // OBJ supports negative indices
+                if (vi < 0)
+                    vi = static_cast<long>(V.size()) + vi;
+                else
+                    vi = vi - 1; // 1-based → 0-based
+
+                face.push_back(vi);
+            }
+
+            if (!face.empty())
+                F.push_back(std::move(face));
+        }
     }
 
     MeshPtr rslt = NewPrimitive<Mesh>(V,F,smooth);
