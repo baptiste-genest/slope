@@ -575,29 +575,41 @@ void slope::Slideshow::displayPopUps()
 {
     std::string file;
 
-    if (wm.isOpen(WindowType::Camera)){
+    if (wm.isOpen(WindowType::Camera)) {
         ImGui::OpenPopup("Save current camera");
-        // adapt text to the size of the window
-        if (ImGui::BeginPopupModal("Save current camera",NULL,
-                                   ImGuiWindowFlags_AlwaysAutoResize)){
+
+        ImGui::SetNextWindowSizeConstraints(ImVec2(300, 0), ImVec2(FLT_MAX, FLT_MAX));
+
+        if (ImGui::BeginPopupModal("Save current camera", NULL,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+
             static char buffer[256];
-            ImGui::SetWindowFontScale(0.5);
-            ImGui::InputText("filename",buffer,256);
-            if (ImGui::Button("cancel")){
+
+            ImVec2 display = ImGui::GetIO().DisplaySize;
+            ImGui::SetNextItemWidth(display.x * 0.25f);
+
+            ImGui::InputText("filename", buffer, 256);
+
+            if (ImGui::Button("cancel")) {
                 wm.CloseAll();
                 ImGui::CloseCurrentPopup();
             }
+
             ImGui::SameLine();
-            if (ImGui::Button("save")){
+
+            if (ImGui::Button("save")) {
                 file = formatCameraFilename(std::string(buffer));
-                if (io::file_exists(file) && false){
+
+                if (io::file_exists(file) && false) {
                     std::cerr << "FILE ALREADY EXISTS " << buffer << std::endl;
                     return;
                 }
+
                 wm.CloseAll();
                 saveCamera(file);
                 ImGui::CloseCurrentPopup();
             }
+
             ImGui::EndPopup();
         }
     }
