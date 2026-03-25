@@ -62,7 +62,7 @@ void slope::Slideshow::forceNextFrame()
 void slope::Slideshow::play() {
 
     handleGuizmos();
-    if (halt_slope)
+    if (halt_slope_display)
         return;
 
     polyscope::view::bgColor = BackgroundColor::Default.toArray();
@@ -168,6 +168,9 @@ void slope::Slideshow::setInnerTime()
 
 void slope::Slideshow::handleDragAndDrop()
 {
+    if (wm.isOtherOpen(WindowType::DragAndDrop))
+        return;
+
     auto io = ImGui::GetIO();
 
     static double x_offset = 0;
@@ -179,6 +182,7 @@ void slope::Slideshow::handleDragAndDrop()
     bool click = io.MouseClicked[0];
 
     if (ctrl && click && selected_primitive == nullptr){
+        wm.Toggle(WindowType::DragAndDrop);
         auto S = ImGui::GetWindowSize();
         auto x = double(io.MousePos.x)/S.x;
         auto y = double(io.MousePos.y)/S.y;
@@ -198,6 +202,7 @@ void slope::Slideshow::handleDragAndDrop()
     if (!ctrl && click && selected_primitive != nullptr) {
         slides[current_slide][selected_primitive].alpha = original_alpha;
         selected_primitive = nullptr;
+        wm.Toggle(WindowType::DragAndDrop);
         return;
     }
 
@@ -482,8 +487,10 @@ void slope::Slideshow::displaySlideNumber()
 
 void slope::Slideshow::TransformEditor()
 {
-    for (auto& pis : slides[current_slide].getPolyscopePrimitives()){
-        auto& pt = slides[current_slide][pis.first].persistentTransform;
+    auto PP = slides[current_slide].getPolyscopePrimitives();
+    for (const auto& pis : PP){
+        PrimitivePtr p = pis.first;
+        auto& pt = slides[current_slide].at(p).persistentTransform;
         if (!pt.isActive())
             continue;
         if (pt.guizmo == nullptr){
@@ -506,52 +513,47 @@ void slope::Slideshow::TransformEditor()
 
 void slope::Slideshow::handleInputs()
 {
+
     handleDragAndDrop();
-
-    if (!keyboardOpen())
-        return;
-
-    if (ImGui::IsKeyPressed(ImGuiKey_RightArrow) && !locked){
-        nextFrame();
-    }
-    else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)){
-        previousFrame();
-    }else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)){
-        forceNextFrame();
+    if (!wm.isAnyOpen()){
+        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow) && !locked){
+            nextFrame();
+        }
+        else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)){
+            previousFrame();
+        }else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)){
+            forceNextFrame();
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_P)){
+            static int screenshot_count = 0;
+            constexpr int nb_zeros = 6;
+            auto n = std::to_string(screenshot_count++);
+            path file =  "/tmp/screenshot_" + std::string(nb_zeros-n.size(),'0') + n + ".png";
+            slope::screenshot(file.string());
+            spdlog::info("screenshot saved at {}", file.string());
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_R)){
+            slope::LatexLoader::ReloadContentAndUpdate();
+        }
     }
     if (ImGui::IsKeyDown(ImGuiKey_Tab))
-        slideMenu();
-    if (ImGui::IsKeyPressed(ImGuiKey_C)){
-        camera_popup = true;
-    }
-    if (ImGui::IsKeyPressed(ImGuiKey_W)){
-        palette_mode = !palette_mode;
-    }
-    if (ImGui::IsKeyPressed(ImGuiKey_D)){
-        polyscope::options::buildGui = !polyscope::options::buildGui;
-    }
-    if (ImGui::IsKeyPressed(ImGuiKey_P)){
-        static int screenshot_count = 0;
-        constexpr int nb_zeros = 6;
-        auto n = std::to_string(screenshot_count++);
-        path file =  "/tmp/screenshot_" + std::string(nb_zeros-n.size(),'0') + n + ".png";
-        slope::screenshot(file.string());
-        spdlog::info("screenshot saved at {}", file.string());
-    }
-    if (ImGui::IsKeyPressed(ImGuiKey_R)){
-        slope::LatexLoader::ReloadContentAndUpdate();
-    }
-
+        wm.Toggle(WindowType::SlideMenu);
+    if (ImGui::IsKeyPressed(ImGuiKey_C))
+        wm.Toggle(WindowType::Camera);
+    if (ImGui::IsKeyPressed(ImGuiKey_W))
+        wm.Toggle(WindowType::Palette);
+    if (ImGui::IsKeyPressed(ImGuiKey_D))
+        wm.Toggle(WindowType::PolyscopeGUI);
+    polyscope::options::buildGui = wm.isOpen(WindowType::PolyscopeGUI);
 }
 
 void slope::Slideshow::handleGuizmos()
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_T,false)){
-        if (transform_editor){
-            transform_editor = false;
-            halt_slope = false;
+    if (ImGui::IsKeyPressed(ImGuiKey_T)){
+        if (wm.isOpen(WindowType::Transform)){
+            halt_slope_display = false;
             for (auto& pis : slides[current_slide].getPolyscopePrimitives()){
-                auto& pt = slides[current_slide][pis.first].persistentTransform;
+                auto& pt = slides[current_slide].at(pis.first).persistentTransform;
                 if (!pt.isActive())
                     continue;
                 pt.guizmo->setEnabled(false);
@@ -559,13 +561,13 @@ void slope::Slideshow::handleGuizmos()
                 pt.guizmo = nullptr;
             }
         }
-        else {
-            transform_editor = true;
-            halt_slope = true;
-        }
+        if (wm.Toggle(WindowType::Transform))
+            halt_slope_display = true;
     }
-    if (transform_editor)
+
+    if (wm.isOpen(WindowType::Transform)){
         TransformEditor();
+    }
 
 }
 
@@ -573,7 +575,7 @@ void slope::Slideshow::displayPopUps()
 {
     std::string file;
 
-    if (camera_popup){
+    if (wm.isOpen(WindowType::Camera)){
         ImGui::OpenPopup("Save current camera");
         // adapt text to the size of the window
         if (ImGui::BeginPopupModal("Save current camera",NULL,
@@ -582,7 +584,7 @@ void slope::Slideshow::displayPopUps()
             ImGui::SetWindowFontScale(0.5);
             ImGui::InputText("filename",buffer,256);
             if (ImGui::Button("cancel")){
-                camera_popup = false;
+                wm.CloseAll();
                 ImGui::CloseCurrentPopup();
             }
             ImGui::SameLine();
@@ -592,18 +594,16 @@ void slope::Slideshow::displayPopUps()
                     std::cerr << "FILE ALREADY EXISTS " << buffer << std::endl;
                     return;
                 }
-                camera_popup = false;
+                wm.CloseAll();
                 saveCamera(file);
                 ImGui::CloseCurrentPopup();
             }
             ImGui::EndPopup();
         }
     }
-    else if (palette_mode)
+    else if (wm.isOpen(WindowType::Palette))
         PaletteHandler::ShowColorPickingModule();
-    // if (transform_editor)
-    // {
-    //     TransformEditor();
-    // }
+    else if (wm.isOpen(WindowType::SlideMenu))
+        slideMenu();
 }
 

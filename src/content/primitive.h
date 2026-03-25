@@ -30,6 +30,7 @@ struct Primitive {
     static std::vector<PrimitivePtr> primitives;
 
     virtual bool isScreenSpace() const = 0;
+    virtual bool isPolyscopePrimitive() const { return false;}
 
     static void addPrimitive(PrimitivePtr ptr);
 

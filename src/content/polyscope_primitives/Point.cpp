@@ -89,6 +89,7 @@ slope::Point::Point(const DynamicParam &phi, scalar radius) :
     phi(phi),
     radius(radius)
 {
+    x = vec::Zero();
     updater = [this](const TimeObject& t){
         setPos(this->phi(t));
         updateVectors(t);

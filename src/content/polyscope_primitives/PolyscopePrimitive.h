@@ -48,6 +48,8 @@ public:
     void setTransform(const StateInSlide& sis);
 
     Transform localTransform;
+
+    bool isPolyscopePrimitive() const override { return true; }
 protected:
     polyscope::Structure* polyscope_ptr;
 

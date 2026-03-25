@@ -26,8 +26,9 @@ void slope::Slide::add(PrimitivePtr p, const vec2 &pos){
 
 std::vector<slope::PrimitiveInSlide> slope::Slide::getDepthSorted() {
     std::vector<PrimitiveInSlide> rslt;
-    for (auto&& [ptr,sis] : *this)
-        rslt.push_back({ptr,sis});
+    for (const auto& pis : *this){
+        rslt.push_back(pis);
+    }
     std::sort(rslt.begin(),rslt.end(),[](PrimitiveInSlide a,PrimitiveInSlide b){
         return a.first->getDepth() < b.first->getDepth();
     });
@@ -54,10 +55,11 @@ std::map<slope::ScreenPrimitivePtr, slope::StateInSlide> slope::Slide::getScreen
 
 std::map<slope::PolyscopePrimitivePtr, slope::StateInSlide> slope::Slide::getPolyscopePrimitives() const {
     std::map<PolyscopePrimitivePtr,StateInSlide> rslt;
-    for (auto&& [ptr,sis] : *this) {
-        if (ptr->isScreenSpace())
+    for (auto& pis : *this) {
+        if (!pis.first)
             continue;
-        rslt[std::dynamic_pointer_cast<PolyscopePrimitive>(ptr)] = sis;
+        if (pis.first->isPolyscopePrimitive())
+            rslt[std::dynamic_pointer_cast<PolyscopePrimitive>(pis.first)] = pis.second;
     }
     return rslt;
 }

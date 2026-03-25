@@ -8,6 +8,8 @@
 #include "../content/screen_primitives/plots/Plot.h"
 #include "CLI.h"
 
+#include "WindowManager.h"
+
 namespace slope {
 
 class Slideshow : public PrompterModule
@@ -81,20 +83,16 @@ private:
     bool transition_done = false;
     bool backward = false;
     bool locked = true;
-    bool camera_popup = false;
-    bool palette_mode = false;
-    bool transform_editor = false;
-    bool halt_slope = false;
+
+    bool halt_slope_display = false;
+
+    WindowManager wm;
 
     void TransformEditor();
 
     void handleInputs();
 
     void handleGuizmos();
-
-    bool keyboardOpen() const {
-        return !camera_popup;
-    }
 
     void displayPopUps();
 
