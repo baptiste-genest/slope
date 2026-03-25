@@ -1,7 +1,7 @@
 #ifndef LIBSLOPE_H
 #define LIBSLOPE_H
 
-#include "PCH.h"
+#include "pch.hpp"
 
 namespace slope {
 

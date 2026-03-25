@@ -5,7 +5,7 @@
 #ifdef __APPLE__
 #include <string>
 #else
-#include "../PCH.h"
+#include "../pch.hpp"
 #endif //__APPLE__
 
 namespace slope {

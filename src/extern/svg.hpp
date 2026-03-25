@@ -1,7 +1,5 @@
 /** @file */
 #pragma once
-#define PI 3.14159265
-#define RAD_TO_DEG (180/PI)
 #define SVG_TYPE_CHECK static_assert(std::is_base_of<Element, T>::value, "Child must be an SVG element.")
 #define APPROX_EQUALS(x, y, tol) bool(abs(x - y) < tol)
 #include <iostream>
@@ -19,6 +17,10 @@
 #include <typeinfo>
 
 namespace SVG {
+    constexpr double PI = 3.141592653589793;
+
+    constexpr double RAD_TO_DEG = (180/PI);
+
     /** @namespace SVG
      *  @brief Main namespace for SVG for C++
      */

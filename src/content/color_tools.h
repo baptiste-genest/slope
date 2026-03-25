@@ -1,5 +1,4 @@
 #pragma once
-#include "../PCH.h"
 #include "../libslope.h"
 #include "Options.h"
 #include "io.h"
