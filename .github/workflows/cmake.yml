@@ -33,6 +33,7 @@ jobs:
      - name: Install macOS deps
        if: matrix.os == 'macOS-latest'
        run: |
+            brew update
             brew install eigen
             brew install --cask mactex-no-gui
             eval "$(/usr/libexec/path_helper)"
