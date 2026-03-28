@@ -6,9 +6,9 @@ on:
 
 env:
   # if needed
-  CONFIG_GLOBAL:
+  CONFIG_GLOBAL: -DSLOPE_BUILD_EXAMPLES=ON
   CONFIG_LINUX:
-  CONFIG_MAC:
+  CONFIG_MAC: 
 
 jobs:
   build:
