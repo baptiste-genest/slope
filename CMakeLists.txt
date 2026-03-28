@@ -61,16 +61,10 @@ install(TARGETS slope
         )
 
 
-option(BUILD_SLOPE_TUTORIALS "Build the slope tutorials" OFF)
+option(SLOPE_BUILD_EXAMPLES "Build the slope examples" OFF)
 
-if (BUILD_SLOPE_TUTORIALS)
-
-## Tutorials
-add_executable(tuto_helloworld tutorials/tuto_helloworld.cpp)
-target_link_libraries(tuto_helloworld slope)
-
-add_executable(tuto_mesh tutorials/tuto_mesh.cpp)
-target_link_libraries(tuto_mesh slope)
-
+if (SLOPE_BUILD_EXAMPLES)
+ add_executable(template_project template_project.cpp)
+ target_link_libraries(template_project slope)
 endif()
 
