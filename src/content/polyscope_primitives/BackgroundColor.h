@@ -35,10 +35,10 @@ protected:
         forceEnable();
     }
     virtual void playIntro(const TimeObject &t, const StateInSlide &sis) override {
-        polyscope::view::bgColor = Lerp(Default,color,t.transitionParameter).toArray();
+        polyscope::view::bgColor = Lerp(Default,color,t.transition_parameter).toArray();
     }
     virtual void playOutro(const TimeObject &t, const StateInSlide &sis) override {
-        polyscope::view::bgColor = Lerp(Default,color,1-t.transitionParameter).toArray();
+        polyscope::view::bgColor = Lerp(Default,color,1-t.transition_parameter).toArray();
     }
     virtual void forceDisable() override {
         polyscope::view::bgColor = Default.toArray();;

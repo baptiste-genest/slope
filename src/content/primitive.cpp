@@ -6,6 +6,12 @@ slope::TimeObject slope::TimeObject::operator()(Primitive* p) const {
     auto tmp = *this;
     tmp.inner_time = p->getInnerTime();
     tmp.relative_frame_number = p->relativeSlideIndex(tmp.absolute_frame_number);
+
+    static auto last_time = slope::Time::now();
+    float delta = TimeFrom(last_time);
+    last_time = slope::Time::now();
+    tmp.delta_time = delta;
+//    last_time = tmp.inner_time;
     return tmp;
 }
 

@@ -9,18 +9,19 @@ struct TimeObject
     TimeTypeSec from_begin = 0;
     TimeTypeSec from_action = 0;
     TimeTypeSec inner_time = 0;
+    TimeTypeSec delta_time = 0;
     int absolute_frame_number;
     int relative_frame_number;
-    parameter transitionParameter = 1;
+    parameter transition_parameter = 1;
 
     TimeObject() {}
-    TimeObject(TimeTypeSec it,parameter transition) : inner_time(it),transitionParameter(transition) {}
+    TimeObject(TimeTypeSec it,parameter transition) : inner_time(it),transition_parameter(transition) {}
 
     TimeObject operator()(Primitive* p) const ;
 
     inline TimeObject operator()(parameter t) const {
         TimeObject tmp = *this;
-        tmp.transitionParameter = t;
+        tmp.transition_parameter = t;
         return tmp;
     }
 };

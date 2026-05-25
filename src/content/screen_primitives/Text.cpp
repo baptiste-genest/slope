@@ -49,13 +49,13 @@ void Text::pushFont() const
 
 void Text::playIntro(const TimeObject& t, const StateInSlide &sis)
 {
-    alpha = smoothstep(t.transitionParameter);
+    alpha = smoothstep(t.transition_parameter);
     display(sis);
 }
 
 void Text::playOutro(const TimeObject& t, const StateInSlide &sis)
 {
-    alpha = 1-smoothstep(t.transitionParameter);
+    alpha = 1-smoothstep(t.transition_parameter);
     display(sis);
 
 }
