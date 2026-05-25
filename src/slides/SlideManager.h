@@ -44,6 +44,7 @@ protected:
     bool centering = false;AnchorPtr center_anchor;
 
 
+
 public:
 
     PlacementTemplate templater = [] (SlideManager& show,ScreenPrimitivePtr ptr) {

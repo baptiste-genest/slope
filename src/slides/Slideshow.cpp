@@ -104,7 +104,7 @@ void slope::Slideshow::play() {
                     c->play(T,st);
                 }
                 if (t < transitionTime){
-                    T.transitionParameter = t/transitionTime;
+                    T.transition_parameter = t/transitionTime;
                     for (auto& ua : UA){
                         auto p = ua;
                         p->outro(T(t/transitionTime),PS[ua]);
@@ -143,6 +143,8 @@ void slope::Slideshow::play() {
     prompt();
 
     handleInputs();
+
+    recordTime();
 
 
     if (LatexLoader::initialized)
@@ -280,6 +282,16 @@ void slope::Slideshow::ImGuiWindowConfig()
     ImGui::SetNextFrameWantCaptureKeyboard(true);
 }
 
+void slope::Slideshow::recordTime()
+{
+    static TimeStamp last_recorded_time = Time::now();
+    auto curr_title = getSlideTitle(current_slide);
+    auto dt = TimeFrom(last_recorded_time);
+    time_per_slide_group[curr_title] += dt;
+    time_from_start += dt;
+    last_recorded_time = Time::now();
+}
+
 void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 {
     help_wanted = slope::parseCLI(argc,argv);
@@ -306,6 +318,7 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
     std::cout << "  - c : export current camera view" << std::endl;
     std::cout << "  - p : take a screenshot" << std::endl;
     std::cout << "  - d : show polyscope interface" << std::endl;
+    std::cout << "  - t : reset timings" << std::endl;
     std::cout << "  - ctrl + left click : drag labeled screen primitives" << std::endl;
 
     polyscope::options::allowHeadlessBackends = slope::Options::ExportMode;
@@ -338,21 +351,64 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 
 }
 
+std::string formatTime(float totalSeconds)
+{
+    int seconds = std::round(totalSeconds);
+
+    int hours = seconds / 3600;
+    int minutes = (seconds % 3600) / 60;
+    int secs = seconds % 60;
+
+    std::ostringstream out;
+    out << std::setw(2) << std::setfill('0') << hours << "h:"
+        << std::setw(2) << minutes << "m:"
+        << std::setw(2) << secs << "s";
+
+    return out.str();
+}
+
 void slope::Slideshow::slideMenu()
 {
     ImGui::Begin("Slides");
+
+    // Top timer
+    ImGui::Text("Elapsed: %s",
+                formatTime(time_from_start).c_str());
+
+    ImGui::Separator();
+
     std::set<std::string> done;
-    for (int i = 0;i<slides.size();i++){
-        auto title = getSlideTitle(i);
-        if (done.contains(title))
-            continue;
-        done.insert(title);
-        if (ImGui::Button(title.c_str()))
-            goToSlide(i);
+
+    if (ImGui::BeginTable("SlideTable", 2,
+                          ImGuiTableFlags_SizingStretchProp))
+    {
+        for (int i = 0; i < slides.size(); i++)
+        {
+            auto title = getSlideTitle(i);
+
+            if (done.contains(title))
+                continue;
+            done.insert(title);
+
+            ImGui::TableNextRow();
+
+            // Column 0: button
+            ImGui::TableSetColumnIndex(0);
+            if (ImGui::Button(title.c_str()))
+                goToSlide(i);
+
+            // Column 1: duration
+            ImGui::TableSetColumnIndex(1);
+            ImGui::TextUnformatted(
+                formatTime(time_per_slide_group[title]).c_str()
+                );
+        }
+
+        ImGui::EndTable();
     }
+
     ImGui::End();
 }
-
 std::string slope::Slideshow::getSlideTitle(int i)
 {
     auto title = slides[i].getTitle();
@@ -449,8 +505,10 @@ void slope::Slideshow::loadSlides()
     std::set<std::string> done;
 
     for (int i = 0;i<slides.size();i++){
-        done.insert(getSlideTitle(i));
+        auto title = getSlideTitle(i);
+        done.insert(title);
         slide_numbers[i] = done.size()-1;
+        time_per_slide_group[title] = 0;
     }
     nb_distinct_slides = done.size();
 
@@ -485,7 +543,7 @@ void slope::Slideshow::displaySlideNumber()
     DSN.first->play(TimeObject(),DSN.second);
 }
 
-void slope::Slideshow::TransformEditor()
+void slope::Slideshow::transformEditor()
 {
     auto PP = slides[current_slide].getPolyscopePrimitives();
     for (const auto& pis : PP){
@@ -536,7 +594,7 @@ void slope::Slideshow::handleInputs()
             slope::LatexLoader::ReloadContentAndUpdate();
         }
     }
-    if (ImGui::IsKeyDown(ImGuiKey_Tab))
+    if (ImGui::IsKeyPressed(ImGuiKey_Tab))
         wm.Toggle(WindowType::SlideMenu);
     if (ImGui::IsKeyPressed(ImGuiKey_C))
         wm.Toggle(WindowType::Camera);
@@ -544,6 +602,11 @@ void slope::Slideshow::handleInputs()
         wm.Toggle(WindowType::Palette);
     if (ImGui::IsKeyPressed(ImGuiKey_D))
         wm.Toggle(WindowType::PolyscopeGUI);
+    if (ImGui::IsKeyPressed(ImGuiKey_T)) {
+        time_from_start = 0;
+        for (auto& tpsg : time_per_slide_group)
+            tpsg.second = 0;
+    }
     polyscope::options::buildGui = wm.isOpen(WindowType::PolyscopeGUI);
 }
 
@@ -566,7 +629,7 @@ void slope::Slideshow::handleGuizmos()
     }
 
     if (wm.isOpen(WindowType::Transform)){
-        TransformEditor();
+        transformEditor();
     }
 
 }

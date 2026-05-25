@@ -88,7 +88,7 @@ private:
 
     WindowManager wm;
 
-    void TransformEditor();
+    void transformEditor();
 
     void handleInputs();
 
@@ -104,6 +104,11 @@ private:
     TimeStamp from_action,from_begin;
     size_t current_slide = 0;
     ImGuiWindowFlags window_flags = 0;
+
+    void recordTime();
+
+    std::map<std::string,TimeTypeSec> time_per_slide_group;
+    TimeTypeSec time_from_start;
 
     bool help_wanted = false;
 };
