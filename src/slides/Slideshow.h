@@ -110,6 +110,9 @@ private:
     std::map<std::string,TimeTypeSec> time_per_slide_group;
     TimeTypeSec time_from_start;
 
+    InputManager input_manager;
+    void addKeyboardInputs();
+
     bool help_wanted = false;
 };
 

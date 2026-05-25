@@ -302,7 +302,7 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 
     slope::Options::ProjectName = project_name;
 
-    std::cout << "			[ slope PROJECT : " << slope::Options::ProjectName << " ]" << std::endl;
+    std::cout << "			[ SLOPE PROJECT : " << slope::Options::ProjectName << " ]" << std::endl;
 
     std::cout << "[ PROJECT PATH ] " << slope::Options::ProjectPath << std::endl;
     std::cout << "[ PROJECT DATA PATH ] " << slope::Options::ProjectDataPath << std::endl;
@@ -310,16 +310,9 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
     std::cout << "[ PROJECT VIEWS PATH ] " << slope::Options::ProjectViewsPath << std::endl;
     std::cout << "[ SCREEN RESOLUTION ] " << slope::Options::ScreenResolutionWidth<<"x"<<slope::Options::ScreenResolutionHeight  << std::endl;
 
-    std::cout << "[ KEY GUIDE ] " << std::endl;
-    std::cout << "  - right arrow : next slide" << std::endl;
-    std::cout << "  - left arrow : previous slide" << std::endl;
-    std::cout << "  - down arrow : skip to next slide without transition" << std::endl;
-    std::cout << "  - tab : slide menu" << std::endl;
-    std::cout << "  - c : export current camera view" << std::endl;
-    std::cout << "  - p : take a screenshot" << std::endl;
-    std::cout << "  - d : show polyscope interface" << std::endl;
-    std::cout << "  - t : reset timings" << std::endl;
-    std::cout << "  - ctrl + left click : drag labeled screen primitives" << std::endl;
+    addKeyboardInputs();
+    input_manager.printInputs();
+
 
     polyscope::options::allowHeadlessBackends = slope::Options::ExportMode;
 
@@ -573,42 +566,57 @@ void slope::Slideshow::handleInputs()
 {
 
     handleDragAndDrop();
-    if (!wm.isAnyOpen()){
-        if (ImGui::IsKeyPressed(ImGuiKey_RightArrow) && !locked){
-            nextFrame();
+    for (const auto& input : input_manager.getInputs()) {
+        if (ImGui::IsKeyPressed(input.trigger)) {
+            if (!input.isPopUp && !wm.isAnyOpen())
+                input.callback();
+            else if (input.isPopUp)
+                input.callback();
         }
-        else if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)){
-            previousFrame();
-        }else if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)){
-            forceNextFrame();
-        }
-        if (ImGui::IsKeyPressed(ImGuiKey_P)){
+    }
+    polyscope::options::buildGui = wm.isOpen(WindowType::PolyscopeGUI);
+}
+
+void slope::Slideshow::addKeyboardInputs()
+{
+    input_manager.addInput("next slide","right arrow",ImGuiKey_RightArrow,
+        [this](){if (!locked) nextFrame();},false);
+    input_manager.addInput("previous slide","left arrow",ImGuiKey_LeftArrow,
+        [this](){previousFrame();},false);
+    input_manager.addInput("skip to next slide without transition","down arrow",ImGuiKey_DownArrow,
+        [this](){forceNextFrame();},false);
+    input_manager.addInput("screenshot","P",ImGuiKey_P,
+        [this](){
             static int screenshot_count = 0;
             constexpr int nb_zeros = 6;
             auto n = std::to_string(screenshot_count++);
             path file =  "/tmp/screenshot_" + std::string(nb_zeros-n.size(),'0') + n + ".png";
             slope::screenshot(file.string());
             spdlog::info("screenshot saved at {}", file.string());
-        }
-        if (ImGui::IsKeyPressed(ImGuiKey_R)){
-            slope::LatexLoader::ReloadContentAndUpdate();
-        }
-    }
-    if (ImGui::IsKeyPressed(ImGuiKey_Tab))
-        wm.Toggle(WindowType::SlideMenu);
-    if (ImGui::IsKeyPressed(ImGuiKey_C))
-        wm.Toggle(WindowType::Camera);
-    if (ImGui::IsKeyPressed(ImGuiKey_W))
-        wm.Toggle(WindowType::Palette);
-    if (ImGui::IsKeyPressed(ImGuiKey_D))
-        wm.Toggle(WindowType::PolyscopeGUI);
-    if (ImGui::IsKeyPressed(ImGuiKey_T)) {
-        time_from_start = 0;
-        for (auto& tpsg : time_per_slide_group)
-            tpsg.second = 0;
-    }
-    polyscope::options::buildGui = wm.isOpen(WindowType::PolyscopeGUI);
+        },false);
+
+    input_manager.addInput("reload latex","L",ImGuiKey_L,
+        [this](){slope::LatexLoader::ReloadContentAndUpdate();},false);
+    input_manager.addInput("show slide goto and timings","Tab",ImGuiKey_Tab,
+        [this](){wm.Toggle(WindowType::SlideMenu);},true);
+    input_manager.addInput("export current camera view","C",ImGuiKey_C,
+        [this](){wm.Toggle(WindowType::Camera);},true);
+    input_manager.addInput("show color palette editor","W",ImGuiKey_W,
+        [this](){wm.Toggle(WindowType::Palette);},true);
+    input_manager.addInput("show polyscope GUI","D",ImGuiKey_D,
+        [this](){wm.Toggle(WindowType::PolyscopeGUI);},true);
+    input_manager.addInput("reset timings","R",ImGuiKey_R,
+        [this](){
+            time_from_start = 0;
+            for (auto& tpsg : time_per_slide_group)
+                tpsg.second = 0;
+        },true);
+
+    input_manager.addInput("show transform guizmo editor","T",ImGuiKey_T,true);
+    input_manager.addInput("center horizontally dragged primitive","H",ImGuiKey_H,false);
+    input_manager.addInput("center vertically dragged primitive","V",ImGuiKey_V,false);
 }
+
 
 void slope::Slideshow::handleGuizmos()
 {
