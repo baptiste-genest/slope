@@ -38,6 +38,9 @@ int slope::parseCLI(int argc,char** argv) {
         else if (arg == "--seed" && i + 1 < argc) {
             seed = std::stoi(argv[++i]);
         }
+        else if (arg == "--export") {
+            Options::ExportMode = true;
+        }
         else {
             std::cerr << "Unknown or incomplete argument: " << arg << std::endl;
             return 1;

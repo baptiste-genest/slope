@@ -211,6 +211,8 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 
 
     polyscope::options::allowHeadlessBackends = slope::Options::ExportMode;
+    polyscope::view::windowWidth  = (int)Options::ScreenResolutionWidth;
+    polyscope::view::windowHeight = (int)Options::ScreenResolutionHeight;
 
     polyscope::init();
     polyscope::options::buildGui = false;
@@ -289,22 +291,44 @@ void slope::Slideshow::initializeSlides()
 
 void slope::Slideshow::exportPDF()
 {
-    ImGuiWindowConfig();
-    ImGui::Begin("Slope",NULL,window_flags);
-
     if (!initialized)
         initializeSlides();
 
-    for (int i = 0; i < (int)slides.size(); i++) {
-        spdlog::info("export slide {} over {}",i+1,slides.size());
-        state.current = i;
-        auto& CS = slides[state.current];
+    polyscope::state::userCallback = [this]() {
+        ImGuiWindowConfig();
+        ImGui::Begin("Slope", NULL, window_flags);
         setInnerTime();
         TimeObject T = getTimeObject();
+        auto& CS = slides[state.current];
         for (auto& s : CS.getDepthSorted())
-            s.first->play(T,CS[s.first]);
-        polyscope::screenshot(("/tmp/slide_" + std::to_string(i) + ".png").c_str());
+            s.first->play(T, CS[s.first]);
+        if (display_slide_number)
+            hud.drawSlideNumber(state.current);
+        ImGui::End();
+    };
+
+    polyscope::ScreenshotOptions opts;
+    opts.includeUI = true;
+    opts.transparentBackground = false;
+
+    for (int i = 0; i < (int)slides.size(); i++) {
+        spdlog::info("exporting slide {} / {}", i+1, slides.size());
+        state.current = i;
+        polyscope::screenshot("/tmp/slide_" + std::to_string(i) + ".png", opts);
     }
+
+    polyscope::state::userCallback = nullptr;
+
+    const std::string out = Options::ProjectPath + Options::ProjectName + ".pdf";
+    std::string cmd = "convert";
+    for (int i = 0; i < (int)slides.size(); i++)
+        cmd += " /tmp/slide_" + std::to_string(i) + ".png";
+    cmd += " " + out;
+    spdlog::info("generating PDF: {}", out);
+    if (std::system(cmd.c_str()) != 0)
+        spdlog::error("PDF generation failed — ImageMagick `convert` returned non-zero");
+    else
+        spdlog::info("PDF saved to {}", out);
 }
 
 void slope::Slideshow::loadSlides()
