@@ -44,6 +44,7 @@ void slope::Slideshow::forceNextFrame()
 {
     if (current_slide == slides.size()-1)
         return;
+    pause_active = false;
     for (auto& s : uniquePrevious(transitions[current_slide]))
         s->disable();
     for (auto& s : uniqueNext(transitions[current_slide]))
