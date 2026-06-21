@@ -99,6 +99,16 @@ constexpr SlideManager::new_frame newFrameSameTitle{true};
 constexpr SlideManager::center_tag beginCenter{true};
 constexpr SlideManager::center_tag endCenter{false};
 
+struct Pause {
+    TimeTypeSec duration;
+    static Pause Add(TimeTypeSec d) { return {d}; }
+};
+
+inline SlideManager& operator<<(SlideManager& SM, const Pause& p) {
+    SM.getLastSlide().pause_duration = p.duration;
+    return SM;
+}
+
 
 inline SlideManager& operator<<(SlideManager& SM,const Slide& S) {
     SM.addSlide(S);

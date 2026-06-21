@@ -39,6 +39,7 @@ struct Slide : public std::map<PrimitivePtr,StateInSlide> {
 
     bool sameCamera(const Slide& other) const;
 
+    TimeTypeSec pause_duration = 0;
 
 };
 

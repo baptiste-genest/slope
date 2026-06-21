@@ -10,6 +10,7 @@ void slope::Slideshow::nextFrame()
 {
     if (current_slide == slides.size()-1)
         return;
+    pause_active = false;
     current_slide++;
     from_action = Time::now();
     backward = false;
@@ -21,6 +22,7 @@ void slope::Slideshow::previousFrame()
 {
     if (!current_slide)
         return;
+    pause_active = false;
     for (auto& s : uniqueNext(transitions[current_slide-1]))
         s->disable();
     for (auto& s : uniquePrevious(transitions[current_slide-1]))
@@ -141,6 +143,14 @@ void slope::Slideshow::play() {
 
 
     prompt();
+
+    if (pause_active) {
+        drawPauseIndicator();
+        if (TimeFrom(pause_start) >= slides[current_slide].pause_duration) {
+            pause_active = false;
+            nextFrame();
+        }
+    }
 
     handleInputs();
 
@@ -580,7 +590,17 @@ void slope::Slideshow::handleInputs()
 void slope::Slideshow::addKeyboardInputs()
 {
     input_manager.addInput("next slide","right arrow",ImGuiKey_RightArrow,
-        [this](){if (!locked) nextFrame();},false);
+        [this](){
+            if (!locked && !pause_active) {
+                auto& CS = slides[current_slide];
+                if (CS.pause_duration > 0) {
+                    pause_active = true;
+                    pause_start = Time::now();
+                } else {
+                    nextFrame();
+                }
+            }
+        },false);
     input_manager.addInput("previous slide","left arrow",ImGuiKey_LeftArrow,
         [this](){previousFrame();},false);
     input_manager.addInput("skip to next slide without transition","down arrow",ImGuiKey_DownArrow,
@@ -640,6 +660,30 @@ void slope::Slideshow::handleGuizmos()
         transformEditor();
     }
 
+}
+
+void slope::Slideshow::drawPauseIndicator()
+{
+    float elapsed  = TimeFrom(pause_start);
+    float duration = slides[current_slide].pause_duration;
+    float remaining = 1.0f - elapsed / duration;
+
+    auto* dl = ImGui::GetWindowDrawList();
+    auto& io = ImGui::GetIO();
+
+    constexpr float radius = 12.0f;
+    constexpr float thickness = 2.5f;
+    constexpr int   segments = 48;
+
+    ImVec2 center(io.DisplaySize.x - 50.0f, io.DisplaySize.y - 70.0f);
+
+    dl->AddCircle(center, radius, IM_COL32(0, 0, 0, 50), segments, thickness);
+
+    if (remaining > 0.0f) {
+        constexpr float start = -M_PI * 0.5f;
+        dl->PathArcTo(center, radius, start, start + remaining * 2.0f * M_PI, segments);
+        dl->PathStroke(IM_COL32(0, 0,0, 220), false, thickness);
+    }
 }
 
 void slope::Slideshow::displayPopUps()

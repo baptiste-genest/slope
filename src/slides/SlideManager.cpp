@@ -67,7 +67,10 @@ void slope::SlideManager::newFrame() {
     last_screen_primitive_inserted = nullptr;
 }
 
-void slope::SlideManager::duplicateLastSlide(){slides.push_back(slides.back());}
+void slope::SlideManager::duplicateLastSlide(){
+    slides.push_back(slides.back());
+    slides.back().pause_duration = 0;
+}
 
 void slope::SlideManager::addSlide(const Slide &s) {
     initialized = false;

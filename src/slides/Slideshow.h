@@ -84,6 +84,9 @@ private:
     bool backward = false;
     bool locked = true;
 
+    bool pause_active = false;
+    TimeStamp pause_start;
+
     bool halt_slope_display = false;
 
     WindowManager wm;
@@ -106,6 +109,7 @@ private:
     ImGuiWindowFlags window_flags = 0;
 
     void recordTime();
+    void drawPauseIndicator();
 
     std::map<std::string,TimeTypeSec> time_per_slide_group;
     TimeTypeSec time_from_start;
