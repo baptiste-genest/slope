@@ -48,6 +48,10 @@ public:
         return active != WindowType::none && active != w;
     }
 
+    bool isModalOpen() const {
+        return active == WindowType::Camera || active == WindowType::QuitWarning;
+    }
+
     WindowManager(){}
 
 private:

@@ -146,7 +146,7 @@ void slope::Slideshow::play() {
     prompt();
 
     if (pause_active) {
-        drawPauseIndicator();
+        hud.drawPauseIndicator(TimeFrom(pause_start), slides[current_slide].pause_duration);
         if (TimeFrom(pause_start) >= slides[current_slide].pause_duration) {
             pause_active = false;
             nextFrame();
@@ -155,7 +155,7 @@ void slope::Slideshow::play() {
 
     handleInputs();
 
-    recordTime();
+    time_tracker.record(getSlideTitle(current_slide));
 
 
     if (LatexLoader::initialized)
@@ -163,7 +163,7 @@ void slope::Slideshow::play() {
 
 
     if (display_slide_number)
-        displaySlideNumber();
+        hud.drawSlideNumber(current_slide);
 
 
     ImGui::End();
@@ -177,118 +177,6 @@ void slope::Slideshow::setInnerTime()
     for (auto& p : appearing_primitives[current_slide])
         p->handleInnerTime();
     visited_slide = current_slide;
-}
-
-void slope::Slideshow::handleDragAndDrop()
-{
-    if (wm.isOtherOpen(WindowType::DragAndDrop))
-        return;
-
-    auto io = ImGui::GetIO();
-
-    static double x_offset = 0;
-    static double y_offset = 0;
-    static double original_alpha = 0;
-    static auto time_at_pick = Time::now();
-
-    bool ctrl = ImGui::IsKeyDown(ImGuiKey_LeftCtrl);
-    bool click = io.MouseClicked[0];
-
-    if (ctrl && click && selected_primitive == nullptr){
-        auto S = ImGui::GetWindowSize();
-        auto x = double(io.MousePos.x)/S.x;
-        auto y = double(io.MousePos.y)/S.y;
-        selected_primitive = getPrimitiveUnderMouse(x,y);
-        if (selected_primitive != nullptr) {
-            wm.Toggle(WindowType::DragAndDrop);
-            auto& pis = slides[current_slide][selected_primitive];
-            LabelAnchorPtr lab = std::dynamic_pointer_cast<LabelAnchor>(pis.anchor);
-            if (lab != nullptr) {
-                x_offset = lab->getPos()(0) - x;
-                y_offset = lab->getPos()(1) - y;
-                original_alpha = pis.alpha;
-                time_at_pick = Time::now();
-            }
-        }
-    }
-
-    if (!ctrl && click && selected_primitive != nullptr) {
-        slides[current_slide][selected_primitive].alpha = original_alpha;
-        selected_primitive = nullptr;
-        wm.Toggle(WindowType::DragAndDrop);
-        return;
-    }
-
-
-    bool horizontal = ImGui::IsKeyDown(ImGuiKey_H);
-    bool vertical = ImGui::IsKeyDown(ImGuiKey_V);
-
-    if (selected_primitive != nullptr) {
-
-        ImGui::SetNextFrameWantCaptureKeyboard(false);
-        ImGui::SetNextFrameWantCaptureMouse(true);
-        auto S = ImGui::GetWindowSize();
-        auto x = double(io.MousePos.x)/S.x;
-        auto y = double(io.MousePos.y)/S.y;
-        auto& pis = slides[current_slide][selected_primitive];
-        LabelAnchorPtr lab = std::dynamic_pointer_cast<LabelAnchor>(pis.anchor);
-
-        scalar zoom = 1.1;
-
-        if (io.MouseWheel > 0.0f)
-            lab->writeScaleAtLabel(lab->getScale()*zoom,true);
-        else if (io.MouseWheel < 0.0f){
-            lab->writeScaleAtLabel(lab->getScale()/zoom,true);
-        }
-
-        if (horizontal) { x_offset = 0.5-x; x = 0.5; }
-        if (vertical)   { y_offset = 0.5-y; y = 0.5; }
-
-        float cx = float(x + x_offset);
-        float cy = float(y + y_offset);
-
-        // snap-to-alignment
-        auto drag_sp = std::static_pointer_cast<ScreenPrimitive>(selected_primitive);
-        float dhw = drag_sp->getRelativeSize()(0) * float(pis.getScale()) * 0.5f;
-        float dhh = drag_sp->getRelativeSize()(1) * float(pis.getScale()) * 0.5f;
-        float d_ax[3] = { cx - dhw, cx, cx + dhw };
-        float d_ay[3] = { cy - dhh, cy, cy + dhh };
-
-        constexpr float snap_thr = 0.005f;
-        float snap_dx = snap_thr, snap_dy = snap_thr;
-        float guide_x = -1.f, guide_y = -1.f;
-
-        for (auto& [pptr, sis] : slides[current_slide].getScreenPrimitives()) {
-            if (pptr == drag_sp) continue;
-            auto op = sis.getPosition();
-            float ohw = pptr->getRelativeSize()(0) * float(sis.getScale()) * 0.5f;
-            float ohh = pptr->getRelativeSize()(1) * float(sis.getScale()) * 0.5f;
-            float o_ax[3] = { float(op(0))-ohw, float(op(0)), float(op(0))+ohw };
-            float o_ay[3] = { float(op(1))-ohh, float(op(1)), float(op(1))+ohh };
-            for (int di = 0; di < 3; ++di)
-                for (int oi = 0; oi < 3; ++oi) {
-                    float dx = o_ax[oi] - d_ax[di];
-                    if (std::abs(dx) < std::abs(snap_dx)) { snap_dx = dx; guide_x = o_ax[oi]; }
-                    float dy = o_ay[oi] - d_ay[di];
-                    if (std::abs(dy) < std::abs(snap_dy)) { snap_dy = dy; guide_y = o_ay[oi]; }
-                }
-        }
-
-        auto* dl = ImGui::GetWindowDrawList();
-        constexpr ImU32 guide_col = IM_COL32(80, 180, 255, 200);
-
-        if (!horizontal && std::abs(snap_dx) < snap_thr) {
-            cx += snap_dx;
-            dl->AddLine({guide_x * S.x, 0.f}, {guide_x * S.x, S.y}, guide_col, 1.0f);
-        }
-        if (!vertical && std::abs(snap_dy) < snap_thr) {
-            cy += snap_dy;
-            dl->AddLine({0.f, guide_y * S.y}, {S.x, guide_y * S.y}, guide_col, 1.0f);
-        }
-
-        lab->writePosAtLabel(cx, cy, true);
-        pis.alpha = (std::cos(TimeFrom(time_at_pick)*5) + 1)*0.8 + 0.2;
-    }
 }
 
 void slope::Slideshow::prompt()
@@ -327,16 +215,6 @@ void slope::Slideshow::ImGuiWindowConfig()
     ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x,io.DisplaySize.y));
     ImGui::SetNextFrameWantCaptureMouse(false);
     ImGui::SetNextFrameWantCaptureKeyboard(true);
-}
-
-void slope::Slideshow::recordTime()
-{
-    static TimeStamp last_recorded_time = Time::now();
-    auto curr_title = getSlideTitle(current_slide);
-    auto dt = TimeFrom(last_recorded_time);
-    time_per_slide_group[curr_title] += dt;
-    time_from_start += dt;
-    last_recorded_time = Time::now();
 }
 
 void slope::Slideshow::init(std::string project_name,int argc,char** argv)
@@ -391,64 +269,6 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 
 }
 
-std::string formatTime(float totalSeconds)
-{
-    int seconds = std::round(totalSeconds);
-
-    int hours = seconds / 3600;
-    int minutes = (seconds % 3600) / 60;
-    int secs = seconds % 60;
-
-    std::ostringstream out;
-    out << std::setw(2) << std::setfill('0') << hours << "h:"
-        << std::setw(2) << minutes << "m:"
-        << std::setw(2) << secs << "s";
-
-    return out.str();
-}
-
-void slope::Slideshow::slideMenu()
-{
-    ImGui::Begin("Slides");
-
-    // Top timer
-    ImGui::Text("Elapsed: %s",
-                formatTime(time_from_start).c_str());
-
-    ImGui::Separator();
-
-    std::set<std::string> done;
-
-    if (ImGui::BeginTable("SlideTable", 2,
-                          ImGuiTableFlags_SizingStretchProp))
-    {
-        for (int i = 0; i < slides.size(); i++)
-        {
-            auto title = getSlideTitle(i);
-
-            if (done.contains(title))
-                continue;
-            done.insert(title);
-
-            ImGui::TableNextRow();
-
-            // Column 0: button
-            ImGui::TableSetColumnIndex(0);
-            if (ImGui::Button(title.c_str()))
-                goToSlide(i);
-
-            // Column 1: duration
-            ImGui::TableSetColumnIndex(1);
-            ImGui::TextUnformatted(
-                formatTime(time_per_slide_group[title]).c_str()
-                );
-        }
-
-        ImGui::EndTable();
-    }
-
-    ImGui::End();
-}
 std::string slope::Slideshow::getSlideTitle(int i)
 {
     auto title = slides[i].getTitle();
@@ -491,19 +311,13 @@ void slope::Slideshow::run()
     }
 }
 
-void slope::Slideshow::saveCamera(std::string file)
-{
-    std::ofstream camfile(file);
-    camfile << removeResolutionFromCamfile(polyscope::view::getCameraJson());
-    spdlog::info("current camera view exported at {}",file);
-}
-
 void slope::Slideshow::initializeSlides()
 {
     precomputeTransitions();
     loadSlides();
     computeFirstSlideNumbers();
     from_begin = Time::now();
+    time_tracker.start();
     slides[current_slide].setCam();
 }
 
@@ -541,47 +355,10 @@ void slope::Slideshow::exportPDF()
 
 void slope::Slideshow::loadSlides()
 {
-    slide_numbers.resize(slides.size());
-    std::set<std::string> done;
-
-    for (int i = 0;i<slides.size();i++){
-        auto title = getSlideTitle(i);
-        done.insert(title);
-        slide_numbers[i] = done.size()-1;
-        time_per_slide_group[title] = 0;
-    }
-    nb_distinct_slides = done.size();
-
-    spdlog::info("[ number of distinct slides : {} ]",nb_distinct_slides);
-
-    slide_number_display.resize(nb_distinct_slides);
-    for (int i = 0;i<nb_distinct_slides;i++){
-        auto display = std::to_string(i+1) + "/" + std::to_string(nb_distinct_slides);
-        slide_number_display[i] = PlaceBottomRight(Text::Add(display),0.01);
-    }
+    hud.initialize(slides.size(), [this](int i){ return getSlideTitle(i); });
+    spdlog::info("[ number of distinct slides : {} ]", slides.size());
 }
 
-
-slope::PrimitivePtr slope::Slideshow::getPrimitiveUnderMouse(scalar x,scalar y) const
-{
-    auto io = ImGui::GetIO();
-    auto S = ImGui::GetWindowSize();
-    for (auto& pis : slides[current_slide].getScreenPrimitives()){
-        if (!pis.second.anchor->isPersistent())
-            continue;
-        auto p = pis.second.getPosition();
-        auto prim_size = pis.first->getSize()*pis.second.getScale();
-        if (std::abs(p(0) - x) < prim_size(0)/2/S.x && std::abs(p(1) - y) < prim_size(1)/2/S.y)
-            return pis.first;
-    }
-    return nullptr;
-}
-
-void slope::Slideshow::displaySlideNumber()
-{
-    const auto& DSN = slide_number_display[slide_numbers[current_slide]];
-    DSN.first->play(TimeObject(),DSN.second);
-}
 
 void slope::Slideshow::transformEditor()
 {
@@ -611,8 +388,10 @@ void slope::Slideshow::transformEditor()
 
 void slope::Slideshow::handleInputs()
 {
+    drag_editor.handle(slides[current_slide], wm);
 
-    handleDragAndDrop();
+    if (wm.isModalOpen())
+        return;
 
     if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_S))
         LabelAnchor::saveAllDirty();
@@ -633,6 +412,7 @@ void slope::Slideshow::handleInputs()
                 input.callback();
         }
     }
+
     polyscope::options::buildGui = wm.isOpen(WindowType::PolyscopeGUI);
 }
 
@@ -675,11 +455,7 @@ void slope::Slideshow::addKeyboardInputs()
     input_manager.addInput("show polyscope GUI","D",ImGuiKey_D,
         [this](){wm.Toggle(WindowType::PolyscopeGUI);},true);
     input_manager.addInput("reset timings","R",ImGuiKey_R,
-        [this](){
-            time_from_start = 0;
-            for (auto& tpsg : time_per_slide_group)
-                tpsg.second = 0;
-        },true);
+        [this](){ time_tracker.reset(); },true);
 
     input_manager.addInput("show transform guizmo editor","T",ImGuiKey_T,true);
     input_manager.addInput("center horizontally dragged primitive","H",ImGuiKey_H,false);
@@ -712,83 +488,18 @@ void slope::Slideshow::handleGuizmos()
 
 }
 
-void slope::Slideshow::drawPauseIndicator()
-{
-    float elapsed  = TimeFrom(pause_start);
-    float duration = slides[current_slide].pause_duration;
-    float remaining = 1.0f - elapsed / duration;
-
-    auto* dl = ImGui::GetWindowDrawList();
-    auto  S  = ImGui::GetWindowSize();
-
-    constexpr float padding   = 0.02f;
-    constexpr float norm_y    = 1.0f - 0.07f;
-    constexpr float thickness = 2.5f;
-    constexpr int   segments  = 48;
-
-    float radius = S.y * 0.012f;
-    ImVec2 center(S.x * (1.0f - padding) - radius, S.y * norm_y);
-
-    auto& bg = polyscope::view::bgColor;
-    auto inv = [](float f) { return (int)((1.0f - f) * 255 + 0.5f); };
-    ImU32 col_dim  = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]),  50);
-    ImU32 col_full = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]), 220);
-
-    dl->AddCircle(center, radius, col_dim, segments, thickness);
-
-    if (remaining > 0.0f) {
-        constexpr float start = -M_PI * 0.5f;
-        dl->PathArcTo(center, radius, start, start + remaining * 2.0f * M_PI, segments);
-        dl->PathStroke(col_full, false, thickness);
-    }
-}
-
 void slope::Slideshow::displayPopUps()
 {
     std::string file;
 
-    if (wm.isOpen(WindowType::Camera)) {
-        ImGui::OpenPopup("Save current camera");
-
-        ImGui::SetNextWindowSizeConstraints(ImVec2(300, 0), ImVec2(FLT_MAX, FLT_MAX));
-
-        if (ImGui::BeginPopupModal("Save current camera", NULL,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-
-            static char buffer[256];
-
-            ImVec2 display = ImGui::GetIO().DisplaySize;
-            ImGui::SetNextItemWidth(display.x * 0.25f);
-
-            ImGui::InputText("filename", buffer, 256);
-
-            if (ImGui::Button("cancel")) {
-                wm.CloseAll();
-                ImGui::CloseCurrentPopup();
-            }
-
-            ImGui::SameLine();
-
-            if (ImGui::Button("save")) {
-                file = formatCameraFilename(std::string(buffer));
-
-                if (io::file_exists(file) && false) {
-                    std::cerr << "FILE ALREADY EXISTS " << buffer << std::endl;
-                    return;
-                }
-
-                wm.CloseAll();
-                saveCamera(file);
-                ImGui::CloseCurrentPopup();
-            }
-
-            ImGui::EndPopup();
-        }
-    }
+    if (wm.isOpen(WindowType::Camera))
+        camera_exporter.drawPopup(wm);
     else if (wm.isOpen(WindowType::Palette))
         PaletteHandler::ShowColorPickingModule();
     else if (wm.isOpen(WindowType::SlideMenu))
-        slideMenu();
+        time_tracker.drawMenu(slides.size(),
+            [this](int i){ return getSlideTitle(i); },
+            [this](int i){ goToSlide(i); });
     else if (wm.isOpen(WindowType::QuitWarning)) {
         ImGui::OpenPopup("Unsaved positions");
         if (ImGui::BeginPopupModal("Unsaved positions", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {

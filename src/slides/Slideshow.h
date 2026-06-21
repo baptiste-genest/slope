@@ -9,6 +9,10 @@
 #include "CLI.h"
 
 #include "WindowManager.h"
+#include "DragEditor.h"
+#include "TimeTracker.h"
+#include "CameraExporter.h"
+#include "HUD.h"
 
 namespace slope {
 
@@ -41,7 +45,6 @@ public:
         return T;
     }
 
-    void handleDragAndDrop();
 
     void prompt();
 
@@ -59,12 +62,13 @@ public:
 
     void run();
 
+    DragEditor drag_editor;
+    TimeTracker time_tracker;
+    CameraExporter camera_exporter;
+    HUD hud;
+
 private:
     TimeTypeSec transitionTime = 0.5;
-
-    void saveCamera(std::string file);
-
-    void slideMenu();
 
     void initializeSlides();
     void computeFirstSlideNumbers();
@@ -72,13 +76,6 @@ private:
     void exportPDF();
 
     void loadSlides();
-    std::vector<int> slide_numbers;
-    std::vector<PrimitiveInSlide> slide_number_display;
-
-    PrimitivePtr selected_primitive = nullptr;
-    PrimitivePtr getPrimitiveUnderMouse(scalar x,scalar y) const;
-
-    void displaySlideNumber();
 
     bool transition_done = false;
     bool backward = false;
@@ -102,17 +99,12 @@ private:
     static void ImGuiWindowConfig();
 
     int visited_slide = -1;
-    int nb_distinct_slides = 0;
 
     TimeStamp from_action,from_begin;
     size_t current_slide = 0;
     ImGuiWindowFlags window_flags = 0;
 
-    void recordTime();
-    void drawPauseIndicator();
 
-    std::map<std::string,TimeTypeSec> time_per_slide_group;
-    TimeTypeSec time_from_start;
 
     InputManager input_manager;
     void addKeyboardInputs();
