@@ -240,16 +240,52 @@ void slope::Slideshow::handleDragAndDrop()
             lab->writeScaleAtLabel(lab->getScale()/zoom,true);
         }
 
-        if (horizontal) {
-            x_offset = 0.5-x;
-            x = 0.5;
-            lab->writePosAtLabel(x,y+y_offset,true);
-        } else if (vertical) {
-            y_offset = 0.5-y;
-            y = 0.5;
-            lab->writePosAtLabel(x+x_offset,y,true);
-        } else
-            lab->writePosAtLabel(x+x_offset,y+y_offset,true);
+        if (horizontal) { x_offset = 0.5-x; x = 0.5; }
+        if (vertical)   { y_offset = 0.5-y; y = 0.5; }
+
+        float cx = float(x + x_offset);
+        float cy = float(y + y_offset);
+
+        // snap-to-alignment
+        auto drag_sp = std::static_pointer_cast<ScreenPrimitive>(selected_primitive);
+        float dhw = drag_sp->getRelativeSize()(0) * float(pis.getScale()) * 0.5f;
+        float dhh = drag_sp->getRelativeSize()(1) * float(pis.getScale()) * 0.5f;
+        float d_ax[3] = { cx - dhw, cx, cx + dhw };
+        float d_ay[3] = { cy - dhh, cy, cy + dhh };
+
+        constexpr float snap_thr = 0.005f;
+        float snap_dx = snap_thr, snap_dy = snap_thr;
+        float guide_x = -1.f, guide_y = -1.f;
+
+        for (auto& [pptr, sis] : slides[current_slide].getScreenPrimitives()) {
+            if (pptr == drag_sp) continue;
+            auto op = sis.getPosition();
+            float ohw = pptr->getRelativeSize()(0) * float(sis.getScale()) * 0.5f;
+            float ohh = pptr->getRelativeSize()(1) * float(sis.getScale()) * 0.5f;
+            float o_ax[3] = { float(op(0))-ohw, float(op(0)), float(op(0))+ohw };
+            float o_ay[3] = { float(op(1))-ohh, float(op(1)), float(op(1))+ohh };
+            for (int di = 0; di < 3; ++di)
+                for (int oi = 0; oi < 3; ++oi) {
+                    float dx = o_ax[oi] - d_ax[di];
+                    if (std::abs(dx) < std::abs(snap_dx)) { snap_dx = dx; guide_x = o_ax[oi]; }
+                    float dy = o_ay[oi] - d_ay[di];
+                    if (std::abs(dy) < std::abs(snap_dy)) { snap_dy = dy; guide_y = o_ay[oi]; }
+                }
+        }
+
+        auto* dl = ImGui::GetWindowDrawList();
+        constexpr ImU32 guide_col = IM_COL32(80, 180, 255, 200);
+
+        if (!horizontal && std::abs(snap_dx) < snap_thr) {
+            cx += snap_dx;
+            dl->AddLine({guide_x * S.x, 0.f}, {guide_x * S.x, S.y}, guide_col, 1.0f);
+        }
+        if (!vertical && std::abs(snap_dy) < snap_thr) {
+            cy += snap_dy;
+            dl->AddLine({0.f, guide_y * S.y}, {S.x, guide_y * S.y}, guide_col, 1.0f);
+        }
+
+        lab->writePosAtLabel(cx, cy, true);
         pis.alpha = (std::cos(TimeFrom(time_at_pick)*5) + 1)*0.8 + 0.2;
     }
 }
@@ -669,20 +705,27 @@ void slope::Slideshow::drawPauseIndicator()
     float remaining = 1.0f - elapsed / duration;
 
     auto* dl = ImGui::GetWindowDrawList();
-    auto& io = ImGui::GetIO();
+    auto  S  = ImGui::GetWindowSize();
 
-    constexpr float radius = 12.0f;
+    constexpr float padding   = 0.02f;
+    constexpr float norm_y    = 1.0f - 0.07f;
     constexpr float thickness = 2.5f;
-    constexpr int   segments = 48;
+    constexpr int   segments  = 48;
 
-    ImVec2 center(io.DisplaySize.x - 50.0f, io.DisplaySize.y - 70.0f);
+    float radius = S.y * 0.012f;
+    ImVec2 center(S.x * (1.0f - padding) - radius, S.y * norm_y);
 
-    dl->AddCircle(center, radius, IM_COL32(0, 0, 0, 50), segments, thickness);
+    auto& bg = polyscope::view::bgColor;
+    auto inv = [](float f) { return (int)((1.0f - f) * 255 + 0.5f); };
+    ImU32 col_dim  = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]),  50);
+    ImU32 col_full = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]), 220);
+
+    dl->AddCircle(center, radius, col_dim, segments, thickness);
 
     if (remaining > 0.0f) {
         constexpr float start = -M_PI * 0.5f;
         dl->PathArcTo(center, radius, start, start + remaining * 2.0f * M_PI, segments);
-        dl->PathStroke(IM_COL32(0, 0,0, 220), false, thickness);
+        dl->PathStroke(col_full, false, thickness);
     }
 }
 
