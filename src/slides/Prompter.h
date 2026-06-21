@@ -1,9 +1,11 @@
-#ifndef PROMPTER_H
-#define PROMPTER_H
+#pragma once
 
 #include "../libslope.h"
-#include "../content/primitive.h"
+#include <map>
+#include <string>
 
+struct GLFWwindow;
+struct ImGuiContext;
 
 namespace slope {
 
@@ -13,23 +15,22 @@ class Prompter
 {
 public:
     Prompter(std::string script_file);
-    ~Prompter() {
-        //std::cout << "KILL PROMPT " << prompt_pid << std::endl;
-        system("pkill xterm");
-        //pkill(prompt_pid, SIGTERM);
-    }
+    ~Prompter();
 
-    void write(promptTag tag,TimeStamp fromBegin) const;
+    void write(promptTag tag, TimeStamp fromBegin);
+    void erase(TimeStamp fromBegin);
     void loadScript();
-    void erase(TimeStamp fromBegin) const;
 
 private:
-    pid_t prompt_pid;
+    void initWindow();
+    void render(const std::string& text, TimeStamp fromBegin);
+
+    GLFWwindow*   window = nullptr;
+    ImGuiContext* ctx    = nullptr;
+
     std::string script_file;
     std::string current_tag;
-    std::map<std::string,std::string> scripts;
+    std::map<std::string, std::string> scripts;
 };
 
-}
-
-#endif // PROMPTER_H
+} // namespace slope

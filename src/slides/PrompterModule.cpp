@@ -1,7 +1,9 @@
 #include "PrompterModule.h"
+#include "CLI.h"
 
 void slope::PrompterModule::setScriptFile(std::string file) {
-    prompter_ptr = std::make_unique<Prompter>(file);
+    prompter_ptr = std::make_unique<Prompter>(Options::ProjectPath + file);
+    prompter_ptr->loadScript();
 }
 
 void slope::PrompterModule::setPromptTag(promptTag tag) {
