@@ -8,7 +8,9 @@
 #include "../content/screen_primitives/plots/Plot.h"
 #include "CLI.h"
 
+#include "GLFW/glfw3.h"
 #include "WindowManager.h"
+#include "PlaybackState.h"
 #include "DragEditor.h"
 #include "TimeTracker.h"
 #include "CameraExporter.h"
@@ -34,59 +36,50 @@ public:
         transitionTime = s;
     }
 
-    void setInnerTime();
-
-
-    inline TimeObject getTimeObject() const {
-        TimeObject T;
-        T.from_begin = TimeFrom(from_begin);
-        T.from_action = TimeFrom(from_action);
-        T.absolute_frame_number = current_slide;
-        return T;
-    }
-
-
-    void prompt();
-
-    void handleTransition();
-
     void init(std::string project_name,int argc,char** argv);
-
-    std::string getSlideTitle(int slide_nb);
 
     void goToSlide(int slide_nb);
 
     bool display_slide_number = true;
 
-    int getRelativeSlideNumber(Primitive* p);
-
     void run();
+
+private:
 
     DragEditor drag_editor;
     TimeTracker time_tracker;
     CameraExporter camera_exporter;
     HUD hud;
 
-private:
+    void setInnerTime();
+    void prompt();
+    void handleTransition();
+
+    inline TimeObject getTimeObject() const {
+        TimeObject T;
+        T.from_begin = TimeFrom(from_begin);
+        T.from_action = TimeFrom(state.from_action);
+        T.absolute_frame_number = state.current;
+        return T;
+    }
+
+    std::string getSlideTitle(int slide_nb);
     TimeTypeSec transitionTime = 0.5;
 
     void initializeSlides();
-    void computeFirstSlideNumbers();
 
     void exportPDF();
 
     void loadSlides();
 
-    bool transition_done = false;
-    bool backward = false;
-    bool locked = true;
-
-    bool pause_active = false;
-    TimeStamp pause_start;
-
     bool halt_slope_display = false;
+    PlaybackState state;
 
     WindowManager wm;
+    TimeStamp from_begin;
+    ImGuiWindowFlags window_flags = 0;
+
+    void renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T);
 
     void transformEditor();
 
@@ -97,12 +90,7 @@ private:
     void displayPopUps();
 
     static void ImGuiWindowConfig();
-
-    int visited_slide = -1;
-
-    TimeStamp from_action,from_begin;
-    size_t current_slide = 0;
-    ImGuiWindowFlags window_flags = 0;
+    static void onWindowClose(GLFWwindow* w);
 
 
 

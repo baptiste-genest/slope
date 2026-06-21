@@ -57,6 +57,21 @@ void slope::SlideManager::precomputeTransitions(){
                 ));
         appearing_primitives[i+1] = std::get<2>(transitions.back());
     }
+    computeFirstSlideNumbers();
+}
+
+void slope::SlideManager::computeFirstSlideNumbers()
+{
+    for (int i = 0; const auto& v : slides) {
+        for (auto& p : v)
+            p.first->upFirstSlideNumber(i);
+        i++;
+    }
+}
+
+int slope::SlideManager::getRelativeSlideNumber(Primitive* p) const
+{
+    return p->relativeSlideIndex(slides.size()-1);
 }
 
 void slope::SlideManager::newFrame() {

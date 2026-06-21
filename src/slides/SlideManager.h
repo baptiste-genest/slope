@@ -36,6 +36,7 @@ protected:
     std::vector<Primitives> appearing_primitives;
 
     void precomputeTransitions();
+    void computeFirstSlideNumbers();
 
     ScreenPrimitivePtr last_screen_primitive_inserted,centering_root;
     PrimitivePtr last_primitive_inserted;
@@ -63,6 +64,8 @@ public:
     }
 
     int getNumberSlides() const;
+
+    int getRelativeSlideNumber(Primitive* p) const;
 
     Slide& getCurrentSlide();
     Slide& getSlide(index i);

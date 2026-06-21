@@ -8,58 +8,41 @@
 
 void slope::Slideshow::nextFrame()
 {
-    if (current_slide == slides.size()-1)
+    if (state.current == slides.size()-1)
         return;
-    pause_active = false;
-    current_slide++;
-    from_action = Time::now();
-    backward = false;
-    locked = true;
-    transition_done = false;
+    state.goForward();
 }
 
 void slope::Slideshow::previousFrame()
 {
-    if (!current_slide)
+    if (!state.current)
         return;
-    pause_active = false;
-    for (auto& s : uniqueNext(transitions[current_slide-1]))
+    for (auto& s : uniqueNext(transitions[state.current-1]))
         s->disable();
-    for (auto& s : uniquePrevious(transitions[current_slide-1]))
+    for (auto& s : uniquePrevious(transitions[state.current-1]))
         s->enable();
-    current_slide--;
-    for (auto& s : slides[current_slide]){
+    state.goBackward();
+    for (auto& s : slides[state.current]){
         auto p = s.first;
         p->intro(TimeObject(p->getInnerTime(),1),s.second);
     }
-
-    slides[current_slide].setCam();
-
-    from_action = Time::now();
-    backward = true;
-    locked = true;
+    slides[state.current].setCam();
 }
 
 void slope::Slideshow::forceNextFrame()
 {
-    if (current_slide == slides.size()-1)
+    if (state.current == slides.size()-1)
         return;
-    pause_active = false;
-    for (auto& s : uniquePrevious(transitions[current_slide]))
+    for (auto& s : uniquePrevious(transitions[state.current]))
         s->disable();
-    for (auto& s : uniqueNext(transitions[current_slide]))
+    for (auto& s : uniqueNext(transitions[state.current]))
         s->enable();
-    current_slide++;
-    for (auto& s : slides[current_slide]){
+    state.skip();
+    for (auto& s : slides[state.current]){
         auto p = s.first;
         p->intro(TimeObject(p->getInnerTime(),1),s.second);
     }
-
-    slides[current_slide].setCam();
-
-    from_action = Time::now();
-    backward = false;
-    locked = false;
+    slides[state.current].setCam();
 }
 
 void slope::Slideshow::play() {
@@ -76,107 +59,88 @@ void slope::Slideshow::play() {
     if (!initialized)
         initializeSlides();
 
-    auto t = TimeFrom(from_action);
-
-    auto& CS = slides[current_slide];
-
+    auto t = TimeFrom(state.from_action);
+    auto& CS = slides[state.current];
     setInnerTime();
-
-    bool triggerIT = false;
-
     TimeObject T = getTimeObject();
 
-
-
-
-    if (backward || !locked) {
-        locked = false;
-        for (auto& s : CS.getDepthSorted())
-            s.first->play(T,CS[s.first]);
-    }
-    else {
-        if (current_slide > 0){
-            auto& PS = slides[current_slide-1];
-            auto&& [common,UA,UB] = transitions[current_slide-1];
-            if (t < 2*transitionTime){
-                for (auto& c : common) {
-                    auto st = transition(0.5*t/transitionTime,
-                                         PS[c],
-                                         CS[c]);
-                    st.persistentTransform = PersistentTransform(); // disable to force transition
-                    c->play(T,st);
-                }
-                if (t < transitionTime){
-                    T.transition_parameter = t/transitionTime;
-                    for (auto& ua : UA){
-                        auto p = ua;
-                        p->outro(T(t/transitionTime),PS[ua]);
-                    }
-                }
-                else {
-                    handleTransition();
-                    for (auto& ub : UB){
-                        ub->intro(T(t/transitionTime-1.),CS[ub]);
-                    }
-                }
-            }
-            else {
-                for (auto& s : CS.getDepthSorted()){
-                    s.first->play(T,CS[s.first]);
-                }
-                locked = false;
-            }
-        }
-        else {
-            if (t < transitionTime){
-                for (auto& s : CS.getDepthSorted()){
-                    s.first->intro(T(t/transitionTime),CS[s.first]);
-                }
-            }
-            else {
-                for (auto& s : CS.getDepthSorted()){
-                    s.first->play(T,CS[s.first]);
-                }
-                locked = false;
-            }
-        }
-    }
-
+    renderSlide(t, CS, T);
 
     prompt();
 
-    if (pause_active) {
-        hud.drawPauseIndicator(TimeFrom(pause_start), slides[current_slide].pause_duration);
-        if (TimeFrom(pause_start) >= slides[current_slide].pause_duration) {
-            pause_active = false;
+    if (state.isPaused()) {
+        hud.drawPauseIndicator(TimeFrom(*state.pause_since), CS.pause_duration);
+        if (TimeFrom(*state.pause_since) >= CS.pause_duration) {
+            state.stopPause();
             nextFrame();
         }
     }
 
     handleInputs();
-
-    time_tracker.record(getSlideTitle(current_slide));
-
+    time_tracker.record(getSlideTitle(state.current));
 
     if (LatexLoader::initialized)
         LatexLoader::HotReloadIfModified();
 
-
     if (display_slide_number)
-        hud.drawSlideNumber(current_slide);
+        hud.drawSlideNumber(state.current);
 
 
     ImGui::End();
     displayPopUps();
 }
 
+void slope::Slideshow::renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T)
+{
+    if (state.backward || !state.locked) {
+        state.settle();
+        for (auto& s : CS.getDepthSorted())
+            s.first->play(T, CS[s.first]);
+        return;
+    }
+
+    if (state.current > 0) {
+        auto& PS = slides[state.current-1];
+        auto&& [common, UA, UB] = transitions[state.current-1];
+        if (t < 2*transitionTime) {
+            for (auto& c : common) {
+                auto st = transition(0.5*t/transitionTime, PS[c], CS[c]);
+                st.persistentTransform = PersistentTransform();
+                c->play(T, st);
+            }
+            if (t < transitionTime) {
+                T.transition_parameter = t/transitionTime;
+                for (auto& ua : UA)
+                    ua->outro(T(t/transitionTime), PS[ua]);
+            } else {
+                handleTransition();
+                for (auto& ub : UB)
+                    ub->intro(T(t/transitionTime-1.), CS[ub]);
+            }
+        } else {
+            for (auto& s : CS.getDepthSorted())
+                s.first->play(T, CS[s.first]);
+            state.settle();
+        }
+    } else {
+        if (t < transitionTime) {
+            for (auto& s : CS.getDepthSorted())
+                s.first->intro(T(t/transitionTime), CS[s.first]);
+        } else {
+            for (auto& s : CS.getDepthSorted())
+                s.first->play(T, CS[s.first]);
+            state.settle();
+        }
+    }
+}
+
 void slope::Slideshow::setInnerTime()
 {
-    if (visited_slide == current_slide)
+    if (state.visited == (int)state.current)
         return;
-    for (auto& p : appearing_primitives[current_slide])
+    for (auto& p : appearing_primitives[state.current])
         p->handleInnerTime();
-    visited_slide = current_slide;
+    state.visited = (int)state.current;
 }
 
 void slope::Slideshow::prompt()
@@ -184,7 +148,7 @@ void slope::Slideshow::prompt()
     if (prompter_ptr == nullptr)
         return;
     for (const auto& R : scripts_ranges)
-        if (R.inRange(current_slide)){
+        if (R.inRange(state.current)){
             prompter_ptr->write(R.tag,from_begin);
             return;
         }
@@ -193,17 +157,16 @@ void slope::Slideshow::prompt()
 
 void slope::Slideshow::handleTransition()
 {
-    if (transition_done || current_slide == 0)
+    if (state.done || state.current == 0)
         return;
-    transition_done = true;
-    for (auto& s : uniquePrevious(transitions[current_slide-1]))
+    state.done = true;
+    for (auto& s : uniquePrevious(transitions[state.current-1]))
         s->disable();
-    for (auto& s : uniqueNext(transitions[current_slide-1]))
+    for (auto& s : uniqueNext(transitions[state.current-1]))
         s->enable();
 
-    if (!slides[current_slide-1].sameCamera(slides[current_slide])){
-        slides[current_slide].setCam();
-    }
+    if (!slides[state.current-1].sameCamera(slides[state.current]))
+        slides[state.current].setCam();
 }
 
 
@@ -217,13 +180,21 @@ void slope::Slideshow::ImGuiWindowConfig()
     ImGui::SetNextFrameWantCaptureKeyboard(true);
 }
 
+void slope::Slideshow::onWindowClose(GLFWwindow* w)
+{
+    auto* self = static_cast<Slideshow*>(glfwGetWindowUserPointer(w));
+    if (LabelAnchor::hasDirty()) {
+        glfwSetWindowShouldClose(w, GLFW_FALSE);
+        if (!self->wm.isAnyOpen())
+            self->wm.Toggle(WindowType::QuitWarning);
+    }
+}
+
 void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 {
     help_wanted = slope::parseCLI(argc,argv);
     if (help_wanted)
         return;
-    from_action = Time::now();
-    from_begin = Time::now();
 
     slope::Options::ProjectName = project_name;
 
@@ -267,6 +238,9 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 
     ImPlot::CreateContext();
 
+    GLFWwindow* win = glfwGetCurrentContext();
+    glfwSetWindowUserPointer(win, this);
+    glfwSetWindowCloseCallback(win, onWindowClose);
 }
 
 std::string slope::Slideshow::getSlideTitle(int i)
@@ -279,22 +253,14 @@ std::string slope::Slideshow::getSlideTitle(int i)
 
 void slope::Slideshow::goToSlide(int slide_nb)
 {
-    if (slide_nb == current_slide)
+    if ((size_t)slide_nb == state.current)
         return;
-    for (auto& p : slides[current_slide])
+    for (auto& p : slides[state.current])
         p.first->disable();
-    current_slide = slide_nb;
-    for (auto& p : slides[current_slide])
+    state.jumpTo(slide_nb);
+    for (auto& p : slides[state.current])
         p.first->enable();
-    slides[current_slide].setCam();
-    from_action = Time::now();
-    from_action = Time::now();
-}
-
-int slope::Slideshow::getRelativeSlideNumber(Primitive *p)
-{
-    computeFirstSlideNumbers();
-    return p->relativeSlideIndex(slides.size()-1);
+    slides[state.current].setCam();
 }
 
 void slope::Slideshow::run()
@@ -315,19 +281,9 @@ void slope::Slideshow::initializeSlides()
 {
     precomputeTransitions();
     loadSlides();
-    computeFirstSlideNumbers();
     from_begin = Time::now();
     time_tracker.start();
-    slides[current_slide].setCam();
-}
-
-void slope::Slideshow::computeFirstSlideNumbers()
-{
-    for (int i = 0;const auto& v : slides){
-        for (auto& p : v)
-            p.first->upFirstSlideNumber(i);
-        i++;
-    }
+    slides[state.current].setCam();
 }
 
 
@@ -339,12 +295,10 @@ void slope::Slideshow::exportPDF()
     if (!initialized)
         initializeSlides();
 
-    bool triggerIT = false;
-
-    for (int i = 0;i<slides.size();i++) {
+    for (int i = 0; i < (int)slides.size(); i++) {
         spdlog::info("export slide {} over {}",i+1,slides.size());
-        current_slide = i;
-        auto& CS = slides[current_slide];
+        state.current = i;
+        auto& CS = slides[state.current];
         setInnerTime();
         TimeObject T = getTimeObject();
         for (auto& s : CS.getDepthSorted())
@@ -362,10 +316,10 @@ void slope::Slideshow::loadSlides()
 
 void slope::Slideshow::transformEditor()
 {
-    auto PP = slides[current_slide].getPolyscopePrimitives();
+    auto PP = slides[state.current].getPolyscopePrimitives();
     for (const auto& pis : PP){
         PrimitivePtr p = pis.first;
-        auto& pt = slides[current_slide].at(p).persistentTransform;
+        auto& pt = slides[state.current].at(p).persistentTransform;
         if (!pt.isActive())
             continue;
         if (pt.guizmo == nullptr){
@@ -388,7 +342,7 @@ void slope::Slideshow::transformEditor()
 
 void slope::Slideshow::handleInputs()
 {
-    drag_editor.handle(slides[current_slide], wm);
+    drag_editor.handle(slides[state.current], wm);
 
     if (wm.isModalOpen())
         return;
@@ -420,11 +374,10 @@ void slope::Slideshow::addKeyboardInputs()
 {
     input_manager.addInput("next slide","right arrow",ImGuiKey_RightArrow,
         [this](){
-            if (!locked && !pause_active) {
-                auto& CS = slides[current_slide];
+            if (!state.locked && !state.isPaused()) {
+                auto& CS = slides[state.current];
                 if (CS.pause_duration > 0) {
-                    pause_active = true;
-                    pause_start = Time::now();
+                    state.startPause();
                 } else {
                     nextFrame();
                 }
@@ -469,8 +422,8 @@ void slope::Slideshow::handleGuizmos()
     if (ImGui::IsKeyPressed(ImGuiKey_T)){
         if (wm.isOpen(WindowType::Transform)){
             halt_slope_display = false;
-            for (auto& pis : slides[current_slide].getPolyscopePrimitives()){
-                auto& pt = slides[current_slide].at(pis.first).persistentTransform;
+            for (auto& pis : slides[state.current].getPolyscopePrimitives()){
+                auto& pt = slides[state.current].at(pis.first).persistentTransform;
                 if (!pt.isActive())
                     continue;
                 pt.guizmo->setEnabled(false);
@@ -490,8 +443,6 @@ void slope::Slideshow::handleGuizmos()
 
 void slope::Slideshow::displayPopUps()
 {
-    std::string file;
-
     if (wm.isOpen(WindowType::Camera))
         camera_exporter.drawPopup(wm);
     else if (wm.isOpen(WindowType::Palette))
