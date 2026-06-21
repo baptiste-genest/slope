@@ -195,12 +195,12 @@ void slope::Slideshow::handleDragAndDrop()
     bool click = io.MouseClicked[0];
 
     if (ctrl && click && selected_primitive == nullptr){
-        wm.Toggle(WindowType::DragAndDrop);
         auto S = ImGui::GetWindowSize();
         auto x = double(io.MousePos.x)/S.x;
         auto y = double(io.MousePos.y)/S.y;
         selected_primitive = getPrimitiveUnderMouse(x,y);
         if (selected_primitive != nullptr) {
+            wm.Toggle(WindowType::DragAndDrop);
             auto& pis = slides[current_slide][selected_primitive];
             LabelAnchorPtr lab = std::dynamic_pointer_cast<LabelAnchor>(pis.anchor);
             if (lab != nullptr) {
