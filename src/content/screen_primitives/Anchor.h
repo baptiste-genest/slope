@@ -3,6 +3,8 @@
 
 #include "../Options.h"
 #include "../io.h"
+#include <unordered_map>
+#include <array>
 
 namespace slope {
 
@@ -50,6 +52,10 @@ class LabelAnchor : public Anchor
 {
 protected:
     std::string label = "";
+
+    inline static std::unordered_map<std::string, std::array<double, 3>> session_cache;
+    inline static std::set<std::string> dirty_labels;
+
 public:
 
     virtual bool isPersistent() const override { return true; }
@@ -75,12 +81,17 @@ public:
     }
 
     void writeAtLabel(double x, double y,scalar scale, bool overwrite) const;
-    void writePosAtLabel(scalar x,scalar y,bool overwrite) const {
-        writeAtLabel(x,y,readFromLabel()(2),overwrite);
+
+    void writeToSession(double x, double y, scalar scale) const;
+    static void saveAllDirty();
+    static bool hasDirty();
+
+    void writePosAtLabel(scalar x, scalar y, bool /*overwrite*/) const {
+        writeToSession(x, y, readFromLabel()(2));
     }
-    void writeScaleAtLabel(scalar s,bool overwrite) const {
+    void writeScaleAtLabel(scalar s, bool /*overwrite*/) const {
         vec p = readFromLabel();
-        writeAtLabel(p(0),p(1),s,overwrite);
+        writeToSession(p(0), p(1), s);
     }
     vec readFromLabel() const;
 };

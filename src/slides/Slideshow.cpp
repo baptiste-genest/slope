@@ -613,7 +613,19 @@ void slope::Slideshow::handleInputs()
 {
 
     handleDragAndDrop();
+
+    if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_S))
+        LabelAnchor::saveAllDirty();
+
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape) && !wm.isAnyOpen()) {
+        if (LabelAnchor::hasDirty())
+            wm.Toggle(WindowType::QuitWarning);
+        else
+            polyscope::unshow();
+    }
+
     for (const auto& input : input_manager.getInputs()) {
+        if (input.trigger == ImGuiKey_None) continue;
         if (ImGui::IsKeyPressed(input.trigger)) {
             if (!input.isPopUp && !wm.isAnyOpen())
                 input.callback();
@@ -672,6 +684,7 @@ void slope::Slideshow::addKeyboardInputs()
     input_manager.addInput("show transform guizmo editor","T",ImGuiKey_T,true);
     input_manager.addInput("center horizontally dragged primitive","H",ImGuiKey_H,false);
     input_manager.addInput("center vertically dragged primitive","V",ImGuiKey_V,false);
+    input_manager.addInput("save dragged positions to disk","Ctrl+S");
 }
 
 
@@ -776,5 +789,28 @@ void slope::Slideshow::displayPopUps()
         PaletteHandler::ShowColorPickingModule();
     else if (wm.isOpen(WindowType::SlideMenu))
         slideMenu();
+    else if (wm.isOpen(WindowType::QuitWarning)) {
+        ImGui::OpenPopup("Unsaved positions");
+        if (ImGui::BeginPopupModal("Unsaved positions", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Unsaved position changes will be lost.");
+            ImGui::Spacing();
+            if (ImGui::Button("Save and quit")) {
+                LabelAnchor::saveAllDirty();
+                polyscope::unshow();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Discard and quit")) {
+                polyscope::unshow();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel")) {
+                wm.CloseAll();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+    }
 }
 

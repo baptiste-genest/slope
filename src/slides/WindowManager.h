@@ -15,7 +15,8 @@ enum class WindowType {
     SlideMenu,
     Transform,
     DragAndDrop,
-    PolyscopeGUI
+    PolyscopeGUI,
+    QuitWarning
 };
 
 class WindowManager {
@@ -98,6 +99,11 @@ public:
         if (active_triggers.contains(trigger))
             throw std::runtime_error("Trigger " + std::to_string(trigger) + " already used for another input");
         inputs.emplace_back(description,shortcut,trigger,isPopUp,callback);
+    }
+
+    // documentation-only entry (compound shortcut handled manually, not dispatched by InputManager)
+    void addInput(std::string description,std::string shortcut) {
+        inputs.emplace_back(description,shortcut,ImGuiKey_None,false,[]() {});
     }
 
     void printInputs();

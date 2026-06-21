@@ -18,8 +18,41 @@ void LabelAnchor::writeAtLabel(double x, double y,scalar s, bool overwrite) cons
     }
 }
 
+void LabelAnchor::writeToSession(double x, double y, scalar scale) const
+{
+    session_cache[label] = {x, y, scale};
+    dirty_labels.insert(label);
+}
+
+void LabelAnchor::saveAllDirty()
+{
+    for (const auto& lbl : dirty_labels) {
+        const auto& v = session_cache.at(lbl);
+        std::string filepath = slope::Options::ProjectViewsPath + lbl + ".pos";
+        std::ofstream file(filepath);
+        if (file.is_open())
+            file << v[0] << " " << v[1] << " " << v[2] << std::endl;
+    }
+    dirty_labels.clear();
+    spdlog::info("positions saved");
+}
+
+bool LabelAnchor::hasDirty()
+{
+    return !dirty_labels.empty();
+}
+
 vec LabelAnchor::readFromLabel() const
 {
+    auto it = session_cache.find(label);
+    if (it != session_cache.end()) {
+        vec rslt;
+        rslt(0) = it->second[0];
+        rslt(1) = it->second[1];
+        rslt(2) = it->second[2];
+        return rslt;
+    }
+
     std::ifstream file (slope::Options::ProjectViewsPath + label + ".pos");
     if (!file.is_open()){
         std::cerr << "couldn't read label file" << std::endl;
