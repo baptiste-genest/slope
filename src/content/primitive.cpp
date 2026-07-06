@@ -23,8 +23,8 @@ void slope::Primitive::addPrimitive(PrimitivePtr ptr) {
     ptr->initPolyscope();
     ptr->transition = Primitive::DefaultTransition;
 
-    static int depth_stack = 0;
-    ptr->setDepth(depth_stack++);
+    // depth stays 0 by default : draw order follows the order of insertion
+    // in each slide (see Slide::getDepthSorted), setDepth overrides it
 
     primitives.push_back(ptr);
 }

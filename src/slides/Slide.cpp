@@ -3,11 +3,15 @@
 void slope::Slide::add(PrimitivePtr p, const StateInSlide &sis){
     if (p->isScreenSpace())
         if (p->isExclusive()){
-            if (title_primitive != nullptr)
+            if (title_primitive != nullptr){
                 this->erase(title_primitive);
+                insertion_order.erase(title_primitive);
+            }
             title_primitive = std::static_pointer_cast<TextualPrimitive>(p);
         }
     bool already_present = this->contains(p);
+    if (!already_present)
+        insertion_order[p] = insertion_counter++;
     StateInSlide old_sis;
     if (already_present)
         old_sis = (*this)[p];
@@ -29,10 +33,17 @@ std::vector<slope::PrimitiveInSlide> slope::Slide::getDepthSorted() {
     for (const auto& pis : *this){
         rslt.push_back(pis);
     }
-    std::sort(rslt.begin(),rslt.end(),[](PrimitiveInSlide a,PrimitiveInSlide b){
-        return a.first->getDepth() < b.first->getDepth();
+    std::sort(rslt.begin(),rslt.end(),[this](const PrimitiveInSlide& a,const PrimitiveInSlide& b){
+        if (a.first->getDepth() != b.first->getDepth())
+            return a.first->getDepth() < b.first->getDepth();
+        return orderOf(a.first) < orderOf(b.first);
     });
     return rslt;
+}
+
+int slope::Slide::orderOf(const PrimitivePtr &p) const {
+    auto it = insertion_order.find(p);
+    return it == insertion_order.end() ? -1 : it->second;
 }
 
 void slope::Slide::add(PrimitiveInSlide pis){
@@ -41,6 +52,7 @@ void slope::Slide::add(PrimitiveInSlide pis){
 
 void slope::Slide::remove(PrimitivePtr ptr) {
     this->erase(ptr);
+    insertion_order.erase(ptr);
 }
 
 std::map<slope::ScreenPrimitivePtr, slope::StateInSlide> slope::Slide::getScreenPrimitives() const {

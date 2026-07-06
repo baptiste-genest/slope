@@ -19,7 +19,12 @@ struct Slide : public std::map<PrimitivePtr,StateInSlide> {
     void add(PrimitivePtr p,const StateInSlide& sis = {});
     void add(PrimitivePtr p,const vec2& pos);
 
+    // draw order : by depth, ties broken by insertion order, so primitives
+    // added first are drawn behind the ones added after
     std::vector<PrimitiveInSlide> getDepthSorted();
+
+    // rank at which a primitive was added to this slide (-1 if absent)
+    int orderOf(const PrimitivePtr& p) const;
 
     void add(PrimitiveInSlide pis);
 
@@ -41,6 +46,9 @@ struct Slide : public std::map<PrimitivePtr,StateInSlide> {
 
     TimeTypeSec pause_duration = 0;
 
+private:
+    std::map<PrimitivePtr,int> insertion_order;
+    int insertion_counter = 0;
 };
 
 }
