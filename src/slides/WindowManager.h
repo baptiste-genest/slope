@@ -16,6 +16,7 @@ enum class WindowType {
     Transform,
     DragAndDrop,
     PolyscopeGUI,
+    Tuner,
     QuitWarning
 };
 
