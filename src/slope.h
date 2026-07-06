@@ -6,6 +6,7 @@
 #include "content/screen_primitives/Text.h"
 #include "math/kernels.h"
 #include "slides/Slideshow.h"
+#include "slides/DeckLoader.h"
 #include "content/polyscope_primitives/PointCloud.h"
 #include "content/screen_primitives/LateX.h"
 #include "content/polyscope_primitives/Mesh.h"
@@ -21,5 +22,8 @@
 #include "content/screen_primitives/plots/Plot.h"
 #include "content/polyscope_primitives/VolumeGrid.h"
 #include "content/screen_primitives/Box.h"
+#include "content/screen_primitives/Shape2D.h"
+#include "content/screen_primitives/Stack2D.h"
+#include "content/Params.h"
 
 #endif // SLOPE_H

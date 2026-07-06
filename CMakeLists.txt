@@ -12,6 +12,7 @@ include(eigen)
 include(polyscope)
 include(spdlog)
 include(fmt)
+include(yamlcpp)
 
 find_package(OpenGL REQUIRED)
 
@@ -45,7 +46,7 @@ file(GLOB HEADER_LIST CONFIGURE_DEPENDS "src/*.h*")
 
 ## The library
 add_library(slope STATIC ${SRC_lib})
-target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog OpenGL::GL fmt)
+target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog OpenGL::GL fmt yaml-cpp)
 target_compile_features(slope PUBLIC cxx_std_20)
 target_include_directories(slope PUBLIC src/ PRIVATE)
 set_target_properties(slope PROPERTIES PUBLIC_HEADER "${HEADER_LIST}")
