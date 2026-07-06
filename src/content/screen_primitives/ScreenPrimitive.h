@@ -14,12 +14,24 @@ class ScreenPrimitive : public Primitive
 {
 protected:
     AnchorPtr anchor;
+
+    // scale the primitive is actually drawn at (slide state or persistent
+    // anchor scale), mirrored on every play/intro/outro like the anchor,
+    // so bounding boxes follow dynamic rescaling
+    scalar drawn_scale = 1;
 public:
     ScreenPrimitive();
 
     static ScreenPrimitivePtr get(PrimitiveID id);
 
     bool isScreenSpace() const override;
+
+    // the primitive's own anchor mirrors where it is actually drawn (the
+    // slide state's anchor), so followers (arrows, englobing boxes) resolve
+    // live positions; synced on every play/intro/outro
+    void play(const TimeObject& t, const StateInSlide& sis) override;
+    void intro(const TimeObject& t, const StateInSlide& sis) override;
+    void outro(const TimeObject& t, const StateInSlide& sis) override;
 
     AnchorPtr getAnchor() const;
 
@@ -44,6 +56,11 @@ public:
     virtual vec2 getSize() const = 0;
 
     Size getRelativeSize() const;
+
+    // bounding box in relative [0,1]² coords : centered on the anchor by
+    // default, overridden by primitives whose geometry does not follow
+    // their anchor (arrows, boxes)
+    virtual void getBoundingBox(vec2& lo, vec2& hi) const;
 
 };
 

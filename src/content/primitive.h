@@ -45,11 +45,11 @@ struct Primitive {
 
     void handleInnerTime();
 
-    void play(const TimeObject& t,const StateInSlide& sis);
+    virtual void play(const TimeObject& t,const StateInSlide& sis);
 
-    void intro(const TimeObject& t,const StateInSlide& sis);
+    virtual void intro(const TimeObject& t,const StateInSlide& sis);
 
-    void outro(const TimeObject& t,const StateInSlide& sis);
+    virtual void outro(const TimeObject& t,const StateInSlide& sis);
 
     bool isEnabled() const;
 
@@ -73,6 +73,11 @@ struct Primitive {
     static TransitionAnimator DefaultTransition;
 
     void upFirstSlideNumber(int f);
+
+    // upFirstSlideNumber only ever lowers the index, so recomposing slides
+    // at runtime must reset it first, or relative_frame_number keeps the
+    // staging of the previous composition
+    void resetFirstSlideNumber() {first_slide_to_appear = std::numeric_limits<int>::max();}
 
     OverrideUpdater setUpdater(const Updater& up);
 

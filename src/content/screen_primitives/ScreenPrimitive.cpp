@@ -13,6 +13,24 @@ bool slope::ScreenPrimitive::isScreenSpace() const {
     return true;
 }
 
+void slope::ScreenPrimitive::play(const TimeObject &t, const StateInSlide &sis) {
+    anchor->updatePos(sis.getPosition());
+    drawn_scale = sis.getScale();
+    Primitive::play(t,sis);
+}
+
+void slope::ScreenPrimitive::intro(const TimeObject &t, const StateInSlide &sis) {
+    anchor->updatePos(sis.getPosition());
+    drawn_scale = sis.getScale();
+    Primitive::intro(t,sis);
+}
+
+void slope::ScreenPrimitive::outro(const TimeObject &t, const StateInSlide &sis) {
+    anchor->updatePos(sis.getPosition());
+    drawn_scale = sis.getScale();
+    Primitive::outro(t,sis);
+}
+
 slope::AnchorPtr slope::ScreenPrimitive::getAnchor() const {return anchor;}
 
 void slope::ScreenPrimitive::updateAnchor(const vec2 &p){
@@ -65,4 +83,11 @@ slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::at(const vec &worldPos, co
 slope::Primitive::Size slope::ScreenPrimitive::getRelativeSize() const {
     auto s = getSize();
     return Size(s(0)/Options::ScreenResolutionWidth,s(1)/Options::ScreenResolutionHeight);
+}
+
+void slope::ScreenPrimitive::getBoundingBox(vec2 &lo, vec2 &hi) const {
+    vec2 c = anchor->getPos();
+    vec2 h = getRelativeSize()*0.5*drawn_scale;
+    lo = c - h;
+    hi = c + h;
 }
