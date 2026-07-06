@@ -15,6 +15,98 @@ slope::PrimitivePtr slope::DragEditor::getPrimitiveUnderMouse(const Slide& s, sc
     return nullptr;
 }
 
+void slope::DragEditor::toggleMember(Slide& cs, WindowManager& wm, const PrimitivePtr& prim)
+{
+    auto member = std::find_if(group.begin(), group.end(),
+                               [&](const Member& m) { return m.prim == prim; });
+    if (member != group.end()) {
+        auto it = cs.find(prim);
+        if (it != cs.end())
+            it->second.alpha = member->original_alpha;
+        group.erase(member);
+        if (group.empty())
+            clearGroup(cs, wm);
+        return;
+    }
+    auto it = cs.find(prim);
+    if (it == cs.end())
+        return;
+    // only label-anchored primitives have a writable position
+    if (std::dynamic_pointer_cast<LabelAnchor>(it->second.anchor) == nullptr)
+        return;
+    if (group.empty()) {
+        wm.Toggle(WindowType::DragAndDrop);
+        time_at_pick = Time::now();
+    }
+    group.push_back({prim, it->second.alpha});
+}
+
+void slope::DragEditor::clearGroup(Slide& cs, WindowManager& wm)
+{
+    for (const auto& m : group) {
+        auto it = cs.find(m.prim);
+        if (it != cs.end())
+            it->second.alpha = m.original_alpha;
+    }
+    group.clear();
+    group_dragging = false;
+    if (wm.isOpen(WindowType::DragAndDrop))
+        wm.Toggle(WindowType::DragAndDrop);
+}
+
+void slope::DragEditor::handleGroup(Slide& cs, bool ctrl, bool shift, WindowManager& wm)
+{
+    auto io = ImGui::GetIO();
+    ImGui::SetNextFrameWantCaptureMouse(true);
+    ImGui::SetNextFrameWantCaptureKeyboard(false);
+
+    // pulse the members so the selection is visible
+    scalar pulse = (std::cos(TimeFrom(time_at_pick) * 5) + 1) * 0.8 + 0.2;
+    for (const auto& m : group) {
+        auto it = cs.find(m.prim);
+        if (it != cs.end())
+            it->second.alpha = pulse;
+    }
+
+    auto S = ImGui::GetWindowSize();
+    double x = double(io.MousePos.x) / S.x;
+    double y = double(io.MousePos.y) / S.y;
+
+    if (ctrl && shift) { // still selecting : clicks must not start a drag
+        group_dragging = false;
+        return;
+    }
+
+    if (io.MouseDown[0]) {
+        if (!group_dragging) {
+            group_dragging = true;
+            drag_travel = 0;
+        } else {
+            double dx = x - drag_last_x, dy = y - drag_last_y;
+            drag_travel += std::abs(dx) + std::abs(dy);
+            if (dx != 0 || dy != 0)
+                for (const auto& m : group) {
+                    auto it = cs.find(m.prim);
+                    if (it == cs.end())
+                        continue;
+                    auto lab = std::dynamic_pointer_cast<LabelAnchor>(it->second.anchor);
+                    if (lab == nullptr)
+                        continue;
+                    auto p = lab->getPos();
+                    lab->writePosAtLabel(p(0) + dx, p(1) + dy, true);
+                }
+        }
+        drag_last_x = x;
+        drag_last_y = y;
+    }
+    else if (io.MouseReleased[0]) {
+        // a plain click that did not drag dismisses the selection
+        if (group_dragging && drag_travel < 0.003)
+            clearGroup(cs, wm);
+        group_dragging = false;
+    }
+}
+
 void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
 {
     if (wm.isOtherOpen(WindowType::DragAndDrop))
@@ -22,9 +114,26 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
 
     auto io = ImGui::GetIO();
     bool ctrl  = ImGui::IsKeyDown(ImGuiKey_LeftCtrl);
+    bool shift = ImGui::IsKeyDown(ImGuiKey_LeftShift);
     bool click = io.MouseClicked[0];
 
-    if (ctrl && click && selected_primitive == nullptr) {
+    if (ctrl && shift && click && selected_primitive == nullptr) {
+        auto S = ImGui::GetWindowSize();
+        auto x = double(io.MousePos.x) / S.x;
+        auto y = double(io.MousePos.y) / S.y;
+        auto prim = getPrimitiveUnderMouse(cs, x, y);
+        if (prim != nullptr)
+            toggleMember(cs, wm, prim);
+        else
+            clearGroup(cs, wm);
+        return;
+    }
+    if (!group.empty() && selected_primitive == nullptr) {
+        handleGroup(cs, ctrl, shift, wm);
+        return;
+    }
+
+    if (ctrl && !shift && click && selected_primitive == nullptr) {
         auto S = ImGui::GetWindowSize();
         auto x = double(io.MousePos.x) / S.x;
         auto y = double(io.MousePos.y) / S.y;
