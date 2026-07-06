@@ -4,6 +4,7 @@
 #include "polyscope/pick.h"
 #include "content/color_tools.h"
 #include "content/polyscope_primitives/BackgroundColor.h"
+#include "content/Params.h"
 
 
 void slope::Slideshow::nextFrame()
@@ -53,6 +54,8 @@ void slope::Slideshow::play() {
 
     polyscope::view::bgColor = BackgroundColor::Default.toArray();
 
+    Params::NewFrame();
+
     ImGuiWindowConfig();
     ImGui::Begin("Slope",NULL,window_flags);
 
@@ -81,6 +84,11 @@ void slope::Slideshow::play() {
 
     if (LatexLoader::initialized)
         LatexLoader::HotReloadIfModified();
+    Latex::HotReloadPrefixIfModified();
+    Params::HotReloadIfModified();
+
+    if (onFrame)
+        onFrame();
 
     if (display_slide_number)
         hud.drawSlideNumber(state.current);
@@ -183,7 +191,7 @@ void slope::Slideshow::ImGuiWindowConfig()
 void slope::Slideshow::onWindowClose(GLFWwindow* w)
 {
     auto* self = static_cast<Slideshow*>(glfwGetWindowUserPointer(w));
-    if (LabelAnchor::hasDirty()) {
+    if (LabelAnchor::hasDirty() || Params::hasDirty()) {
         glfwSetWindowShouldClose(w, GLFW_FALSE);
         if (!self->wm.isAnyOpen())
             self->wm.Toggle(WindowType::QuitWarning);
@@ -331,6 +339,41 @@ void slope::Slideshow::exportPDF()
         spdlog::info("PDF saved to {}", out);
 }
 
+void slope::Slideshow::recompose(const std::function<void(SlideManager&)>& composer,
+                                 const std::set<PrimitivePtr>& stale)
+{
+    size_t cur = state.current;
+
+    if (!slides.empty())
+        for (auto& p : slides[state.current])
+            p.first->disable();
+    for (auto& S : slides)
+        for (auto& p : S)
+            p.first->resetFirstSlideNumber();
+    for (auto& p : stale) {
+        p->disable();
+        p->resetFirstSlideNumber();
+    }
+    slides.clear();
+    transitions.clear();
+    appearing_primitives.clear();
+    initialized = false;
+
+    try {
+        composer(*this);
+    } catch (const std::exception& e) {
+        spdlog::error("recompose failed: {}", e.what());
+    }
+    if (slides.empty())
+        addSlide(Slide());
+
+    state.jumpTo(std::min(cur, slides.size()-1));
+    state.visited = -1;
+    state.settle();
+    for (auto& p : slides[state.current])
+        p.first->enable();
+}
+
 void slope::Slideshow::loadSlides()
 {
     hud.initialize(slides.size(), [this](int i){ return getSlideTitle(i); });
@@ -371,11 +414,13 @@ void slope::Slideshow::handleInputs()
     if (wm.isModalOpen())
         return;
 
-    if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_S))
+    if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_S)) {
         LabelAnchor::saveAllDirty();
+        Params::saveAllDirty();
+    }
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape) && !wm.isAnyOpen()) {
-        if (LabelAnchor::hasDirty())
+        if (LabelAnchor::hasDirty() || Params::hasDirty())
             wm.Toggle(WindowType::QuitWarning);
         else
             polyscope::unshow();
@@ -429,6 +474,8 @@ void slope::Slideshow::addKeyboardInputs()
         [this](){wm.Toggle(WindowType::Camera);},true);
     input_manager.addInput("show color palette editor","W",ImGuiKey_W,
         [this](){wm.Toggle(WindowType::Palette);},true);
+    input_manager.addInput("show animation parameter tuner","A",ImGuiKey_A,
+        [this](){wm.Toggle(WindowType::Tuner);},true);
     input_manager.addInput("show polyscope GUI","D",ImGuiKey_D,
         [this](){wm.Toggle(WindowType::PolyscopeGUI);},true);
     input_manager.addInput("reset timings","R",ImGuiKey_R,
@@ -438,6 +485,7 @@ void slope::Slideshow::addKeyboardInputs()
     input_manager.addInput("center horizontally dragged primitive","H",ImGuiKey_H,false);
     input_manager.addInput("center vertically dragged primitive","V",ImGuiKey_V,false);
     input_manager.addInput("save dragged positions to disk","Ctrl+S");
+    input_manager.addInput("toggle primitives in a group selection, hold left click to move them together","Ctrl+Shift+click");
 }
 
 
@@ -471,6 +519,8 @@ void slope::Slideshow::displayPopUps()
         camera_exporter.drawPopup(wm);
     else if (wm.isOpen(WindowType::Palette))
         PaletteHandler::ShowColorPickingModule();
+    else if (wm.isOpen(WindowType::Tuner))
+        Params::DrawPanel();
     else if (wm.isOpen(WindowType::SlideMenu))
         time_tracker.drawMenu(slides.size(),
             [this](int i){ return getSlideTitle(i); },
@@ -482,6 +532,7 @@ void slope::Slideshow::displayPopUps()
             ImGui::Spacing();
             if (ImGui::Button("Save and quit")) {
                 LabelAnchor::saveAllDirty();
+                Params::saveAllDirty();
                 polyscope::unshow();
                 ImGui::CloseCurrentPopup();
             }

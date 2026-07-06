@@ -44,6 +44,19 @@ public:
 
     void run();
 
+    bool helpWanted() const {return help_wanted;}
+
+    // rebuilds the slide structure at runtime : disables what is currently
+    // shown (plus the given stale primitives), clears the slides and re-runs
+    // the composer, then restores the playback position. Primitives
+    // themselves are untouched, so a composer reusing them keeps their state.
+    void recompose(const std::function<void(SlideManager&)>& composer,
+                   const std::set<PrimitivePtr>& stale = {});
+
+    // called once per frame at the end of play(), e.g. to watch external
+    // sources (deck manifest, generated data...) and recompose on change
+    std::function<void()> onFrame;
+
 private:
 
     DragEditor drag_editor;
