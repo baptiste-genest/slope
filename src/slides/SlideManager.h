@@ -44,6 +44,8 @@ protected:
     Slide center_buffer;int center_start,center_end;
     bool centering = false;AnchorPtr center_anchor;
 
+    std::map<std::string, Primitives> groups;
+
 
 
 public:
@@ -78,6 +80,16 @@ public:
     void removeFromCurrentSlide(PrimitivePtr ptr);
 
     void removeFromCurrentSlide(const PrimitiveGroup& G);
+
+    // tag-based groups : primitives declare membership, and group operations
+    // map over the members present in the current slide. a group has no
+    // position of its own : moving it composes an offset on top of each
+    // member's own placement, which stays authoritative (and drag-editable)
+    void addToGroup(const std::string& tag, PrimitivePtr ptr);
+    bool hasGroup(const std::string& tag) const;
+    void moveGroup(const std::string& tag, const vec2& delta);
+    void removeGroup(const std::string& tag);
+    void clearGroups();
 
     Slide& getLastSlide();
 

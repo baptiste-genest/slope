@@ -20,20 +20,21 @@ slope::SlideManager::TransitionSets slope::SlideManager::computeTransitionsBetwe
             uniqueA.insert(sa.first);
         }
     }
-    //sort by depth
+    //sort by depth, ties broken by insertion order in the relevant slide
+    auto depthLess = [](const Slide& s) {
+        return [&s](PrimitivePtr a, PrimitivePtr b) {
+            if (a->getDepth() != b->getDepth())
+                return a->getDepth() < b->getDepth();
+            return s.orderOf(a) < s.orderOf(b);
+        };
+    };
     Primitives common_sorted(common.begin(),common.end());
-    std::sort(common_sorted.begin(),common_sorted.end(),[](PrimitivePtr a,PrimitivePtr b){
-        return a->getDepth() < b->getDepth();
-    });
+    std::sort(common_sorted.begin(),common_sorted.end(),depthLess(B));
     Primitives uniqueA_sorted(uniqueA.begin(),uniqueA.end());
-    std::sort(uniqueA_sorted.begin(),uniqueA_sorted.end(),[](PrimitivePtr a,PrimitivePtr b){
-        return a->getDepth() < b->getDepth();
-    });
+    std::sort(uniqueA_sorted.begin(),uniqueA_sorted.end(),depthLess(A));
 
     Primitives uniqueB_sorted(uniqueB.begin(),uniqueB.end());
-    std::sort(uniqueB_sorted.begin(),uniqueB_sorted.end(),[](PrimitivePtr a,PrimitivePtr b){
-        return a->getDepth() < b->getDepth();
-    });
+    std::sort(uniqueB_sorted.begin(),uniqueB_sorted.end(),depthLess(B));
 
     return {common_sorted,uniqueA_sorted,uniqueB_sorted};
 }
@@ -128,6 +129,40 @@ void slope::SlideManager::removeFromCurrentSlide(PrimitivePtr ptr) {
 void slope::SlideManager::removeFromCurrentSlide(const PrimitiveGroup &G) {
     for (const auto& p : G.buffer)
         removeFromCurrentSlide(p.first);
+}
+
+void slope::SlideManager::addToGroup(const std::string &tag, PrimitivePtr ptr) {
+    auto& G = groups[tag];
+    if (std::find(G.begin(), G.end(), ptr) == G.end())
+        G.push_back(ptr);
+}
+
+bool slope::SlideManager::hasGroup(const std::string &tag) const {
+    return groups.count(tag);
+}
+
+void slope::SlideManager::moveGroup(const std::string &tag, const vec2 &delta) {
+    auto it = groups.find(tag);
+    if (it == groups.end())
+        return;
+    auto& S = getLastSlide();
+    for (const auto& p : it->second) {
+        auto sit = S.find(p);
+        if (sit != S.end())
+            sit->second.addOffset(delta);
+    }
+}
+
+void slope::SlideManager::removeGroup(const std::string &tag) {
+    auto it = groups.find(tag);
+    if (it == groups.end())
+        return;
+    for (const auto& p : it->second)
+        removeFromCurrentSlide(p);
+}
+
+void slope::SlideManager::clearGroups() {
+    groups.clear();
 }
 
 slope::Slide &slope::SlideManager::getLastSlide() {
