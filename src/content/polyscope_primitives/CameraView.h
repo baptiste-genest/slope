@@ -32,8 +32,14 @@ public:
 
 public:
     void enable() {
-        if (fromFile)
+        if (fromFile) {
+            // polyscope 2.6.1's setViewFromJson never restores "fov" (its
+            // key check is inverted), so apply the saved fov beforehand :
+            // both the direct path and the flyTo flight target then use it
+            if (saved_fov > 0)
+                polyscope::view::fov = saved_fov;
             polyscope::view::setCameraFromJson(jsonContent,flyTo);
+        }
         else
             polyscope::view::lookAt(from,to,up,flyTo);
     }
@@ -46,6 +52,10 @@ private:
     glm::vec3 from,to,up;
     std::string jsonContent;
     bool flyTo;
+    float saved_fov = -1;
+
+public:
+    void setSavedFov(float f) {saved_fov = f;}
 };
 
 

@@ -17,8 +17,14 @@ slope::CameraViewPtr slope::CameraView::Add(std::string file, bool flyTo)
     std::string str((std::istreambuf_iterator<char>(camfile)),
                     std::istreambuf_iterator<char>());
     str = removeResolutionFromCamfile(str);
-  
-    return std::make_shared<CameraView>(str,flyTo);
+
+    auto cam = std::make_shared<CameraView>(str,flyTo);
+    try {
+        auto j = nlohmann::json::parse(str);
+        if (j.contains("fov"))
+            cam->setSavedFov(j["fov"].get<float>());
+    } catch (const std::exception&) {}
+    return cam;
 }
 
 std::string slope::formatCameraFilename(std::string file)
