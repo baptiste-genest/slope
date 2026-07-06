@@ -56,33 +56,61 @@ struct Latex : public TextualPrimitive {
 
     static LatexPtr MakeObject(const TexObject& tex,scalar scale = 1,int width = -1,bool formula = false);
 
+    // the prefix (shared preamble) is kept as an ordered list of parts,
+    // either literal strings or file references, so that file-backed parts
+    // (e.g. commands.tex) can be watched and hot-reloaded at runtime;
+    // `context` is the assembled result used by WriteTexFile
     static TexObject context;
-    static void Define(const TexObject& tex) {context += tex;}
-    static void AddToPrefix(const TexObject& tex) {context += tex;}
+
+    struct ContextPart {
+        bool is_file;
+        TexObject value; // literal content, or path for file parts
+        std::filesystem::file_time_type last_modified;
+    };
+    static std::vector<ContextPart> context_parts;
+
+    static void AddToPrefix(const TexObject& tex) {
+        context_parts.push_back({false,tex,{}});
+        context += tex;
+    }
+    static void Define(const TexObject& tex) {AddToPrefix(tex);}
     static void DeclareMathOperator(const TexObject& name,const TexObject& content);
-    static void NewCommand(const TexObject& name,const TexObject& content) {context += "\\newcommand{\\"+name+"}{"+content+"}";}
+    static void NewCommand(const TexObject& name,const TexObject& content) {
+        AddToPrefix("\\newcommand{\\"+name+"}{"+content+"}");
+    }
     static void NewCommand(const TexObject& name,const TexObject& content,int nb_arg) {
-        context += "\\newcommand{\\"+name+"}" + "[" + std::to_string(nb_arg) + "]{"+content+"}";
+        AddToPrefix("\\newcommand{\\"+name+"}" + "[" + std::to_string(nb_arg) + "]{"+content+"}");
     }
 
     static void UsePackage(std::string pkg,std::string options = "") {
         if (options != "")
-            context += "\\usepackage["+options+"]{"+pkg+"}\n";
+            AddToPrefix("\\usepackage["+options+"]{"+pkg+"}\n");
         else
-            context += "\\usepackage{"+pkg+"}\n";
+            AddToPrefix("\\usepackage{"+pkg+"}\n");
     }
 
     static void AddFileToPrefix(const path& p);
 
+    // watches the file-backed prefix parts; when one changed on disk,
+    // rebuilds the context and re-renders every latex primitive
+    static void HotReloadPrefixIfModified();
+
+    static void rebuildContext();
+    static void RegenerateAll();
+
 
     bool isFormula;
     scalar scale;
+    int width = -1;
     ImageData data;
+    TexObject tex_source; // the exact tex passed in (content may differ, cf Title)
     std::string full_content;
 
-
-
     void updateContent(json content);
+
+    // re-renders this primitive with the current context, reusing the
+    // on-disk cache when possible
+    void regenerate();
 
 
     // Primitive interface

@@ -24,10 +24,12 @@ slope::LatexPtr slope::Latex::MakeObject(const TexObject &tex, scalar scale, int
         GenerateLatex(filename,content);
     LatexPtr rslt = NewPrimitive<Latex>();
     rslt->content = tex;
+    rslt->tex_source = tex;
     rslt->full_content = content;
     rslt->data = loadImage(filename);
     rslt->isFormula = formula;
     rslt->scale = scale;
+    rslt->width = width;
     return rslt;
 }
 
@@ -35,7 +37,7 @@ void slope::Latex::updateContent(json j)
 {
     isFormula = j[0] == 1;
     auto new_content = j[1];
-    int width = LatexLoader::GetWidth(j);
+    width = LatexLoader::GetWidth(j);
 
     auto tex_content = WriteTexFile(new_content,isFormula,width);
     path filename = GetLatexPath(tex_content);
@@ -43,9 +45,22 @@ void slope::Latex::updateContent(json j)
     if (full_content != tex_content) {
         GenerateLatex(filename,tex_content);
         content = new_content;
+        tex_source = new_content;
         full_content = tex_content;
         data = loadImage(filename);
     }
+}
+
+void slope::Latex::regenerate()
+{
+    auto tex_content = WriteTexFile(tex_source,isFormula,width);
+    if (full_content == tex_content)
+        return;
+    path filename = GetLatexPath(tex_content);
+    if (!io::file_exists(filename) || Options::ignore_cache)
+        GenerateLatex(filename,tex_content);
+    full_content = tex_content;
+    data = loadImage(filename);
 }
 
 
@@ -55,10 +70,81 @@ void slope::Latex::DeclareMathOperator(const TexObject &name, const TexObject &c
 
 void slope::Latex::AddFileToPrefix(const path &p)
 {
-    std::ifstream t(formatPath(p));
+    path fp = formatPath(p);
+    std::ifstream t(fp);
+    if (!t)
+        spdlog::warn("could not read latex prefix file {}", fp.string());
     std::stringstream buffer;
     buffer << t.rdbuf();
     context += buffer.str();
+
+    ContextPart part{true, p, {}};
+    try {
+        part.last_modified = std::filesystem::last_write_time(fp);
+    } catch (const std::exception&) {}
+    context_parts.push_back(part);
+}
+
+void slope::Latex::rebuildContext()
+{
+    context = "";
+    for (const auto& part : context_parts) {
+        if (!part.is_file) {
+            context += part.value;
+            continue;
+        }
+        std::ifstream t(formatPath(part.value));
+        std::stringstream buffer;
+        buffer << t.rdbuf();
+        context += buffer.str();
+    }
+}
+
+void slope::Latex::RegenerateAll()
+{
+    int failures = 0;
+    for (const auto& p : Primitive::primitives) {
+        auto l = std::dynamic_pointer_cast<Latex>(p);
+        if (!l)
+            continue;
+        try {
+            l->regenerate();
+        } catch (const std::exception& e) {
+            failures++;
+        }
+    }
+    if (failures)
+        spdlog::error("latex prefix reload : {} primitives failed to recompile "
+                      "(check the prefix file), see {}", failures, Options::LogPath);
+    else
+        spdlog::info("... latex prefix reloaded!");
+}
+
+void slope::Latex::HotReloadPrefixIfModified()
+{
+    static auto last_refresh = Time::now();
+    if (TimeFrom(last_refresh) < 0.2)
+        return;
+    last_refresh = Time::now();
+
+    bool changed = false;
+    for (auto& part : context_parts) {
+        if (!part.is_file)
+            continue;
+        try {
+            auto last_write = std::filesystem::last_write_time(formatPath(part.value));
+            if (part.last_modified < last_write) {
+                part.last_modified = last_write;
+                changed = true;
+            }
+        } catch (const std::exception&) {}
+    }
+    if (!changed)
+        return;
+
+    spdlog::info("latex prefix changed, recompiling latex...");
+    rebuildContext();
+    RegenerateAll();
 }
 
 slope::path slope::GetLatexPath(const TexObject &tex)
@@ -68,6 +154,7 @@ slope::path slope::GetLatexPath(const TexObject &tex)
 }
 
 slope::TexObject slope::Latex::context = "";
+std::vector<slope::Latex::ContextPart> slope::Latex::context_parts;
 
 void slope::GenerateLatex(const path &filename,
                           const TexObject &texcontent)
