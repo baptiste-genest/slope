@@ -239,6 +239,7 @@ void DeckLoader::build(SlideManager& show)
     used_primitives.clear();
     named.clear();
     show.clearGroups();
+    show.clearKeyframes();
 
     bool first = true;
     for (const auto& frame : source["slides"]) {
@@ -265,18 +266,16 @@ void DeckLoader::build(SlideManager& show)
 void DeckLoader::buildFrame(SlideManager& show, const json& items)
 {
     for (const auto& item : items) {
-        if (!item.is_object())
-            throw std::runtime_error("deck items must be yaml maps");
-        if (item.contains("step")) {
-            // a common yaml indentation mistake puts an item's fields (at,
-            // scale...) at the step level, where they would be silently lost
-            for (const auto& [key, val] : item.items())
-                if (key != "step")
-                    spdlog::warn("deck: ignored key \"{}\" on a step "
-                                 "(should it be indented under an item?)", key);
+        if (item.is_string() && item == "step") {
             show << inNextFrame;
-            buildFrame(show, item["step"]);
-        } else if (item.contains("group")) {
+            continue;
+        }
+        if (!item.is_object())
+            throw std::runtime_error("deck items must be yaml maps (or the bare \"- step\" marker)");
+        if (item.contains("step"))
+            throw std::runtime_error("\"step:\" subtrees were replaced by the flat "
+                                     "\"- step\" marker : items after it belong to the next step");
+        if (item.contains("group")) {
             // membership is declared per item : every primitive the item
             // adds (a box subtree included) joins the tagged group
             auto before = used_primitives;
@@ -340,23 +339,21 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
 }
 
 // children of a "stack" are laid out by the stack (below one another),
-// so they are screen items without placement; "step" works as usual, and
+// so they are screen items without placement; "- step" works as usual, and
 // an item with an explicit "at" escapes the layout
 void DeckLoader::buildStackChildren(SlideManager& show, const Stack2DPtr& stack,
                                     const json& items)
 {
     for (const auto& item : items) {
-        if (!item.is_object())
-            throw std::runtime_error("stack items must be yaml maps");
-        if (item.contains("step")) {
-            for (const auto& [key, val] : item.items())
-                if (key != "step")
-                    spdlog::warn("deck: ignored key \"{}\" on a step "
-                                 "(should it be indented under an item?)", key);
+        if (item.is_string() && item == "step") {
             show << inNextFrame;
-            buildStackChildren(show, stack, item["step"]);
             continue;
         }
+        if (!item.is_object())
+            throw std::runtime_error("stack items must be yaml maps (or the bare \"- step\" marker)");
+        if (item.contains("step"))
+            throw std::runtime_error("\"step:\" subtrees were replaced by the flat "
+                                     "\"- step\" marker : items after it belong to the next step");
         if (item.contains("at")) { // explicit placement : escapes the layout
             addItem(show, item);
             continue;
@@ -464,6 +461,7 @@ static void warnUnknownKeys(const json& item)
         {"stack",   {"id","at","spacing","align","group"}},
         {"camera",  {"fly"}},
         {"pause",   {}},
+        {"keyframe",{}},
         {"remove",  {}},
         {"replace", {"with"}},
         {"move",    {"by"}},
@@ -482,6 +480,10 @@ static void warnUnknownKeys(const json& item)
 void DeckLoader::addItem(SlideManager& show, const json& item)
 {
     warnUnknownKeys(item);
+    if (item.contains("keyframe")) {
+        show.markKeyframe(item["keyframe"].get<std::string>());
+        return;
+    }
     if (item.contains("move")) {
         if (!item.contains("by") || !item["by"].is_array())
             throw std::runtime_error("\"move\" item needs \"by: [dx, dy]\"");

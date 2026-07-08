@@ -14,6 +14,12 @@ struct TimeObject
     int relative_frame_number;
     parameter transition_parameter = 1;
 
+    const std::map<std::string, int>* keyframes = nullptr;
+
+    bool afterKeyframe(const std::string& name) const;
+    bool beforeKeyframe(const std::string& name) const;
+    bool atKeyframe(const std::string& name) const;
+
     TimeObject() {}
     TimeObject(TimeTypeSec it,parameter transition) : inner_time(it),transition_parameter(transition) {}
 

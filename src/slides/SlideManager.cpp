@@ -165,6 +165,10 @@ void slope::SlideManager::clearGroups() {
     groups.clear();
 }
 
+void slope::SlideManager::markKeyframe(const std::string &name) {
+    keyframes[name] = std::max(0, getNumberSlides() - 1);
+}
+
 slope::Slide &slope::SlideManager::getLastSlide() {
     if (slides.empty())
         slides.push_back(Slide());

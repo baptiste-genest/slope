@@ -68,28 +68,31 @@ using Stack2DPtr = std::shared_ptr<Stack2D>;
  *         padx: 0.05                     # padx/pady override one axis
  *       - stack:                         # children laid out below one
  *           - latex: first paragraph     # another, block centered on the
- *           - step:                      # handle; layout reserves space
- *               - latex: appears later   # for children of later steps
+ *           - step                       # handle; layout reserves space
+ *           - latex: appears later       # for children of later steps
  *         at: column_handle              # label handle (default : the id),
  *         spacing: 0.02                  # or [x,y] for a fixed block
  *         align: left                    # left | center | right
  *       - camera: view_name
  *         fly: true
  *       - pause: 3
+ *       - keyframe: pipeline_done        # labels this frame : C++ updaters
+ *                                        # branch on t.afterKeyframe("...")
+ *                                        # instead of counting frames
  *       - latex: some content            # any item can join a tagged group;
  *         group: groupA                  # groups have no position, only
  *                                        # mapped operations (move, remove)
- *       - step:                          # = inNextFrame
- *           - latex: appears_later
- *           - move: groupA               # offsets every member of the group
- *             by: [0.1, -0.05]           # (or a single item by id), composed
+ *       - step                           # = inNextFrame : every item after
+ *       - latex: appears_later           # it belongs to the next step
+ *       - move: groupA                   # offsets every member of the group
+ *         by: [0.1, -0.05]               # (or a single item by id), composed
  *                                        # on top of their own placement
- *           - set: some_id               # re-places an existing item : new
- *             at: new_label              # anchor (or below/above/...) from
+ *       - set: some_id                   # re-places an existing item : new
+ *         at: new_label                  # anchor (or below/above/...) from
  *                                        # this frame on, transition animated
- *           - remove: [key_in_latex_json, registered_name, groupA]
- *           - replace: fig
- *             with: {image: other.png}
+ *       - remove: [key_in_latex_json, registered_name, groupA]
+ *       - replace: fig
+ *         with: {image: other.png}
  *   - frame:
  *       - ...
  *     same_title: true                   # keep previous frame's title
@@ -107,9 +110,10 @@ using Stack2DPtr = std::shared_ptr<Stack2D>;
  * "id: name" field. References resolve to the most recent item with that
  * name, in manifest order.
  *
- * Reordering steps can desync C++ updaters that branch on
- * t.relative_frame_number : the manifest owns the step structure, the
- * updater's assumptions about it stay in C++.
+ * Reordering steps desyncs C++ updaters that branch on
+ * t.relative_frame_number : prefer marking the relevant frames with
+ * "keyframe:" and branching on t.afterKeyframe / atKeyframe / beforeKeyframe,
+ * which follow the manifest wherever the mark moves.
  */
 class DeckLoader
 {

@@ -46,6 +46,11 @@ protected:
 
     std::map<std::string, Primitives> groups;
 
+    // named time marks : a keyframe labels the frame it is declared in, so
+    // updaters can branch on t.afterKeyframe("label") instead of counting
+    // relative frame numbers (which breaks whenever steps are reordered)
+    std::map<std::string, int> keyframes;
+
 
 
 public:
@@ -91,6 +96,11 @@ public:
     void removeGroup(const std::string& tag);
     void clearGroups();
 
+    // marks the frame currently being composed
+    void markKeyframe(const std::string& name);
+    const std::map<std::string, int>& getKeyframes() const {return keyframes;}
+    void clearKeyframes() {keyframes.clear();}
+
     Slide& getLastSlide();
 
     ScreenPrimitivePtr getLastScreenPrimitive();
@@ -121,6 +131,17 @@ struct Pause {
 
 inline SlideManager& operator<<(SlideManager& SM, const Pause& p) {
     SM.getLastSlide().pause_duration = p.duration;
+    return SM;
+}
+
+// show << Keyframe("pipeline_done"); labels the frame under composition
+struct Keyframe {
+    std::string name;
+    explicit Keyframe(const std::string& n) : name(n) {}
+};
+
+inline SlideManager& operator<<(SlideManager& SM, const Keyframe& k) {
+    SM.markKeyframe(k.name);
     return SM;
 }
 
