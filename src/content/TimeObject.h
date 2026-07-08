@@ -10,11 +10,14 @@ struct TimeObject
     TimeTypeSec from_action = 0;
     TimeTypeSec inner_time = 0;
     TimeTypeSec delta_time = 0;
-    int absolute_frame_number;
-    int relative_frame_number;
+    int absolute_frame_number = 0;
+    int relative_frame_number = 0;
     parameter transition_parameter = 1;
 
-    const std::map<std::string, int>* keyframes = nullptr;
+    // set by the slideshow : static, so the TimeObjects built outside the
+    // main play path (backward navigation, transitions) answer keyframe
+    // queries too
+    static const std::map<std::string, int>* keyframes;
 
     bool afterKeyframe(const std::string& name) const;
     bool beforeKeyframe(const std::string& name) const;

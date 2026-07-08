@@ -4,6 +4,8 @@
 
 namespace slope {
 
+const std::map<std::string, int>* TimeObject::keyframes = nullptr;
+
 // -2 : unknown label (warned once), so every query answers false
 static int keyframeIndex(const std::map<std::string, int>* keyframes,
                          const std::string& name)

@@ -73,7 +73,7 @@ private:
         T.from_begin = TimeFrom(from_begin);
         T.from_action = TimeFrom(state.from_action);
         T.absolute_frame_number = state.current;
-        T.keyframes = &keyframes;
+        TimeObject::keyframes = &keyframes;
         return T;
     }
 
