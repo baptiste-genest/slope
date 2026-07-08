@@ -464,7 +464,6 @@ static void warnUnknownKeys(const json& item)
         {"keyframe",{}},
         {"remove",  {}},
         {"replace", {"with"}},
-        {"move",    {"by"}},
         {"set",     {"at","alpha","below","above","right_of","left_of","padding"}},
     };
     for (const auto& [type, fields] : allowed) {
@@ -484,25 +483,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         show.markKeyframe(item["keyframe"].get<std::string>());
         return;
     }
-    if (item.contains("move")) {
-        if (!item.contains("by") || !item["by"].is_array())
-            throw std::runtime_error("\"move\" item needs \"by: [dx, dy]\"");
-        vec2 delta(item["by"][0].get<scalar>(), item["by"][1].get<scalar>());
-        std::string name = item["move"];
-        if (show.hasGroup(name))
-            show.moveGroup(name, delta);
-        else {
-            // a single named item moves like a group of one
-            auto prim = resolve(name);
-            auto& S = show.getLastSlide();
-            auto it = S.find(prim);
-            if (it == S.end())
-                throw std::runtime_error("\"move\" target \"" + name
-                                         + "\" is not on the current slide");
-            it->second.addOffset(delta);
-        }
-    }
-    else if (item.contains("remove")) {
+    if (item.contains("remove")) {
         auto removeOne = [&](const std::string& name) {
             if (instantiated_groups.count(name)) {
                 show.removeFromCurrentSlide(instantiated_groups[name]);

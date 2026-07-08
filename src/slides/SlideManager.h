@@ -88,11 +88,10 @@ public:
 
     // tag-based groups : primitives declare membership, and group operations
     // map over the members present in the current slide. a group has no
-    // position of its own : moving it composes an offset on top of each
-    // member's own placement, which stays authoritative (and drag-editable)
+    // position of its own : each member's placement stays authoritative
+    // (and drag-editable)
     void addToGroup(const std::string& tag, PrimitivePtr ptr);
     bool hasGroup(const std::string& tag) const;
-    void moveGroup(const std::string& tag, const vec2& delta);
     void removeGroup(const std::string& tag);
     void clearGroups();
 

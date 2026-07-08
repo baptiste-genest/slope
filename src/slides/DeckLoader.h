@@ -80,13 +80,10 @@ using Stack2DPtr = std::shared_ptr<Stack2D>;
  *                                        # branch on t.afterKeyframe("...")
  *                                        # instead of counting frames
  *       - latex: some content            # any item can join a tagged group;
- *         group: groupA                  # groups have no position, only
- *                                        # mapped operations (move, remove)
+ *         group: groupA                  # groups have no position, operations
+ *                                        # (remove...) map over their members
  *       - step                           # = inNextFrame : every item after
  *       - latex: appears_later           # it belongs to the next step
- *       - move: groupA                   # offsets every member of the group
- *         by: [0.1, -0.05]               # (or a single item by id), composed
- *                                        # on top of their own placement
  *       - set: some_id                   # re-places an existing item : new
  *         at: new_label                  # anchor (or below/above/...) from
  *                                        # this frame on, transition animated

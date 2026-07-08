@@ -141,18 +141,6 @@ bool slope::SlideManager::hasGroup(const std::string &tag) const {
     return groups.count(tag);
 }
 
-void slope::SlideManager::moveGroup(const std::string &tag, const vec2 &delta) {
-    auto it = groups.find(tag);
-    if (it == groups.end())
-        return;
-    auto& S = getLastSlide();
-    for (const auto& p : it->second) {
-        auto sit = S.find(p);
-        if (sit != S.end())
-            sit->second.addOffset(delta);
-    }
-}
-
 void slope::SlideManager::removeGroup(const std::string &tag) {
     auto it = groups.find(tag);
     if (it == groups.end())
