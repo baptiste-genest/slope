@@ -63,9 +63,14 @@ void slope::SlideManager::precomputeTransitions(){
 
 void slope::SlideManager::computeFirstSlideNumbers()
 {
+    std::set<PrimitivePtr> seen;
     for (int i = 0; const auto& v : slides) {
-        for (auto& p : v)
+        for (auto& p : v) {
             p.first->upFirstSlideNumber(i);
+            if (p.first->isScreenSpace() && seen.insert(p.first).second)
+                std::static_pointer_cast<ScreenPrimitive>(p.first)
+                    ->updateAnchor(p.second.getPosition());
+        }
         i++;
     }
 }

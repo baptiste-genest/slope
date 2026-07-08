@@ -25,7 +25,9 @@ void slope::Slideshow::previousFrame()
     state.goBackward();
     for (auto& s : slides[state.current]){
         auto p = s.first;
-        p->intro(TimeObject(p->getInnerTime(),1),s.second);
+        TimeObject t(p->getInnerTime(),1);
+        t.absolute_frame_number = state.current;
+        p->intro(t,s.second);
     }
     slides[state.current].setCam();
 }
@@ -41,7 +43,9 @@ void slope::Slideshow::forceNextFrame()
     state.skip();
     for (auto& s : slides[state.current]){
         auto p = s.first;
-        p->intro(TimeObject(p->getInnerTime(),1),s.second);
+        TimeObject t(p->getInnerTime(),1);
+        t.absolute_frame_number = state.current;
+        p->intro(t,s.second);
     }
     slides[state.current].setCam();
 }
@@ -111,6 +115,9 @@ void slope::Slideshow::renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T)
         auto& PS = slides[state.current-1];
         auto&& [common, UA, UB] = transitions[state.current-1];
         if (t < 2*transitionTime) {
+            // expose the transition progress to primitives that animate their
+            // own content across a frame change (e.g. VectorFormula morphs)
+            T.transition_parameter = std::min<parameter>(1, 0.5*t/transitionTime);
             for (auto& c : common) {
                 auto st = transition(0.5*t/transitionTime, PS[c], CS[c]);
                 st.persistentTransform = PersistentTransform();
@@ -322,6 +329,15 @@ void slope::Slideshow::exportPDF()
     for (int i = 0; i < (int)slides.size(); i++) {
         spdlog::info("exporting slide {} / {}", i+1, slides.size());
         state.current = i;
+        // the loop bypasses navigation : replay the enable/disable diff a
+        // frame change would have applied
+        if (i > 0) {
+            for (auto& s : uniquePrevious(transitions[i-1]))
+                s->disable();
+            for (auto& s : uniqueNext(transitions[i-1]))
+                s->enable();
+        }
+        slides[i].setCam();
         polyscope::screenshot("/tmp/slide_" + std::to_string(i) + ".png", opts);
     }
 
