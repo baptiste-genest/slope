@@ -45,6 +45,12 @@ struct Primitive {
 
     void handleInnerTime();
 
+    // backdates the clock so getInnerTime() returns t : exports settle
+    // time-based animations past their intro instead of capturing t = 0
+    void settleInnerTime(TimeTypeSec t) {
+        inner_time = Time::now() - std::chrono::duration_cast<TimeStamp::duration>(DurationSec(t));
+    }
+
     virtual void play(const TimeObject& t,const StateInSlide& sis);
 
     virtual void intro(const TimeObject& t,const StateInSlide& sis);

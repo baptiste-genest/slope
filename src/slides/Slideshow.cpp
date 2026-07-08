@@ -115,8 +115,6 @@ void slope::Slideshow::renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T)
         auto& PS = slides[state.current-1];
         auto&& [common, UA, UB] = transitions[state.current-1];
         if (t < 2*transitionTime) {
-            // expose the transition progress to primitives that animate their
-            // own content across a frame change (e.g. VectorFormula morphs)
             T.transition_parameter = std::min<parameter>(1, 0.5*t/transitionTime);
             for (auto& c : common) {
                 auto st = transition(0.5*t/transitionTime, PS[c], CS[c]);
@@ -309,10 +307,15 @@ void slope::Slideshow::exportPDF()
     if (!initialized)
         initializeSlides();
 
-    polyscope::state::userCallback = [this]() {
+    const TimeTypeSec settle_time = 10;
+
+    polyscope::state::userCallback = [this, settle_time]() {
         ImGuiWindowConfig();
         ImGui::Begin("Slope", NULL, window_flags);
-        setInnerTime();
+        for (auto& s : slides[state.current])
+            s.first->settleInnerTime(settle_time);
+        state.from_action = Time::now()
+            - std::chrono::duration_cast<TimeStamp::duration>(DurationSec(settle_time));
         TimeObject T = getTimeObject();
         auto& CS = slides[state.current];
         for (auto& s : CS.getDepthSorted())
@@ -329,8 +332,6 @@ void slope::Slideshow::exportPDF()
     for (int i = 0; i < (int)slides.size(); i++) {
         spdlog::info("exporting slide {} / {}", i+1, slides.size());
         state.current = i;
-        // the loop bypasses navigation : replay the enable/disable diff a
-        // frame change would have applied
         if (i > 0) {
             for (auto& s : uniquePrevious(transitions[i-1]))
                 s->disable();
