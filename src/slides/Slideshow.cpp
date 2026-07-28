@@ -442,6 +442,9 @@ void slope::Slideshow::handleInputs()
         Params::saveAllDirty();
     }
 
+    if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_Z))
+        drag_editor.undo(slides[state.current], wm);
+
     if (ImGui::IsKeyPressed(ImGuiKey_Escape) && !wm.isAnyOpen()) {
         if (LabelAnchor::hasDirty() || Params::hasDirty()
             || time_tracker.hasRecordableSession())
@@ -511,6 +514,7 @@ void slope::Slideshow::addKeyboardInputs()
     input_manager.addInput("center horizontally dragged primitive","H",ImGuiKey_H,false);
     input_manager.addInput("center vertically dragged primitive","V",ImGuiKey_V,false);
     input_manager.addInput("save dragged positions to disk","Ctrl+S");
+    input_manager.addInput("undo last move","Ctrl+Z");
     input_manager.addInput("toggle primitives in a group selection, hold left click to move them together","Ctrl+Shift+click");
 }
 
