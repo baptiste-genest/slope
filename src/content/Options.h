@@ -21,6 +21,9 @@ static   std::string LogPath;
 
 static bool ExportMode;
 
+/// Report unused/duplicated/defaulted anchor labels at startup (--check_labels)
+static bool CheckLabels;
+
 /// Latex paths
 static std::string PathToPDFLATEX;
 static std::string PathToCONVERT;

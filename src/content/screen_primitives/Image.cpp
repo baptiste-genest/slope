@@ -42,8 +42,8 @@ slope::ImageData slope::loadImage(path file)
     // Load from file
     unsigned char* image_data = stbi_load(filename, &w, &h, NULL, 4);
     if (image_data == NULL){
-        std::cerr << "[image] couldn't load image " << filename << std::endl;
-        exit(1);
+        spdlog::error("[image] couldn't load image {}", filename);
+        throw std::runtime_error("could not load image " + std::string(filename));
     }
 
     ImageData data;

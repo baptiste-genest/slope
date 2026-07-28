@@ -56,13 +56,25 @@ protected:
     inline static std::unordered_map<std::string, std::array<double, 3>> session_cache;
     inline static std::set<std::string> dirty_labels;
 
+    // bookkeeping for the startup report, see reportLabelIssues()
+    inline static std::map<std::string,int> label_usage;   // how many anchors use each label
+    inline static std::set<std::string> created_labels;    // had no .pos file yet
+    inline static std::set<std::string> unreadable_labels; // .pos present but unusable
+
 public:
 
     virtual bool isPersistent() const override { return true; }
 
     LabelAnchor(std::string l) : label(l) {
+        label_usage[label]++;
         writeAtLabel(0.5,0.5,1,false);
     }
+
+    const std::string& getLabel() const { return label; }
+
+    // logs anchors created at their default position (usually a typo in a
+    // label name) and .pos files no longer referenced by any anchor
+    static void reportLabelIssues();
 
     static LabelAnchorPtr Add(const std::string& l) {
         return std::make_shared<LabelAnchor>(l);
@@ -83,6 +95,9 @@ public:
     void writeAtLabel(double x, double y,scalar scale, bool overwrite) const;
 
     void writeToSession(double x, double y, scalar scale) const;
+    // same, without needing an anchor instance : used by the editor's undo,
+    // where building a LabelAnchor would register a spurious label use
+    static void writeToSessionAt(const std::string& label, double x, double y, scalar scale);
     static void saveAllDirty();
     static bool hasDirty();
 

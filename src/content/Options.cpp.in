@@ -23,6 +23,7 @@ double Options::DefaultLatexScale = 1.;
 
 bool Options::ignore_cache = false;
 bool Options::ExportMode = false;
+bool Options::CheckLabels = false;
 
 float Options::DefaultBoxRoundness = 1.f;
 

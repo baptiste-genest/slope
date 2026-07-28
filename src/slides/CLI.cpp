@@ -41,6 +41,9 @@ int slope::parseCLI(int argc,char** argv) {
         else if (arg == "--export") {
             Options::ExportMode = true;
         }
+        else if (arg == "--check_labels") {
+            Options::CheckLabels = true;
+        }
         else {
             std::cerr << "Unknown or incomplete argument: " << arg << std::endl;
             return 1;

@@ -395,6 +395,8 @@ void slope::Slideshow::loadSlides()
 {
     hud.initialize(slides.size(), [this](int i){ return getSlideTitle(i); });
     spdlog::info("[ number of distinct slides : {} ]", slides.size());
+    if (Options::CheckLabels)
+        LabelAnchor::reportLabelIssues();
 }
 
 
@@ -407,7 +409,7 @@ void slope::Slideshow::transformEditor()
         if (!pt.isActive())
             continue;
         if (pt.guizmo == nullptr){
-            pt.guizmo = new polyscope::TransformationGizmo(pis.first->getPolyscopeName()+pt.getLabel());
+            pt.guizmo = PersistentTransform::makeGuizmo(pis.first->getPolyscopeName()+pt.getLabel());
             pt.guizmo->setAllowTranslation(true);
             pt.guizmo->setAllowRotation(true);
             pt.guizmo->setAllowScaling(true);
@@ -515,9 +517,7 @@ void slope::Slideshow::handleGuizmos()
                 auto& pt = slides[state.current].at(pis.first).persistentTransform;
                 if (!pt.isActive())
                     continue;
-                pt.guizmo->setEnabled(false);
-                pt.guizmo->remove();
-                pt.guizmo = nullptr;
+                pt.guizmo = nullptr; // the deleter disables and deregisters it
             }
         }
         if (wm.Toggle(WindowType::Transform))

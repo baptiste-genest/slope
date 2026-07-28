@@ -11,8 +11,8 @@ VectorField::VectorFieldPtr VectorField::AddOnGrid(const vecs &V)
 {
     int n = std::cbrt(V.size());
     if (n*n*n != V.size()){
-        std::cerr << "VectorField::AddOnGrid: V.size() must be a perfect cube " << std::endl;
-        exit(1);
+        spdlog::error("VectorField::AddOnGrid: V.size() ({}) must be a perfect cube", V.size());
+        throw std::runtime_error("VectorField::AddOnGrid: V.size() must be a perfect cube");
     }
     auto coord = buildRangeMapper(0,n-1,-0.5,0.5);
     vecs X;

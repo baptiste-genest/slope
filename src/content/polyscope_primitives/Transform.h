@@ -170,7 +170,22 @@ class PersistentTransform {
 
 public:
 
-    polyscope::TransformationGizmo* guizmo = nullptr;
+    // polyscope's remove() only deregisters the widget, it does not destroy
+    // it, so ownership stays here. shared_ptr rather than unique_ptr because
+    // PersistentTransform is held by value in StateInSlide and copied freely.
+    std::shared_ptr<polyscope::TransformationGizmo> guizmo = nullptr;
+
+    static std::shared_ptr<polyscope::TransformationGizmo> makeGuizmo(const std::string& name) {
+        return std::shared_ptr<polyscope::TransformationGizmo>(
+            new polyscope::TransformationGizmo(name),
+            [](polyscope::TransformationGizmo* g) {
+                if (g == nullptr)
+                    return;
+                g->setEnabled(false);
+                g->remove();
+                delete g;
+            });
+    }
 
     PersistentTransform() {}
     PersistentTransform(std::string l) : label(l) {}

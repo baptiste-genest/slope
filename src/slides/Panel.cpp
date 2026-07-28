@@ -8,8 +8,8 @@ slope::AnchorPtr slope::Panel::getAnchor() const {return anchor;}
 
 slope::Panel &slope::Panel::operator<<(ScreenPrimitivePtr ptr) {
     if (root != nullptr){
-        std::cerr << "[ PANEL ERROR ] only root can be without position" << std::endl;
-        exit(1);
+        spdlog::error("[ PANEL ERROR ] only root can be without position");
+        throw std::runtime_error("Panel: only root can be without position");
     }
     last_inserted = {ptr,StateInSlide(vec2(0,0))};
     buffer.add(last_inserted);
