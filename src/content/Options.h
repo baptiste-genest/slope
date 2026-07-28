@@ -24,6 +24,10 @@ static bool ExportMode;
 /// Report unused/duplicated/defaulted anchor labels at startup (--check_labels)
 static bool CheckLabels;
 
+/// Enable the rehearsal timer : record timings, offer to save them on quit,
+/// and compare against the previous run (--rehearse)
+static bool Rehearse;
+
 /// Latex paths
 static std::string PathToPDFLATEX;
 static std::string PathToCONVERT;

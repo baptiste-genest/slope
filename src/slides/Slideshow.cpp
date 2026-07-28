@@ -196,7 +196,8 @@ void slope::Slideshow::ImGuiWindowConfig()
 void slope::Slideshow::onWindowClose(GLFWwindow* w)
 {
     auto* self = static_cast<Slideshow*>(glfwGetWindowUserPointer(w));
-    if (LabelAnchor::hasDirty() || Params::hasDirty()) {
+    if (LabelAnchor::hasDirty() || Params::hasDirty()
+        || self->time_tracker.hasRecordableSession()) {
         glfwSetWindowShouldClose(w, GLFW_FALSE);
         if (!self->wm.isAnyOpen())
             self->wm.Toggle(WindowType::QuitWarning);
@@ -287,6 +288,8 @@ void slope::Slideshow::run()
             play();
         };
         polyscope::show();
+        // the session is only ever saved through the quit-confirmation popup, so
+        // that closing the app never silently overwrites the previous run
     } else {
         exportPDF();
     }
@@ -297,6 +300,7 @@ void slope::Slideshow::initializeSlides()
     precomputeTransitions();
     loadSlides();
     from_begin = Time::now();
+    time_tracker.load();
     time_tracker.start();
     slides[state.current].setCam();
 }
@@ -439,7 +443,8 @@ void slope::Slideshow::handleInputs()
     }
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape) && !wm.isAnyOpen()) {
-        if (LabelAnchor::hasDirty() || Params::hasDirty())
+        if (LabelAnchor::hasDirty() || Params::hasDirty()
+            || time_tracker.hasRecordableSession())
             wm.Toggle(WindowType::QuitWarning);
         else
             polyscope::unshow();
@@ -499,6 +504,8 @@ void slope::Slideshow::addKeyboardInputs()
         [this](){wm.Toggle(WindowType::PolyscopeGUI);},true);
     input_manager.addInput("reset timings","R",ImGuiKey_R,
         [this](){ time_tracker.reset(); },true);
+    input_manager.addInput("pause/resume the rehearsal timer","space",ImGuiKey_Space,
+        [this](){ time_tracker.togglePause(); },true);
 
     input_manager.addInput("show transform guizmo editor","T",ImGuiKey_T,true);
     input_manager.addInput("center horizontally dragged primitive","H",ImGuiKey_H,false);
@@ -543,13 +550,18 @@ void slope::Slideshow::displayPopUps()
             [this](int i){ return getSlideTitle(i); },
             [this](int i){ goToSlide(i); });
     else if (wm.isOpen(WindowType::QuitWarning)) {
-        ImGui::OpenPopup("Unsaved positions");
-        if (ImGui::BeginPopupModal("Unsaved positions", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Unsaved position changes will be lost.");
+        ImGui::OpenPopup("Save before quitting?");
+        if (ImGui::BeginPopupModal("Save before quitting?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+            if (LabelAnchor::hasDirty() || Params::hasDirty())
+                ImGui::Text("Unsaved position/parameter changes.");
+            if (time_tracker.hasRecordableSession())
+                ImGui::Text("This rehearsal session's timings are not saved.");
+            ImGui::Text("Quit without saving?");
             ImGui::Spacing();
             if (ImGui::Button("Save and quit")) {
                 LabelAnchor::saveAllDirty();
                 Params::saveAllDirty();
+                time_tracker.save();
                 polyscope::unshow();
                 ImGui::CloseCurrentPopup();
             }

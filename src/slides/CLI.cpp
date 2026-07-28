@@ -44,6 +44,9 @@ int slope::parseCLI(int argc,char** argv) {
         else if (arg == "--check_labels") {
             Options::CheckLabels = true;
         }
+        else if (arg == "--rehearse") {
+            Options::Rehearse = true;
+        }
         else {
             std::cerr << "Unknown or incomplete argument: " << arg << std::endl;
             return 1;
