@@ -73,6 +73,8 @@ private:
         T.from_begin = TimeFrom(from_begin);
         T.from_action = TimeFrom(state.from_action);
         T.absolute_frame_number = state.current;
+        T.delta_time = TimeFrom(last_frame);
+        last_frame = Time::now();
         TimeObject::keyframes = &keyframes;
         return T;
     }
@@ -91,6 +93,7 @@ private:
 
     WindowManager wm;
     TimeStamp from_begin;
+    mutable TimeStamp last_frame = Time::now();
     ImGuiWindowFlags window_flags = 0;
 
     void renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T);
