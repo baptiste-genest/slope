@@ -3,6 +3,7 @@
 #include "../content/screen_primitives/LateX.h"
 #include "../content/screen_primitives/Shape2D.h"
 #include "../content/screen_primitives/Stack2D.h"
+#include "../content/screen_primitives/Shader.h"
 #include "../content/polyscope_primitives/Mesh.h"
 #include "spdlog/spdlog.h"
 #include "yaml-cpp/yaml.h"
@@ -327,8 +328,28 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
                       [&] { return Image::Add(file, scale); });
         name = std::filesystem::path(file).stem().string();
     }
+    else if (item.contains("shader")) {
+        // a plain single-pass fragment shader. Multi-pass, channels and live
+        // uniforms stay on the C++ side : they need ordering and values a
+        // manifest cannot express.
+        std::string file = item["shader"];
+        int w = 0, h = 0;
+        if (item.contains("resolution")) {
+            const json& r = item["resolution"];
+            if (!r.is_array() || r.size() != 2)
+                throw std::runtime_error("\"resolution\" must be [width, height]");
+            w = r[0].get<int>();
+            h = r[1].get<int>();
+        }
+        // the resolution is part of the key : the same .frag shown at two sizes
+        // is two primitives, and a hot reload reuses the GL resources of each
+        prim = cached(id + "shader:" + file + ":" + std::to_string(w) + "x" + std::to_string(h),
+                      [&]() -> PrimitivePtr { return Shader::FromFile(file, w, h); });
+        name = std::filesystem::path(file).stem().string();
+    }
     else
-        throw std::runtime_error("expected a screen item (title/load/latex/formula/image), got: "
+        throw std::runtime_error("expected a screen item "
+                                 "(title/load/latex/formula/image/shader), got: "
                                  + item.dump());
 
     name = item.value("id", name);
@@ -454,6 +475,7 @@ static void warnUnknownKeys(const json& item)
         {"latex",   with(placement, {"scale"})},
         {"formula", with(placement, {"scale"})},
         {"image",   with(placement, {"scale"})},
+        {"shader",  with(placement, {"resolution"})},
         {"object",  {"id","at","alpha","group"}},
         {"mesh",    {"id","at","alpha","smooth","normalize","group"}},
         {"arrow",   {"id","alpha","group"}},

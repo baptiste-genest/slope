@@ -32,6 +32,9 @@ static bool Rehearse;
 static std::string PathToPDFLATEX;
 static std::string PathToCONVERT;
 
+/// Where a shader's "#include <...>" finds the shader stdlib
+static std::string ShaderPath;
+
 ///Window size
 static size_t ScreenResolutionWidth;
 static size_t ScreenResolutionHeight;

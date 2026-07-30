@@ -24,8 +24,15 @@ if (NOT SLOPE_CONVERT)
 endif()
 set(SLOPE_PDFLATEX ${PDFLATEX_COMPILER})
 
+## Where "#include <...>" inside a shader looks for the shader stdlib. Defaults
+## to the source tree, which is what a build-from-source workflow wants; the
+## install rule below also drops a copy under share/ for an installed slope.
+set(SLOPE_SHADER_PATH "${PROJECT_SOURCE_DIR}/src/shaders/" CACHE PATH
+    "Directory the shader stdlib (#include <...>) is read from")
+
 message(STATUS "pdflatex compiler: ${SLOPE_PDFLATEX}")
 message(STATUS "convert tool: ${SLOPE_CONVERT}")
+message(STATUS "shader stdlib: ${SLOPE_SHADER_PATH}")
 configure_file(${PROJECT_SOURCE_DIR}/src/content/Options.cpp.in
                ${PROJECT_SOURCE_DIR}/src/content/Options.cpp)
 
@@ -61,6 +68,8 @@ install(TARGETS slope
         PUBLIC_HEADER DESTINATION include/slope
         )
 
+install(DIRECTORY src/shaders/ DESTINATION share/slope/shaders
+        FILES_MATCHING PATTERN "*.glsl")
 
 option(BUILD_SLOPE_TUTORIALS "Build the slope tutorials" OFF)
 

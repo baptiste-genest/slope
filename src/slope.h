@@ -24,6 +24,7 @@
 #include "content/screen_primitives/Box.h"
 #include "content/screen_primitives/Shape2D.h"
 #include "content/screen_primitives/Stack2D.h"
+#include "content/screen_primitives/Shader.h"
 #include "content/Params.h"
 
 #endif // SLOPE_H

@@ -52,6 +52,10 @@ using Stack2DPtr = std::shared_ptr<Stack2D>;
  *       - image: figure.png
  *         at: fig
  *         scale: 0.5
+ *       - shader: plasma.frag           # a single-pass fragment shader,
+ *         at: fx                        # hot-reloaded like the deck itself;
+ *         resolution: [900, 600]        # multi-pass / channels / uniforms
+ *                                       # stay on the C++ side
  *       - object: registered_name       # C++-defined content (or group)
  *       - mesh: bunny.obj               # loads an obj file; optional
  *         smooth: true                  # smooth (default true), normalize,
