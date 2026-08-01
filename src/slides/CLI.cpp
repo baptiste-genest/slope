@@ -63,8 +63,8 @@ int slope::parseCLI(int argc,char** argv) {
     slope::Options::ProjectViewsPath = slope::Options::ProjectPath+std::string("views/");
 
     slope::Options::CachePath = std::filesystem::path(argv[0]).parent_path().string()+std::string("/slope_cache/");
-    if (!std::filesystem::exists(slope::Options::CachePath))
-        system(("mkdir " + slope::Options::CachePath).data());
+    std::filesystem::create_directories(slope::Options::CachePath);
+    std::ofstream(slope::Options::LogPath,std::ios::trunc);
 
     if (data_path.empty())
         slope::Options::ProjectDataPath = slope::Options::ProjectPath;

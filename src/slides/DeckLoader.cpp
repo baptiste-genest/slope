@@ -290,6 +290,25 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
     }
 }
 
+// anchor labels double as .pos filenames, so a title is named after its text :
+// every title used to be called "title", silently sharing one anchor, hence one
+// position and one scale
+static std::string titleLabel(const std::string& txt)
+{
+    std::string slug;
+    for (char c : txt) {
+        if (std::isalnum(static_cast<unsigned char>(c)))
+            slug += c;
+        else if (!slug.empty() && slug.back() != '_')
+            slug += '_';
+        if (slug.size() >= 40)
+            break;
+    }
+    while (!slug.empty() && slug.back() == '_')
+        slug.pop_back();
+    return slug.empty() ? "title" : "title_" + slug;
+}
+
 std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const json& item)
 {
     PrimitivePtr prim;
@@ -300,7 +319,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
     if (item.contains("title")) {
         std::string txt = item["title"];
         prim = cached(id + "title:" + txt, [&] { return Title(txt); });
-        name = "title";
+        name = titleLabel(txt);
     }
     else if (item.contains("load")) {
         std::string key = item["load"];
@@ -316,7 +335,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
     }
     else if (item.contains("formula")) {
         std::string txt = item["formula"];
-        scalar scale = item.value("scale", 1.);
+        scalar scale = item.value("scale", Options::DefaultLatexScale);
         prim = cached(id + "formula:" + txt + ":" + std::to_string(scale),
                       [&] { return Formula::Add(txt, scale); });
         name = "";

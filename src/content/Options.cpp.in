@@ -17,7 +17,7 @@ std::string Options::PathToPDFLATEX = "@SLOPE_PDFLATEX@";
 std::string Options::PathToCONVERT = "@SLOPE_CONVERT@";
 std::string Options::ShaderPath = "@SLOPE_SHADER_PATH@";
 
-size_t Options::PDFtoPNGDensity = 600;
+size_t Options::PDFtoPNGDensity = 800;
 
 double Options::TitleScale = 1.5;
 double Options::DefaultLatexScale = 1.;

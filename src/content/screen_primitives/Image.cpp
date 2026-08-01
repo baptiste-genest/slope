@@ -120,10 +120,11 @@ void slope::ImageRotated(ImTextureID tex_id, ImVec2 center, ImVec2 size, float a
     draw_list->AddImageQuad(tex_id, pos[0], pos[1], pos[2], pos[3], uvs[0], uvs[1], uvs[2], uvs[3], color_mult);
 }
 
-void slope::DisplayImage(const ImageData &data, const StateInSlide &sis, scalar scale)
+void slope::DisplayImage(const ImageData &data, const StateInSlide &sis, scalar scale, const RGBA& tint, scalar y_offset)
 {
-    RGBA color_multiplier = ImColor(1.f,1.f,1.f,sis.alpha);
+    RGBA color_multiplier = ImColor(tint.Value.x,tint.Value.y,tint.Value.z,tint.Value.w*sis.alpha);
     auto P = sis.getAbsolutePosition();
+    P.y += y_offset;
 
     bool notfullHD = (Options::ScreenResolutionWidth != 1920) ||(Options::ScreenResolutionHeight != 1080);
 

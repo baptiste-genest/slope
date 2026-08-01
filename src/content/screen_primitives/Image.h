@@ -17,7 +17,7 @@ struct ImageData {
 };
 
 ImageData loadImage(path filename);
-void DisplayImage(const ImageData& data,const StateInSlide& sis,scalar scale = 1);
+void DisplayImage(const ImageData& data,const StateInSlide& sis,scalar scale = 1,const RGBA& tint = RGBA(1.f,1.f,1.f,1.f),scalar y_offset = 0);
 void ImageRotated(ImTextureID tex_id, ImVec2 center, ImVec2 size, float angle,const RGBA& color_mult);
 
 std::vector<ImageData> loadGif(path filename);
