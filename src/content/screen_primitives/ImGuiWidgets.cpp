@@ -53,7 +53,9 @@ void ImGuiWidgets::draw(const TimeObject &time, const StateInSlide &sis) {
     io.WantCaptureMouse = true;
 //    io.WantCaptureKeyboard = true;
     ImGui::SetWindowFocus();
-    updater(time);
+    // the callback this widget was built with, not updater : play() already
+    // calls updater once, and it would land outside this Begin/End
+    func(time);
     ImGui::End();
 }
 

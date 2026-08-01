@@ -218,6 +218,17 @@ public:
     bool readBuffer(int binding, std::vector<T>& v) const
     { return readBuffer(binding, v.data(), v.size() * sizeof(T)); }
     void clearBuffer(int binding);   // release the buffer at this binding
+    // zero a buffer in place, on the GPU : what a pass accumulating into it
+    // with atomics needs at the top of every frame, without the round trip a
+    // setBuffer of zeros would cost
+    void clearBufferData(int binding, unsigned int value = 0);
+
+    // Bind the buffer `src` holds at `src_binding` to our `binding` as well :
+    // one buffer, two passes, no copy. The producer must be streamed before
+    // the consumer (show << producer << consumer), same as setChannel — a
+    // barrier after every draw makes the writes visible within the frame.
+    // Both keep it alive; whichever is dropped last releases it.
+    void shareBuffer(int binding, const ShaderPtr& src, int src_binding);
 
     // ── GPU → CPU : read the rendered result back ───────────────────────────
     // Reads color attachment `attachment` as RGBA floats, row-major and
@@ -300,8 +311,12 @@ private:
     void releaseChannel(int i);
 
     // SSBOs, keyed by binding point
+    // Shared, so that shareBuffer() can hand the same buffer to another pass.
+    // The GL name is deliberately not freed on destruction : a Shader can
+    // outlive the context (see ~Shader), and the driver reclaims it then.
     struct StorageBuffer { unsigned int id = 0; std::size_t bytes = 0; };
-    std::map<int, StorageBuffer> ssbos;
+    using StorageBufferPtr = std::shared_ptr<StorageBuffer>;
+    std::map<int, StorageBufferPtr> ssbos;
 
     // uniform locations, resolved once per link rather than per frame
     // (glGetUniformLocation is a string lookup, ~250ns each)

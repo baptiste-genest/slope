@@ -57,6 +57,9 @@ constexpr SLGLenum SL_RG                   = 0x8227;
 constexpr SLGLenum SL_RGB                  = 0x1907;
 constexpr SLGLenum SL_RGBA                 = 0x1908;
 constexpr SLGLenum SL_R32F                 = 0x822E;
+constexpr SLGLenum SL_R32UI                = 0x8236;
+constexpr SLGLenum SL_RED_INTEGER          = 0x8D94;
+constexpr SLGLenum SL_UNSIGNED_INT         = 0x1405;
 constexpr SLGLenum SL_RG32F                = 0x8230;
 constexpr SLGLenum SL_RGB32F               = 0x8815;
 constexpr SLGLenum SL_RGBA32F              = 0x8814;
@@ -69,6 +72,8 @@ constexpr SLGLenum SL_COLOR_BUFFER_BIT     = 0x00004000;
 constexpr SLGLenum SL_TRIANGLES            = 0x0004;
 constexpr SLGLenum SL_VIEWPORT             = 0x0BA2;
 constexpr SLGLenum SL_DEPTH_TEST           = 0x0B71;
+constexpr SLGLenum SL_BLEND                = 0x0BE2;
+constexpr SLGLenum SL_SCISSOR_TEST         = 0x0C11;
 constexpr SLGLenum SL_SHADER_STORAGE_BUFFER      = 0x90D2;
 constexpr SLGLenum SL_SHADER_STORAGE_BARRIER_BIT = 0x00002000;
 constexpr SLGLenum SL_DYNAMIC_DRAW               = 0x88E8;
@@ -139,6 +144,7 @@ struct GL {
     void (*BindBufferBase)(SLGLenum, SLGLuint, SLGLuint) = nullptr;
     void (*GetBufferSubData)(SLGLenum, SLGLintptr, SLGLsizeiptr, void*) = nullptr;
     void (*DeleteBuffers)(SLGLsizei, const SLGLuint*) = nullptr;
+    void (*ClearBufferData)(SLGLenum, SLGLint, SLGLenum, SLGLenum, const void*) = nullptr;
     void (*MemoryBarrier)(SLGLenum) = nullptr;
 
     bool ok = false;      // every *required* entry point resolved
@@ -197,6 +203,9 @@ GL& gl()
     L(BufferData,"glBufferData"); L(BufferSubData,"glBufferSubData");
     L(BindBufferBase,"glBindBufferBase"); L(GetBufferSubData,"glGetBufferSubData");
     L(DeleteBuffers,"glDeleteBuffers");
+    // 4.3, like the SSBOs it is for : absent on an older context, and
+    // clearBufferData() simply does nothing there
+    L(ClearBufferData,"glClearBufferData");
     LO(MemoryBarrier,"glMemoryBarrier");   // GL 4.2 : absent on a 3.3/4.1 context
 #undef LO
 #undef L
@@ -906,15 +915,17 @@ void Shader::setBuffer(int binding, const void* data, std::size_t bytes)
     auto& g = gl();
     if (!g.ok || binding < 0 || bytes == 0)
         return;
-    StorageBuffer& sb = ssbos[binding];
-    if (!sb.id)
-        g.GenBuffers(1, &sb.id);
-    g.BindBuffer(SL_SHADER_STORAGE_BUFFER, sb.id);
-    if (sb.bytes == bytes && data) {
+    StorageBufferPtr& sb = ssbos[binding];
+    if (!sb)
+        sb = std::make_shared<StorageBuffer>();
+    if (!sb->id)
+        g.GenBuffers(1, &sb->id);
+    g.BindBuffer(SL_SHADER_STORAGE_BUFFER, sb->id);
+    if (sb->bytes == bytes && data) {
         g.BufferSubData(SL_SHADER_STORAGE_BUFFER, 0, SLGLsizeiptr(bytes), data);
     } else {
         g.BufferData(SL_SHADER_STORAGE_BUFFER, SLGLsizeiptr(bytes), data, SL_DYNAMIC_DRAW);
-        sb.bytes = bytes;
+        sb->bytes = bytes;
     }
     g.BindBuffer(SL_SHADER_STORAGE_BUFFER, 0);
 }
@@ -931,13 +942,43 @@ bool Shader::readBuffer(int binding, void* dst, std::size_t bytes) const
 {
     auto& g = gl();
     auto it = ssbos.find(binding);
-    if (!g.ok || it == ssbos.end() || !it->second.id || bytes == 0 || !dst)
+    if (!g.ok || it == ssbos.end() || !it->second || !it->second->id ||
+        bytes == 0 || !dst)
         return false;
-    bytes = std::min(bytes, it->second.bytes);
-    g.BindBuffer(SL_SHADER_STORAGE_BUFFER, it->second.id);
+    bytes = std::min(bytes, it->second->bytes);
+    g.BindBuffer(SL_SHADER_STORAGE_BUFFER, it->second->id);
     g.GetBufferSubData(SL_SHADER_STORAGE_BUFFER, 0, SLGLsizeiptr(bytes), dst);
     g.BindBuffer(SL_SHADER_STORAGE_BUFFER, 0);
     return true;
+}
+
+void Shader::clearBufferData(int binding, unsigned int value)
+{
+    auto& g = gl();
+    auto it = ssbos.find(binding);
+    if (!g.ok || !g.ClearBufferData || it == ssbos.end() ||
+        !it->second || !it->second->id)
+        return;
+    // R32UI over the whole range : the buffer's own contents are irrelevant,
+    // only the fill pattern is, and every accumulator this is meant for is a
+    // 32-bit word
+    g.BindBuffer(SL_SHADER_STORAGE_BUFFER, it->second->id);
+    g.ClearBufferData(SL_SHADER_STORAGE_BUFFER, SLGLint(SL_R32UI),
+                      SL_RED_INTEGER, SL_UNSIGNED_INT, &value);
+    g.BindBuffer(SL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void Shader::shareBuffer(int binding, const ShaderPtr& src, int src_binding)
+{
+    if (binding < 0 || !src || src.get() == this)
+        return;
+    auto it = src->ssbos.find(src_binding);
+    if (it == src->ssbos.end() || !it->second) {
+        spdlog::warn("[shader] shareBuffer : the source has no buffer at binding {}"
+                     " (set it before sharing it)", src_binding);
+        return;
+    }
+    ssbos[binding] = it->second;   // one buffer, two binding points
 }
 
 void Shader::clearBuffer(int binding)
@@ -945,9 +986,12 @@ void Shader::clearBuffer(int binding)
     auto it = ssbos.find(binding);
     if (it == ssbos.end())
         return;
+    // Only the last holder frees it, and only while a context is alive. This
+    // mirrors ~Shader, which leaves its GL objects to the driver rather than
+    // risk deleting a name in a context that is already gone.
     auto& g = gl();
-    if (g.ok && it->second.id)
-        g.DeleteBuffers(1, &it->second.id);
+    if (g.ok && it->second && it->second.use_count() == 1 && it->second->id)
+        g.DeleteBuffers(1, &it->second->id);
     ssbos.erase(it);
 }
 
@@ -1181,7 +1225,9 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     // resumes untouched
     SLGLint prev_fbo=0, prev_prog=0, prev_vao=0, prev_tex=0, prev_vp[4]={0,0,0,0};
     SLGLfloat prev_clear[4] = {0,0,0,0};
-    const bool prev_depth = g.IsEnabled(SL_DEPTH_TEST) != 0;
+    const bool prev_depth   = g.IsEnabled(SL_DEPTH_TEST) != 0;
+    const bool prev_blend   = g.IsEnabled(SL_BLEND) != 0;
+    const bool prev_scissor = g.IsEnabled(SL_SCISSOR_TEST) != 0;
     g.GetFloatv(SL_COLOR_CLEAR_VALUE, prev_clear);
     g.GetIntegerv(SL_FRAMEBUFFER_BINDING, &prev_fbo);
     g.GetIntegerv(SL_CURRENT_PROGRAM, &prev_prog);
@@ -1197,6 +1243,15 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     g.BindFramebuffer(SL_FRAMEBUFFER, buf[write].fbo);
     g.Viewport(0, 0, res_x, res_y);
     g.Disable(SL_DEPTH_TEST);
+    // This runs inside ImGui's pass, which leaves blending and a clip
+    // rectangle switched on. Both are wrong for an offscreen pass : the
+    // scissor would crop the target to whatever ImGui was drawing, and
+    // blending would mix each fragment with what the target already held
+    // instead of replacing it. That is invisible while fragColor.a is 1, and
+    // silently corrupts anything -- a simulation's state, an MRT attachment --
+    // that puts a real value in the alpha channel.
+    g.Disable(SL_BLEND);
+    g.Disable(SL_SCISSOR_TEST);
     g.UseProgram(program);
     g.BindVertexArray(vao);
 
@@ -1358,7 +1413,8 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
 
     // storage buffers : bound to their explicit std430 binding points
     for (auto& [binding, sb] : ssbos)
-        if (sb.id) g.BindBufferBase(SL_SHADER_STORAGE_BUFFER, SLGLuint(binding), sb.id);
+        if (sb && sb->id)
+            g.BindBufferBase(SL_SHADER_STORAGE_BUFFER, SLGLuint(binding), sb->id);
 
     // user uniforms : unknown names resolve to -1 and are skipped, so editing
     // the shader to add/remove a uniform never throws. Names arrive at
@@ -1412,6 +1468,10 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     // slide is drawn inside an ImGui pass, which usually runs with it off
     if (prev_depth) g.Enable(SL_DEPTH_TEST);
     else            g.Disable(SL_DEPTH_TEST);
+    if (prev_blend) g.Enable(SL_BLEND);
+    else            g.Disable(SL_BLEND);
+    if (prev_scissor) g.Enable(SL_SCISSOR_TEST);
+    else              g.Disable(SL_SCISSOR_TEST);
 }
 
 void Shader::screenRect(const StateInSlide& sis, ImVec2& pmin, ImVec2& pmax) const
