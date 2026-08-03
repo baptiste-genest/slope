@@ -6,9 +6,9 @@ on:
 
 env:
   # if needed
-  CONFIG_GLOBAL:
+  CONFIG_GLOBAL: -DSLOPE_BUILD_EXAMPLES=ON
   CONFIG_LINUX:
-  CONFIG_MAC:
+  CONFIG_MAC: 
 
 jobs:
   build:
@@ -33,6 +33,7 @@ jobs:
      - name: Install macOS deps
        if: matrix.os == 'macOS-latest'
        run: |
+            brew update
             brew install eigen
             brew install --cask mactex-no-gui
             eval "$(/usr/libexec/path_helper)"
