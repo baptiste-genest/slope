@@ -47,6 +47,9 @@ int slope::parseCLI(int argc,char** argv) {
         else if (arg == "--rehearse") {
             Options::Rehearse = true;
         }
+        else if (arg == "--no_slide_numbers") {
+            Options::HideSlideNumbers = true;
+        }
         else {
             std::cerr << "Unknown or incomplete argument: " << arg << std::endl;
             return 1;

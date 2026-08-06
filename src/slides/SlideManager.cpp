@@ -1,4 +1,5 @@
 #include "SlideManager.h"
+#include "spdlog/spdlog.h"
 
 slope::SlideManager::TransitionSets slope::SlideManager::computeTransitionsBetween(const Slide &A, const Slide &B)
 {
@@ -209,13 +210,20 @@ slope::SlideManager &slope::operator<<(SlideManager &SM, SlideManager::new_frame
 }
 
 slope::SlideManager &slope::operator<<(SlideManager &SM, const Replace &R) {
-    PrimitiveInSlide old;
-    if (!R.ptr_other)
-        old = {SM.getLastScreenPrimitive(),SM.getLastSlide()[SM.getLastScreenPrimitive()]};
-    else
-        old = {R.ptr_other,SM.getLastSlide()[R.ptr_other]};
-    auto pos = old.second;
-    SM.removeFromCurrentSlide(old.first);
+    PrimitivePtr target = R.ptr_other ? R.ptr_other : SM.getLastScreenPrimitive();
+    // Slide is a std::map, so indexing it with a primitive that is not on the
+    // current slide would default-insert a blank StateInSlide : the replacement
+    // would silently land at the origin instead of where the target was, and
+    // the slide would gain a phantom entry. Say so instead.
+    auto& slide = SM.getLastSlide();
+    auto it = slide.find(target);
+    if (it == slide.end()) {
+        spdlog::error("replace: the primitive being replaced is not on the current slide "
+                      "(already replaced or removed?)");
+        throw std::runtime_error("Replace: target primitive is not on the current slide");
+    }
+    auto pos = it->second;
+    SM.removeFromCurrentSlide(target);
     SM.addToLastSlide(R.ptr,pos);
     return SM;
 }

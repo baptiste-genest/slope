@@ -212,6 +212,9 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
     if (help_wanted)
         return;
 
+    if (slope::Options::HideSlideNumbers)
+        display_slide_number = false;
+
     slope::Options::ProjectName = project_name;
 
     std::cout << "			[ SLOPE PROJECT : " << slope::Options::ProjectName << " ]" << std::endl;
@@ -399,7 +402,8 @@ void slope::Slideshow::recompose(const std::function<void(SlideManager&)>& compo
 
 void slope::Slideshow::loadSlides()
 {
-    hud.initialize(slides.size(), [this](int i){ return getSlideTitle(i); });
+    if (display_slide_number)
+        hud.initialize(slides.size(), [this](int i){ return getSlideTitle(i); });
     spdlog::info("[ number of distinct slides : {} ]", slides.size());
     if (Options::CheckLabels)
         LabelAnchor::reportLabelIssues();

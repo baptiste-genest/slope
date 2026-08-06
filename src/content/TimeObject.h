@@ -23,6 +23,16 @@ struct TimeObject
     bool beforeKeyframe(const std::string& name) const;
     bool atKeyframe(const std::string& name) const;
 
+    // an unknown keyframe is never reached : slidesSinceKeyframe answers this,
+    // so the "... >= n" tests built on it stay false exactly like afterKeyframe
+    static constexpr int keyframe_unreached = -(1 << 24);
+
+    // distance in slides from a keyframe : negative before it, 0 on it,
+    // positive after. Lets a primitive stage itself over several slides —
+    //   stage = std::clamp(t.slidesSinceKeyframe("build"), 0, 3);
+    // — instead of chaining afterKeyframe() tests.
+    int slidesSinceKeyframe(const std::string& name) const;
+
     TimeObject() {}
     TimeObject(TimeTypeSec it,parameter transition) : inner_time(it),transition_parameter(transition) {}
 

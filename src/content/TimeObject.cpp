@@ -36,4 +36,11 @@ bool TimeObject::atKeyframe(const std::string& name) const {
     return absolute_frame_number == k;
 }
 
+int TimeObject::slidesSinceKeyframe(const std::string& name) const {
+    int k = keyframeIndex(keyframes, name);
+    if (k < 0)
+        return keyframe_unreached;
+    return absolute_frame_number - k;
+}
+
 }

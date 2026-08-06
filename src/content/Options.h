@@ -28,6 +28,9 @@ static bool CheckLabels;
 /// and compare against the previous run (--rehearse)
 static bool Rehearse;
 
+/// Hide the slide number in the bottom right corner (--no_slide_numbers)
+static bool HideSlideNumbers;
+
 /// Latex paths
 static std::string PathToPDFLATEX;
 static std::string PathToCONVERT;
