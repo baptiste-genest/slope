@@ -60,6 +60,21 @@ public:
         json toJson() const override;
         void fromJson(const json& j) override;
     };
+    // min/max apply to every component at once (a direction, a position...)
+    struct Vec2Entry : Entry {
+        vec2 value = vec2::Zero();
+        scalar min = 0, max = 0;
+        bool drawUI(const char* label) override;
+        json toJson() const override;
+        void fromJson(const json& j) override;
+    };
+    struct VecEntry : Entry {
+        vec value = vec::Zero();
+        scalar min = 0, max = 0;
+        bool drawUI(const char* label) override;
+        json toJson() const override;
+        void fromJson(const json& j) override;
+    };
 
     // reading through a handle stamps the entry, so the Tuner panel can
     // show only the parameters used by the current slide's updaters
@@ -73,12 +88,18 @@ public:
     using IntParam    = Handle<IntEntry, int>;
     using BoolParam   = Handle<BoolEntry, bool>;
     using ColorParam  = Handle<ColorEntry, RGBA>;
+    using Vec2Param   = Handle<Vec2Entry, vec2>;
+    using VecParam    = Handle<VecEntry, vec>;
 
     // min == max means unconstrained (drag instead of slider)
     static ScalarParam Add(const std::string& name, scalar def, scalar min = 0, scalar max = 0);
     static IntParam    AddInt(const std::string& name, int def, int min = 0, int max = 0);
     static BoolParam   AddBool(const std::string& name, bool def);
     static ColorParam  AddColor(const std::string& name, const RGBA& def);
+    static Vec2Param   AddVec2(const std::string& name, const vec2& def,
+                               scalar min = 0, scalar max = 0);
+    static VecParam    AddVec(const std::string& name, const vec& def,
+                              scalar min = 0, scalar max = 0);
 
     // lazy variant : registers on first use, then reads
     static scalar get(const std::string& name, scalar def, scalar min = 0, scalar max = 0);
@@ -106,6 +127,14 @@ private:
 
     template<class E>
     static std::shared_ptr<E> addEntry(const std::string& name);
+
+    // A parameter can be declared again while the show runs (the deck loader
+    // re-declares a shader's uniforms on every hot reload). An edit not yet
+    // saved is then the newest value there is, and outranks both the declared
+    // default and the file : true when the caller must leave the value alone.
+    static bool keepEditedValue(const std::string& name);
+    // the saved value, if any, over the freshly declared default
+    static void applyFileValue(const EntryPtr& e, const std::string& name);
 };
 
 }

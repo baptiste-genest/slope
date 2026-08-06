@@ -79,6 +79,7 @@ constexpr SLGLenum SL_SHADER_STORAGE_BARRIER_BIT = 0x00002000;
 constexpr SLGLenum SL_DYNAMIC_DRAW               = 0x88E8;
 constexpr SLGLenum SL_MAJOR_VERSION              = 0x821B;
 constexpr SLGLenum SL_MINOR_VERSION              = 0x821C;
+constexpr SLGLenum SL_MAX_TEXTURE_IMAGE_UNITS    = 0x8872;
 constexpr SLGLenum SL_COLOR_CLEAR_VALUE          = 0x0C22;
 
 struct GL {
@@ -149,6 +150,7 @@ struct GL {
 
     bool ok = false;      // every *required* entry point resolved
     int  major = 0, minor = 0;   // context version, for the #version we emit
+    int  max_units = 16;         // fragment texture units (GL 3.3 guarantees 16)
 };
 
 template<class Fn>
@@ -213,6 +215,10 @@ GL& gl()
     if (ok) {
         g.GetIntegerv(SL_MAJOR_VERSION, &g.major);
         g.GetIntegerv(SL_MINOR_VERSION, &g.minor);
+        SLGLint units = 0;
+        g.GetIntegerv(SL_MAX_TEXTURE_IMAGE_UNITS, &units);
+        if (units > 0)
+            g.max_units = int(units);
     }
     return g;
 }
@@ -718,6 +724,8 @@ void Shader::set(const std::string& n, const RGBA& v)
 
 void Shader::bindF(const std::string& n, std::function<float()> f)
 { uniforms[n] = [f](int l){ gl().Uniform1f(l, f()); }; }
+void Shader::bindInt(const std::string& n, std::function<int()> f)
+{ uniforms[n] = [f](int l){ gl().Uniform1i(l, f()); }; }
 void Shader::bindV2(const std::string& n, std::function<vec2()> f)
 { uniforms[n] = [f](int l){ auto v=f(); gl().Uniform2f(l, float(v(0)), float(v(1))); }; }
 void Shader::bindV3(const std::string& n, std::function<vec()> f)
@@ -725,65 +733,135 @@ void Shader::bindV3(const std::string& n, std::function<vec()> f)
 void Shader::bindV4(const std::string& n, std::function<RGBA()> f)
 { uniforms[n] = [f](int l){ ImVec4 c=f().Value; gl().Uniform4f(l, c.x, c.y, c.z, c.w); }; }
 
-// ── channels & buffers ──────────────────────────────────────────────────────
-// every rebind of a channel goes through here : an Image channel owns its
-// texture, and overwriting the slot without freeing it would leak it
-void Shader::releaseChannel(int i)
+// ── textures & buffers ──────────────────────────────────────────────────────
+// the four ShaderToy channels are textures under a reserved name. Out of range
+// gives "", which every entry point below ignores — the numbered API used to
+// return silently, and still does.
+std::string Shader::ChannelName(int i)
 {
-    if (i < 0 || i >= kChannels) return;
-    auto& g = gl();
-    if (g.ok && channel[i].kind == Channel::Kind::Image && channel[i].image_tex)
-        g.DeleteTextures(1, &channel[i].image_tex);
-    channel[i] = Channel{};
-    // dropping the last Self channel also drops the need for a ping-pong target
-    feedback = false;
-    for (auto& c : channel)
-        if (c.kind == Channel::Kind::Self) feedback = true;
+    if (i < 0 || i >= kChannels)
+        return "";
+    return "iChannel" + std::to_string(i);
 }
 
-void Shader::setChannel(int i, const path& image_file, Filter f, Wrap w)
+// every rebind goes through here : an Image texture owns its GL object, and
+// overwriting the entry without freeing it would leak it
+void Shader::releaseTexture(const std::string& name)
 {
-    if (i < 0 || i >= kChannels) return;
+    auto it = textures.find(name);
+    if (it == textures.end())
+        return;
+    auto& g = gl();
+    if (g.ok && it->second.kind == Texture::Kind::Image && it->second.image_tex)
+        g.DeleteTextures(1, &it->second.image_tex);
+    textures.erase(it);
+    refreshFeedback();
+}
+
+// dropping the last self-sampling texture also drops the need for a ping-pong
+// target; adding one creates it
+void Shader::refreshFeedback()
+{
+    bool self = false;
+    for (auto& [n, t] : textures)
+        if (t.kind == Texture::Kind::Self) self = true;
+    if (self != feedback) {
+        feedback = self;
+        gl_ready = false;   // the second target appears / disappears
+    }
+}
+
+void Shader::setTexture(const std::string& name, const path& image_file, Filter f, Wrap w)
+{
+    if (name.empty()) return;
+    const std::string file = formatPath(image_file);
+
+    // already holding exactly this : keep the GL texture rather than decoding
+    // the file again (a deck hot reload re-declares its whole set every save)
+    auto it = textures.find(name);
+    if (it != textures.end() && it->second.kind == Texture::Kind::Image &&
+        it->second.image_tex && it->second.comps == 0 &&
+        it->second.file == file && it->second.filter == f && it->second.wrap == w)
+        return;
+
     const SLGLenum filt = (f == Filter::Nearest) ? SL_NEAREST : SL_LINEAR;
     const SLGLenum wr   = (w == Wrap::Repeat)    ? SL_REPEAT  : SL_CLAMP_TO_EDGE;
     int iw = 0, ih = 0;
-    SLGLuint tex = loadImageTexture(formatPath(image_file), filt, wr, iw, ih);
-    releaseChannel(i);
-    channel[i].kind = Channel::Kind::Image;
-    channel[i].image_tex = tex;
-    channel[i].w = iw;
-    channel[i].h = ih;
+    SLGLuint tex = loadImageTexture(file, filt, wr, iw, ih);
+
+    releaseTexture(name);
+    Texture& t = textures[name];
+    t.kind = Texture::Kind::Image;
+    t.image_tex = tex;
+    t.w = iw;
+    t.h = ih;
+    t.file = file;
+    t.filter = f;
+    t.wrap = w;
+    markLegacyChannel(name, t);
 }
 
-void Shader::setChannel(int i, const ShaderPtr& src, int attachment)
+void Shader::setTexture(const std::string& name, const ShaderPtr& src, int attachment)
 {
-    if (i < 0 || i >= kChannels || !src) return;
+    if (name.empty() || !src) return;
     // a shader pointed at itself would read and write the same texture in one
     // pass : that is exactly what the ping-pong path is for
     if (src.get() == this) {
-        setChannelSelf(i, attachment);
+        setTextureSelf(name, attachment);
         return;
     }
-    releaseChannel(i);
-    channel[i].kind = Channel::Kind::ShaderOut;
-    channel[i].src = src;
-    channel[i].attachment = std::max(0, std::min(attachment, kMaxTargets - 1));
+    releaseTexture(name);
+    Texture& t = textures[name];
+    t.kind = Texture::Kind::ShaderOut;
+    t.src = src;
+    t.attachment = std::max(0, std::min(attachment, kMaxTargets - 1));
+    markLegacyChannel(name, t);
 }
 
-void Shader::setChannelSelf(int i, int attachment)
+void Shader::setTextureSelf(const std::string& name, int attachment)
 {
-    if (i < 0 || i >= kChannels) return;
-    releaseChannel(i);
-    channel[i].kind = Channel::Kind::Self;
-    channel[i].attachment = std::max(0, std::min(attachment, kMaxTargets - 1));
-    feedback = true;
-    gl_ready = false; // needs the second (ping-pong) target
+    if (name.empty()) return;
+    releaseTexture(name);
+    Texture& t = textures[name];
+    t.kind = Texture::Kind::Self;
+    t.attachment = std::max(0, std::min(attachment, kMaxTargets - 1));
+    markLegacyChannel(name, t);
+    refreshFeedback();
 }
 
-void Shader::clearChannel(int i)
+void Shader::clearTexture(const std::string& name)
 {
-    if (i < 0 || i >= kChannels) return;
-    releaseChannel(i);
+    releaseTexture(name);
+}
+
+void Shader::clearTextures()
+{
+    while (!textures.empty())
+        releaseTexture(textures.begin()->first);
+}
+
+void Shader::retainTextures(const std::vector<std::string>& names)
+{
+    std::vector<std::string> drop;
+    for (auto& [name, t] : textures)
+        // file-backed only : a CPU data texture, or one fed by another pass,
+        // was set from code this never saw and is none of its business
+        if (t.kind == Texture::Kind::Image && !t.file.empty() &&
+            std::find(names.begin(), names.end(), name) == names.end())
+            drop.push_back(name);
+    for (const auto& name : drop)
+        releaseTexture(name);
+}
+
+// "iChannel2" -> 2, so the bind loop knows to also fill iChannelResolution[2].
+// Only these four reserved names carry it; a named texture reports its size
+// through <name>_size instead.
+void Shader::markLegacyChannel(const std::string& name, Texture& t)
+{
+    t.legacy_channel = -1;
+    for (int i = 0; i < kChannels; ++i)
+        if (name == ChannelName(i))
+            t.legacy_channel = i;
 }
 
 void Shader::setFloatBuffer(bool on)
@@ -816,10 +894,10 @@ void Shader::setTargets(int n)
 }
 
 // ── CPU → GPU : data textures ────────────────────────────────────────────────
-void Shader::setData(int i, const float* data, int w, int h, int comps,
-                     Filter f, Wrap wrapMode)
+void Shader::setTexture(const std::string& name, const float* data, int w, int h,
+                        int comps, Filter f, Wrap wrapMode)
 {
-    if (i < 0 || i >= kChannels || !data || w <= 0 || h <= 0)
+    if (name.empty() || !data || w <= 0 || h <= 0)
         return;
     auto& g = gl();
     if (!g.ok)
@@ -837,19 +915,21 @@ void Shader::setData(int i, const float* data, int w, int h, int comps,
     const SLGLenum filter = (f == Filter::Nearest)     ? SL_NEAREST : SL_LINEAR;
     const SLGLenum wrap   = (wrapMode == Wrap::Repeat) ? SL_REPEAT  : SL_CLAMP_TO_EDGE;
 
-    Channel& c = channel[i];
     SLGLint prev_tex = 0;
     g.GetIntegerv(SL_TEXTURE_BINDING_2D, &prev_tex);
 
     // reuse the texture (update in place) when nothing about its layout changed
-    const bool reuse = (c.kind == Channel::Kind::Image && c.image_tex &&
-                        c.comps == comps && c.w == w && c.h == h);
+    auto it = textures.find(name);
+    const bool reuse = (it != textures.end() &&
+                        it->second.kind == Texture::Kind::Image && it->second.image_tex &&
+                        it->second.comps == comps && it->second.w == w && it->second.h == h);
     if (reuse) {
-        g.BindTexture(SL_TEXTURE_2D, c.image_tex);
+        g.BindTexture(SL_TEXTURE_2D, it->second.image_tex);
         g.TexSubImage2D(SL_TEXTURE_2D, 0, 0, 0, w, h, fmt, SL_FLOAT, data);
     } else {
-        releaseChannel(i);
-        c.kind = Channel::Kind::Image;
+        releaseTexture(name);
+        Texture& c = textures[name];
+        c.kind = Texture::Kind::Image;
         g.GenTextures(1, &c.image_tex);
         g.BindTexture(SL_TEXTURE_2D, c.image_tex);
         g.TexImage2D(SL_TEXTURE_2D, 0, internal, w, h, 0, fmt, SL_FLOAT, data);
@@ -858,6 +938,8 @@ void Shader::setData(int i, const float* data, int w, int h, int comps,
         g.TexParameteri(SL_TEXTURE_2D, SL_TEXTURE_WRAP_S, SLGLint(wrap));
         g.TexParameteri(SL_TEXTURE_2D, SL_TEXTURE_WRAP_T, SLGLint(wrap));
         c.w = w; c.h = h; c.comps = comps;
+        c.filter = f; c.wrap = wrapMode;
+        markLegacyChannel(name, c);
     }
     g.BindTexture(SL_TEXTURE_2D, SLGLuint(prev_tex));
 }
@@ -1201,13 +1283,16 @@ void Shader::cacheUniformLocations()
     uloc.iHovered   = L("iHovered");
     uloc.iDate      = L("iDate");
 
+    // only the ShaderToy resolution array is a fixed built-in; the samplers
+    // themselves are named at runtime and resolved per texture below
     for (int i = 0; i < kChannels; ++i) {
-        // built here once, so the names can never be truncated at draw time
-        const std::string ch  = "iChannel" + std::to_string(i);
         const std::string res = "iChannelResolution[" + std::to_string(i) + "]";
-        uloc.iChannel[i]    = L(ch.c_str());
         uloc.iChannelRes[i] = L(res.c_str());
     }
+
+    // the new program knows nothing of the old one's locations
+    for (auto& [name, t] : textures)
+        t.loc_program = 0;
 
     user_uniform_loc.clear();
 }
@@ -1256,6 +1341,8 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     g.BindVertexArray(vao);
 
     const BuiltinLocs& U = uloc;   // resolved at link time, not per frame
+    SLGLuint scene_depth_tex = 0;  // filled by the camera block, bound after
+                                   // the textures (whose count fixes its unit)
 
     // ── built-in uniforms ────────────────────────────────────────────────────
     if (int l = U.iResolution; l >= 0) g.Uniform2f(l, float(res_x), float(res_y));
@@ -1346,16 +1433,14 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
                 dh = int(d.getSizeY());
             }
         }
-        if (int l = U.iSceneDepth; l >= 0) {
-            g.ActiveTexture(SL_TEXTURE0 + kSceneDepthUnit);
-            g.BindTexture(SL_TEXTURE_2D, dtex);
-            g.Uniform1i(l, kSceneDepthUnit);
-            g.ActiveTexture(SL_TEXTURE0);
-            bound_scene_depth = true;
+        // the unit it goes on depends on how many textures are bound, which is
+        // only known below : remembered here, bound after them
+        scene_depth_tex = dtex;
+        if (U.iSceneDepth >= 0 && dtex) {
             // current for a deferred (visible) shader, which runs after the
             // scene pass; a hidden shader can't defer, so its depth is last
             // frame's — keep requesting a redraw so that copy never goes stale
-            if (dtex) polyscope::requestRedraw();
+            polyscope::requestRedraw();
         }
         // "valid" means usable, not merely present : mid-peel the texture is
         // bound but holds the last peeled layer, worse than useless to trust
@@ -1378,36 +1463,67 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
         g.Uniform4f(l, float(lt.tm_year + 1900), float(lt.tm_mon + 1),
                     float(lt.tm_mday), secs);
     }
-    // ── texture channels ─────────────────────────────────────────────────────
-    // each bound channel resolves to a source texture (image, another shader's
-    // output, or our own previous frame) bound to texture unit i.
-    for (int i = 0; i < kChannels; ++i) {
-        const Channel& c = channel[i];
-        if (c.kind == Channel::Kind::Off)
+    // ── textures ─────────────────────────────────────────────────────────────
+    // each one resolves to a source (image, CPU data, another shader's output,
+    // or our own previous frame) and gets a texture unit, handed out in name
+    // order. Names arrive at runtime, so the sampler locations are resolved on
+    // first use after a link and cached with the program they belong to.
+    int unit = 0;
+    const int unit_budget = std::max(1, g.max_units - 1);   // one kept for depth
+    for (auto& [name, c] : textures) {
+        if (c.kind == Texture::Kind::Off)
             continue;
+        if (c.loc_program != program) {
+            c.sampler_loc = g.GetUniformLocation(program, name.c_str());
+            c.size_loc    = g.GetUniformLocation(program, (name + "_size").c_str());
+            c.loc_program = program;
+        }
+        // a name the program does not declare costs nothing : no unit, no
+        // upload. Editing a .frag to drop a sampler must never break anything.
+        if (c.sampler_loc < 0 && c.legacy_channel < 0)
+            continue;
+        if (unit >= unit_budget) {
+            static std::set<std::string> warned;
+            if (warned.insert(name).second)
+                spdlog::error("[shader] out of texture units ({} available) : "
+                              "\"{}\" is not bound", unit_budget, name);
+            continue;
+        }
         SLGLuint tex = 0; int cw = 0, ch = 0;
         switch (c.kind) {
-            case Channel::Kind::Image:
+            case Texture::Kind::Image:
                 tex = c.image_tex; cw = c.w; ch = c.h; break;
-            case Channel::Kind::ShaderOut:
+            case Texture::Kind::ShaderOut:
                 // the source may have been dropped since it was bound
                 if (auto sp = c.src.lock()) {
                     tex = sp->currentTexture(c.attachment);
                     cw = sp->res_x; ch = sp->res_y;
                 }
                 break;
-            case Channel::Kind::Self:
+            case Texture::Kind::Self:
                 tex = buf[read].tex[c.attachment]; cw = res_x; ch = res_y; break;
             default: break;
         }
         if (!tex)
             continue;
-        g.ActiveTexture(SL_TEXTURE0 + i);
+        c.unit = unit++;
+        g.ActiveTexture(SL_TEXTURE0 + c.unit);
         g.BindTexture(SL_TEXTURE_2D, tex);
-        // names were built and resolved at link time, so there is no longer any
-        // string formatting (nor any buffer to size wrongly) on the draw path
-        if (U.iChannel[i]    >= 0) g.Uniform1i(U.iChannel[i], i);
-        if (U.iChannelRes[i] >= 0) g.Uniform3f(U.iChannelRes[i], float(cw), float(ch), 1.f);
+        if (c.sampler_loc >= 0) g.Uniform1i(c.sampler_loc, c.unit);
+        if (c.size_loc    >= 0) g.Uniform2f(c.size_loc, float(cw), float(ch));
+        // the four ShaderToy names also feed the resolution array they came with
+        if (c.legacy_channel >= 0 && U.iChannelRes[c.legacy_channel] >= 0)
+            g.Uniform3f(U.iChannelRes[c.legacy_channel], float(cw), float(ch), 1.f);
+    }
+    bound_units = unit;
+
+    // polyscope's depth buffer, on the unit just past the textures
+    scene_depth_unit = unit;
+    if (int l = U.iSceneDepth; l >= 0 && scene_depth_unit < g.max_units) {
+        g.ActiveTexture(SL_TEXTURE0 + scene_depth_unit);
+        g.BindTexture(SL_TEXTURE_2D, scene_depth_tex);
+        g.Uniform1i(l, scene_depth_unit);
+        bound_scene_depth = true;
     }
     g.ActiveTexture(SL_TEXTURE0); // leave unit 0 active, as most code expects
 
@@ -1444,16 +1560,15 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     cur = write;
     ++frames_rendered;
 
-    // restore. Units 1..3 are cleared explicitly : only unit 0's binding was
-    // saved, so anything we left on the others would leak into later draws.
+    // restore. Every unit we handed out is cleared explicitly : only unit 0's
+    // binding was saved, so anything left on the others would leak into later
+    // draws.
     if (bound_scene_depth) {
-        g.ActiveTexture(SL_TEXTURE0 + kSceneDepthUnit);
+        g.ActiveTexture(SL_TEXTURE0 + scene_depth_unit);
         g.BindTexture(SL_TEXTURE_2D, 0);
         bound_scene_depth = false;
     }
-    for (int i = kChannels - 1; i >= 1; --i) {
-        if (channel[i].kind == Channel::Kind::Off)
-            continue;
+    for (int i = bound_units - 1; i >= 1; --i) {
         g.ActiveTexture(SL_TEXTURE0 + i);
         g.BindTexture(SL_TEXTURE_2D, 0);
     }
@@ -1611,12 +1726,12 @@ void Shader::draw(const TimeObject& t, const StateInSlide& sis)
 
 void Shader::playIntro(const TimeObject& t, const StateInSlide& sis)
 {
-    drawWith(t, sis, float(sis.alpha) * smoothstep(t.transition_parameter));
+    drawWith(t, sis, float(sis.alpha));
 }
 
 void Shader::playOutro(const TimeObject& t, const StateInSlide& sis)
 {
-    drawWith(t, sis, float(sis.alpha) * (1.f - smoothstep(t.transition_parameter)));
+    drawWith(t, sis, float(sis.alpha));
 }
 
 void Shader::HotReloadIfModified()

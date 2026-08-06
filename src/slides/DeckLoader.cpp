@@ -4,6 +4,7 @@
 #include "../content/screen_primitives/Shape2D.h"
 #include "../content/screen_primitives/Stack2D.h"
 #include "../content/screen_primitives/Shader.h"
+#include "../content/Params.h"
 #include "../content/polyscope_primitives/Mesh.h"
 #include "spdlog/spdlog.h"
 #include "yaml-cpp/yaml.h"
@@ -309,10 +310,199 @@ static std::string titleLabel(const std::string& txt)
     return slug.empty() ? "title" : "title_" + slug;
 }
 
+static RGBA parseColor(const json& c);
+
+// a uniform name has to survive being pasted into GLSL as-is
+static bool validGLSLName(const std::string& n)
+{
+    if (n.empty() || (!std::isalpha((unsigned char)n[0]) && n[0] != '_'))
+        return false;
+    for (char c : n)
+        if (!std::isalnum((unsigned char)c) && c != '_')
+            return false;
+    return n.compare(0, 3, "gl_") != 0;
+}
+
+// The type of a uniform written as a bare value : the yaml literal says it.
+//   1.0 -> float   3 -> int   true -> bool
+//   [x,y] -> vec2  [x,y,z] -> vec3  [r,g,b,a] / "#rrggbb" -> color
+static std::string inferUniformType(const json& v)
+{
+    if (v.is_boolean())        return "bool";
+    if (v.is_number_integer()) return "int";
+    if (v.is_number())         return "float";
+    if (v.is_string())         return "color";     // "#rrggbb"
+    if (v.is_array())
+        switch (v.size()) {
+        case 2: return "vec2";
+        case 3: return "vec3";
+        case 4: return "color";
+        }
+    return "";
+}
+
+static vec2 parseVec2(const json& v)
+{
+    if (!v.is_array() || v.size() != 2)
+        throw std::runtime_error("a vec2 uniform default must be [x, y]");
+    return vec2(v[0].get<scalar>(), v[1].get<scalar>());
+}
+
+static vec parseVec3(const json& v)
+{
+    if (!v.is_array() || v.size() != 3)
+        throw std::runtime_error("a vec3 uniform default must be [x, y, z]");
+    return vec(v[0].get<scalar>(), v[1].get<scalar>(), v[2].get<scalar>());
+}
+
+// "uniforms:" on a shader item. Each entry becomes a persistent, runtime
+// tunable Params entry (Tuner panel, saved to views/params.json) bound to the
+// shader uniform of the same name and re-read every frame — so the value a
+// shader reacts to is dragged live and survives the session, with no C++.
+//
+//   uniforms:
+//     sun:   [0.3, 0.9, 0.2]                  # type read off the literal
+//     tint:  "#ffcc88"
+//     speed: {default: 1.0, min: 0, max: 5}   # long form : bounds -> slider
+//     steps: {type: int, default: 64, max: 200}
+//
+// The parameter is named "<item>/<uniform>", which is also how the Tuner panel
+// groups it. A uniform the compiled program does not declare is ignored, like
+// every other Shader::bind : editing the .frag live never breaks the deck.
+void DeckLoader::declareShaderUniforms(const ShaderPtr& shader, const json& item,
+                                       const std::string& ref)
+{
+    // the shader is cached across rebuilds : re-declaring the whole set is
+    // what makes a uniform deleted from the manifest actually disappear
+    shader->clearUniforms();
+    if (!item.contains("uniforms"))
+        return;
+    const json& us = item["uniforms"];
+    if (!us.is_object())
+        throw std::runtime_error("\"uniforms\" must be a map of "
+                                 "name: default (or name: {type, default, min, max})");
+
+    for (const auto& [name, spec] : us.items()) {
+        if (!validGLSLName(name)) {
+            spdlog::warn("deck: \"{}\" is not a usable GLSL uniform name, ignored", name);
+            continue;
+        }
+        json def = spec;
+        std::string type;
+        scalar mn = 0, mx = 0;
+        if (spec.is_object()) {
+            def = spec.value("default", json());
+            type = spec.value("type", "");
+            mn = spec.value("min", scalar(0));
+            mx = spec.value("max", scalar(0));
+            if (type.empty())
+                type = inferUniformType(def);
+            if (type.empty())
+                throw std::runtime_error("uniform \"" + name + "\" needs a \"type\" "
+                                         "(float/int/bool/vec2/vec3/color) or a "
+                                         "\"default\" to read it from");
+        } else {
+            type = inferUniformType(spec);
+            if (type.empty())
+                throw std::runtime_error("uniform \"" + name + "\" : cannot tell the type "
+                                         "of " + spec.dump() + ", use the long form "
+                                         "{type: ..., default: ...}");
+        }
+
+        const std::string pname = ref + "/" + name;
+        if (type == "float") {
+            auto p = Params::Add(pname, def.is_null() ? 0. : def.get<scalar>(), mn, mx);
+            shader->bind(name, [p] { return scalar(p); });
+        } else if (type == "int") {
+            auto p = Params::AddInt(pname, def.is_null() ? 0 : def.get<int>(),
+                                    int(mn), int(mx));
+            shader->bindInt(name, [p] { return int(p); });
+        } else if (type == "bool") {
+            auto p = Params::AddBool(pname, def.is_null() ? false : def.get<bool>());
+            shader->bindInt(name, [p] { return bool(p) ? 1 : 0; });
+        } else if (type == "vec2") {
+            auto p = Params::AddVec2(pname, def.is_null() ? vec2::Zero() : parseVec2(def), mn, mx);
+            shader->bind(name, [p] { return vec2(p); });
+        } else if (type == "vec3") {
+            auto p = Params::AddVec(pname, def.is_null() ? vec::Zero() : parseVec3(def), mn, mx);
+            shader->bind(name, [p] { return vec(p); });
+        } else if (type == "color") {
+            auto p = Params::AddColor(pname, def.is_null() ? RGBA(1.f,1.f,1.f,1.f)
+                                                           : parseColor(def));
+            shader->bind(name, [p] { return RGBA(p); });
+        } else {
+            throw std::runtime_error("uniform \"" + name + "\" : unknown type \"" + type
+                                     + "\" (float/int/bool/vec2/vec3/color)");
+        }
+    }
+}
+
+// "textures:" on a shader item. Each entry binds an image file to the sampler
+// of the same name, which the shader declares itself :
+//
+//   uniform sampler2D noise;        // in the .frag
+//   uniform vec2      noise_size;   // optional, its size in pixels
+//
+//   textures:
+//     noise: noise.png
+//     grad:  {file: gradient.png, filter: nearest, wrap: repeat}
+//
+// Only image files : a texture fed by another shader's output, or by a
+// previous frame, needs a streaming order the manifest cannot express, and
+// stays on the C++ side.
+void DeckLoader::declareShaderTextures(const ShaderPtr& shader, const json& item)
+{
+    std::vector<std::string> declared;
+    if (item.contains("textures")) {
+        const json& ts = item["textures"];
+        if (!ts.is_object())
+            throw std::runtime_error("\"textures\" must be a map of "
+                                     "name: file (or name: {file, filter, wrap})");
+        for (const auto& [name, spec] : ts.items()) {
+            if (!validGLSLName(name)) {
+                spdlog::warn("deck: \"{}\" is not a usable GLSL sampler name, ignored", name);
+                continue;
+            }
+            std::string file;
+            auto filter = Shader::Filter::Linear;
+            auto wrap   = Shader::Wrap::Clamp;
+            if (spec.is_object()) {
+                if (!spec.contains("file"))
+                    throw std::runtime_error("texture \"" + name + "\" needs a \"file\"");
+                file = spec["file"];
+                const std::string fs = spec.value("filter", "linear");
+                const std::string ws = spec.value("wrap", "clamp");
+                if      (fs == "nearest") filter = Shader::Filter::Nearest;
+                else if (fs != "linear")
+                    throw std::runtime_error("texture \"" + name + "\" : filter must be "
+                                             "\"nearest\" or \"linear\"");
+                if      (ws == "repeat") wrap = Shader::Wrap::Repeat;
+                else if (ws != "clamp")
+                    throw std::runtime_error("texture \"" + name + "\" : wrap must be "
+                                             "\"clamp\" or \"repeat\"");
+            } else if (spec.is_string()) {
+                file = spec;
+            } else {
+                throw std::runtime_error("texture \"" + name + "\" must be a file name "
+                                         "or {file: ..., filter: ..., wrap: ...}");
+            }
+            // re-setting the same file is a no-op, so a hot reload does not
+            // re-decode every image on every save
+            shader->setTexture(name, file, filter, wrap);
+            declared.push_back(name);
+        }
+    }
+    // whatever the manifest no longer declares is unbound (the shader itself
+    // is cached across rebuilds, so nothing else would drop it)
+    shader->retainTextures(declared);
+}
+
 std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const json& item)
 {
     PrimitivePtr prim;
     std::string name;
+    ShaderPtr shader;   // set by the shader branch : its uniforms come last,
+                        // once the item's reference name is known
     // the id is part of the cache key, so two items with the same content
     // but different ids are distinct primitives (shown simultaneously)
     std::string id = "id=" + item.value("id", "") + ":";
@@ -348,9 +538,9 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
         name = std::filesystem::path(file).stem().string();
     }
     else if (item.contains("shader")) {
-        // a plain single-pass fragment shader. Multi-pass, channels and live
-        // uniforms stay on the C++ side : they need ordering and values a
-        // manifest cannot express.
+        // a single-pass fragment shader, its uniforms declared right here.
+        // Multi-pass, channels and SSBOs stay on the C++ side : they need an
+        // ordering and inputs a manifest cannot express.
         std::string file = item["shader"];
         int w = 0, h = 0;
         if (item.contains("resolution")) {
@@ -365,6 +555,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
         prim = cached(id + "shader:" + file + ":" + std::to_string(w) + "x" + std::to_string(h),
                       [&]() -> PrimitivePtr { return Shader::FromFile(file, w, h); });
         name = std::filesystem::path(file).stem().string();
+        shader = std::static_pointer_cast<Shader>(prim);
     }
     else
         throw std::runtime_error("expected a screen item "
@@ -372,6 +563,12 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
                                  + item.dump());
 
     name = item.value("id", name);
+    // uniforms are named after the item, so two placements of the same .frag
+    // under different ids get their own tunable set
+    if (shader) {
+        declareShaderUniforms(shader, item, name);
+        declareShaderTextures(shader, item);
+    }
     auto sp = std::static_pointer_cast<ScreenPrimitive>(prim);
     if (name != "")
         named[name] = sp;
@@ -494,7 +691,7 @@ static void warnUnknownKeys(const json& item)
         {"latex",   with(placement, {"scale"})},
         {"formula", with(placement, {"scale"})},
         {"image",   with(placement, {"scale"})},
-        {"shader",  with(placement, {"resolution"})},
+        {"shader",  with(placement, {"resolution","uniforms","textures"})},
         {"object",  {"id","at","alpha","group"}},
         {"mesh",    {"id","at","alpha","smooth","normalize","group"}},
         {"arrow",   {"id","alpha","group"}},
@@ -551,9 +748,14 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
     else if (item.contains("replace")) {
         if (!item.contains("with"))
             throw std::runtime_error("\"replace\" item needs a \"with\" sub-item");
-        auto old = resolveScreen(item["replace"]);
+        std::string replaced = item["replace"];
+        auto old = resolveScreen(replaced);
         auto [prim, name] = makeScreenPrimitive(item["with"]);
         show << Replace(prim, old);
+        // the name now refers to the replacement : without this a second
+        // "replace: <name>" (or a later "set:") would still resolve to the
+        // primitive that has just been taken off the slide
+        named[replaced] = prim;
         used_primitives.insert(prim);
     }
     else if (item.contains("object")) {

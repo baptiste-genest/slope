@@ -52,15 +52,27 @@ std::shared_ptr<E> Params::addEntry(const std::string& name)
     return e;
 }
 
+bool Params::keepEditedValue(const std::string& name)
+{
+    return dirty.count(name) > 0;
+}
+
+void Params::applyFileValue(const EntryPtr& e, const std::string& name)
+{
+    if (!file_values.contains(name))
+        return;
+    e->fromJson(file_values[name]);
+    edited.insert(name);
+}
+
 Params::ScalarParam Params::Add(const std::string& name, scalar def, scalar min, scalar max)
 {
     auto e = addEntry<ScalarEntry>(name);
-    e->value = def;
     e->min = min;
     e->max = max;
-    if (file_values.contains(name)) {
-        e->fromJson(file_values[name]);
-        edited.insert(name);
+    if (!keepEditedValue(name)) {
+        e->value = def;
+        applyFileValue(e, name);
     }
     return {e};
 }
@@ -68,12 +80,11 @@ Params::ScalarParam Params::Add(const std::string& name, scalar def, scalar min,
 Params::IntParam Params::AddInt(const std::string& name, int def, int min, int max)
 {
     auto e = addEntry<IntEntry>(name);
-    e->value = def;
     e->min = min;
     e->max = max;
-    if (file_values.contains(name)) {
-        e->fromJson(file_values[name]);
-        edited.insert(name);
+    if (!keepEditedValue(name)) {
+        e->value = def;
+        applyFileValue(e, name);
     }
     return {e};
 }
@@ -81,10 +92,9 @@ Params::IntParam Params::AddInt(const std::string& name, int def, int min, int m
 Params::BoolParam Params::AddBool(const std::string& name, bool def)
 {
     auto e = addEntry<BoolEntry>(name);
-    e->value = def;
-    if (file_values.contains(name)) {
-        e->fromJson(file_values[name]);
-        edited.insert(name);
+    if (!keepEditedValue(name)) {
+        e->value = def;
+        applyFileValue(e, name);
     }
     return {e};
 }
@@ -92,10 +102,35 @@ Params::BoolParam Params::AddBool(const std::string& name, bool def)
 Params::ColorParam Params::AddColor(const std::string& name, const RGBA& def)
 {
     auto e = addEntry<ColorEntry>(name);
-    e->value = def;
-    if (file_values.contains(name)) {
-        e->fromJson(file_values[name]);
-        edited.insert(name);
+    if (!keepEditedValue(name)) {
+        e->value = def;
+        applyFileValue(e, name);
+    }
+    return {e};
+}
+
+Params::Vec2Param Params::AddVec2(const std::string& name, const vec2& def,
+                                  scalar min, scalar max)
+{
+    auto e = addEntry<Vec2Entry>(name);
+    e->min = min;
+    e->max = max;
+    if (!keepEditedValue(name)) {
+        e->value = def;
+        applyFileValue(e, name);
+    }
+    return {e};
+}
+
+Params::VecParam Params::AddVec(const std::string& name, const vec& def,
+                                scalar min, scalar max)
+{
+    auto e = addEntry<VecEntry>(name);
+    e->min = min;
+    e->max = max;
+    if (!keepEditedValue(name)) {
+        e->value = def;
+        applyFileValue(e, name);
     }
     return {e};
 }
@@ -149,6 +184,48 @@ void Params::ColorEntry::fromJson(const json& j)
 {
     value = RGBA((float)j[0], (float)j[1], (float)j[2],
                  j.size() > 3 ? (float)j[3] : 1.f);
+}
+
+bool Params::Vec2Entry::drawUI(const char* label)
+{
+    float f[2] = {float(value(0)), float(value(1))};
+    bool changed = (min < max)
+        ? ImGui::SliderFloat2(label, f, float(min), float(max))
+        : ImGui::DragFloat2(label, f, 0.01f);
+    if (changed)
+        value = vec2(f[0], f[1]);
+    return changed;
+}
+
+json Params::Vec2Entry::toJson() const
+{
+    return {value(0), value(1)};
+}
+
+void Params::Vec2Entry::fromJson(const json& j)
+{
+    value = vec2((scalar)j[0], (scalar)j[1]);
+}
+
+bool Params::VecEntry::drawUI(const char* label)
+{
+    float f[3] = {float(value(0)), float(value(1)), float(value(2))};
+    bool changed = (min < max)
+        ? ImGui::SliderFloat3(label, f, float(min), float(max))
+        : ImGui::DragFloat3(label, f, 0.01f);
+    if (changed)
+        value = vec(f[0], f[1], f[2]);
+    return changed;
+}
+
+json Params::VecEntry::toJson() const
+{
+    return {value(0), value(1), value(2)};
+}
+
+void Params::VecEntry::fromJson(const json& j)
+{
+    value = vec((scalar)j[0], (scalar)j[1], (scalar)j[2]);
 }
 
 // -------------------------------------------------------------------- panel

@@ -67,26 +67,43 @@ namespace slope {
  *
  * set/bind accept float, int, vec2, vec (vec3) and RGBA (vec4). Unknown names
  * are silently ignored, so this never throws while you are editing live.
+ * bind() uploads every scalar as a float : an "uniform int" wants bindInt().
+ *
+ * From a deck manifest, "uniforms:" on a shader item declares them instead,
+ * each backed by a persistent Params entry (Tuner panel, params.json) :
+ *
+ *   - shader: plasma.frag
+ *     uniforms:
+ *       sun: [0.3, 0.9, 0.2]     # vec3, dragged in the panel
+ *       speed: {default: 1.0, min: 0, max: 5}
  *
  * ── Following the slides ────────────────────────────────────────────────────
  *   col *= clamp(from_action, 0.0, 1.0);           // fade in over 1s
  *   if (absolute_frame_number >= 4) col += glow;   // once slide 4 is reached
  *
- * ── Channels & multi-pass ───────────────────────────────────────────────────
- * iChannel0..3 are sampler inputs (setChannel). A channel can be an image, the
- * output of another Shader, or this shader's own previous frame :
+ * ── Textures & multi-pass ───────────────────────────────────────────────────
+ * Declare a sampler and hand it a source. A texture can be an image file, a
+ * CPU array, the output of another Shader, or this shader's own previous frame:
+ *
+ *   uniform sampler2D noise;        // in the .frag
+ *   fx->setTexture("noise", "noise.png");
  *
  *   auto sim  = Shader::FromFile("sim.frag");
- *   sim->setFloatBuffer();          // keep precision across iterations
- *   sim->setChannelSelf(0);         // iChannel0 = previous frame (ping-pong)
- *   sim->setHidden();               // compute-only, nothing on screen yet
+ *   sim->setFloatBuffer();              // keep precision across iterations
+ *   sim->setTextureSelf("previous");    // last frame (ping-pong)
+ *   sim->setHidden();                   // compute-only, nothing on screen yet
  *
  *   auto view = Shader::FromFile("colorize.frag");
- *   view->setChannel(0, sim);       // iChannel0 = the simulation's output
- *   show << sim << view->at("screen");   // sim first : it feeds view
+ *   view->setTexture("field", sim);     // = the simulation's output
+ *   show << sim << view->at("screen");  // sim first : it feeds view
  *
  * This feedback loop is what lets an iterative simulation run entirely on the
- * GPU here.
+ * GPU here. How many textures can be bound at once is the driver's texture
+ * unit count (>= 16, usually 32), less one kept for the scene depth buffer.
+ *
+ * setChannel/setChannelSelf/setData are the same thing under the reserved
+ * names "iChannel0".."iChannel3", which the prelude declares : that is all the
+ * ShaderToy compatibility is, and a channel can do nothing a texture cannot.
  *
  * ── Sharing the 3D scene ────────────────────────────────────────────────────
  * The camera uniforms (iView/iProj/iCamPos, iScreenRect) let a shader trace
@@ -136,25 +153,67 @@ public:
         else if constexpr (std::is_same_v<R, RGBA>) bindV4(name, [f]{ return f(); });
         else                                        bindF (name, [f]{ return float(f()); });
     }
+    // int / bool uniforms : bind() uploads everything scalar as a float, which
+    // an "uniform int" rejects, so integers go through their own entry point
+    //   uniform int steps;   fx->bindInt("steps", [=]{ return int(n); });
+    void bindInt(const std::string& name, std::function<int()> f);
     void unset(const std::string& name) { uniforms.erase(name); }
+    // drops every user uniform (set/bind); the built-ins are unaffected. What
+    // a declarative owner (the deck loader) uses to re-declare its whole set
+    // on a hot reload, so a uniform deleted from the manifest really goes away.
+    void clearUniforms() { uniforms.clear(); }
 
-    // ── texture channels (iChannel0..3) ─────────────────────────────────────
-    // sampling inputs, ShaderToy-style :
-    //   uniform sampler2D iChannel0;             // declared by the prelude
-    //   uniform vec3      iChannelResolution[4]; // (w, h, 1) per channel
-    //   vec4 c = texture(iChannel0, uv);
+    // ── textures ────────────────────────────────────────────────────────────
+    // Sampling inputs, named. Declare the sampler in the shader and hand it a
+    // source from here :
+    //
+    //   uniform sampler2D noise;        // in the .frag
+    //   uniform vec2      noise_size;   // optional : its size in pixels
+    //
+    //   fx->setTexture("noise", "noise.png");
+    //
+    // A name the compiled program does not declare is ignored, like every
+    // other uniform. How many can be bound at once is the driver's texture
+    // unit count (16 at the very least, usually 32), one of which is kept for
+    // the scene depth buffer.
     enum class Filter { Nearest, Linear };
     enum class Wrap   { Clamp, Repeat };
 
-    // a static image, loaded once
-    void setChannel(int i, const path& image_file,
+    // a static image, loaded once. Re-setting the same file with the same
+    // filter/wrap is a no-op, so a declarative owner can re-declare its whole
+    // set cheaply (see retainTextures)
+    void setTexture(const std::string& name, const path& image_file,
                     Filter f = Filter::Linear, Wrap w = Wrap::Clamp);
     // another shader's current output (must be streamed before this one)
-    void setChannel(int i, const ShaderPtr& src, int attachment = 0);
+    void setTexture(const std::string& name, const ShaderPtr& src, int attachment = 0);
     // this shader's previous frame : double-buffering (ping-pong), the
     // backbone of iterative GPU work
-    void setChannelSelf(int i, int attachment = 0);
-    void clearChannel(int i);
+    void setTextureSelf(const std::string& name, int attachment = 0);
+    void clearTexture(const std::string& name);
+    void clearTextures();
+    // drop every *file-backed* texture whose name is not listed : what a
+    // declarative owner (the deck loader) uses so a texture removed from the
+    // manifest really goes away, while the ones still declared keep their GL
+    // objects. Data textures and inter-pass ones are left alone : they were
+    // set from code such an owner never saw.
+    void retainTextures(const std::vector<std::string>& names);
+
+    // ── the same, ShaderToy-style (iChannel0..3) ────────────────────────────
+    // The prelude declares four numbered samplers and their resolutions :
+    //   uniform sampler2D iChannel0;
+    //   uniform vec3      iChannelResolution[4]; // (w, h, 1) per channel
+    // so a shader written for ShaderToy runs here unchanged. These are exactly
+    // the calls above under the reserved names "iChannel0".."iChannel3" —
+    // there is nothing a channel can do that a named texture cannot.
+    static std::string ChannelName(int i);
+    void setChannel(int i, const path& image_file,
+                    Filter f = Filter::Linear, Wrap w = Wrap::Clamp)
+    { setTexture(ChannelName(i), image_file, f, w); }
+    void setChannel(int i, const ShaderPtr& src, int attachment = 0)
+    { setTexture(ChannelName(i), src, attachment); }
+    void setChannelSelf(int i, int attachment = 0)
+    { setTextureSelf(ChannelName(i), attachment); }
+    void clearChannel(int i) { clearTexture(ChannelName(i)); }
 
     // RGBA32F targets instead of 8-bit : for values that must survive many
     // feedback iterations without banding (accumulation, physics)
@@ -190,16 +249,25 @@ public:
     void setTargets(int n);
     int  targets() const { return num_targets; }
 
-    // ── CPU → GPU : upload arbitrary data as a channel ──────────────────────
-    // Binds a CPU array as a float data texture on iChannel i. `comps` is
-    // components per texel (1..4 -> R/RG/RGB/RGBA). Call again to refresh :
+    // ── CPU → GPU : upload arbitrary data as a texture ──────────────────────
+    // Binds a CPU array as a float texture. `comps` is components per texel
+    // (1..4 -> R/RG/RGB/RGBA). Call again to refresh; the GL texture is reused
+    // in place when the layout has not changed :
     //   std::vector<float> field(w*h);
-    //   fx->setData(0, field, w, h);     // iChannel0 = the field
+    //   fx->setTexture("field", field, w, h);
+    void setTexture(const std::string& name, const float* data, int w, int h,
+                    int comps = 1, Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp);
+    void setTexture(const std::string& name, const std::vector<float>& data,
+                    int w, int h, int comps = 1,
+                    Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp)
+    { setTexture(name, data.data(), w, h, comps, f, wrap); }
+    // the same, onto a numbered channel
     void setData(int i, const float* data, int w, int h, int comps = 1,
-                 Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp);
+                 Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp)
+    { setTexture(ChannelName(i), data, w, h, comps, f, wrap); }
     void setData(int i, const std::vector<float>& data, int w, int h, int comps = 1,
                  Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp)
-    { setData(i, data.data(), w, h, comps, f, wrap); }
+    { setTexture(ChannelName(i), data.data(), w, h, comps, f, wrap); }
 
     // ── shader storage buffers (SSBO) ───────────────────────────────────────
     // Large, structured buffers the shader reads *and writes* :
@@ -279,24 +347,42 @@ private:
     unsigned int self_filter = 0x2601 /*LINEAR*/;
     unsigned int self_wrap   = 0x812F /*CLAMP_TO_EDGE*/;
 
-    // an iChannel binding
-    struct Channel {
+    // one bound texture, whatever it is sourced from
+    struct Texture {
         // NB: "None" is an X11 macro, so the empty state is "Off"
         enum class Kind { Off, Image, ShaderOut, Self } kind = Kind::Off;
-        unsigned int image_tex = 0; // Kind::Image (image file *or* setData texture), owned
-        int w = 0, h = 0;           // resolution reported through iChannelResolution
-        int comps = 0;              // >0 when it is a float data texture (setData)
+        unsigned int image_tex = 0; // Kind::Image (image file *or* data texture), owned
+        int w = 0, h = 0;           // size, reported through <name>_size
+        int comps = 0;              // >0 when it is a float data texture
         // Kind::ShaderOut. Weak : the source may be dropped while we still
-        // hold this channel.
+        // hold this texture.
         std::weak_ptr<Shader> src;
         int attachment = 0;         // Kind::ShaderOut : which MRT output to read
-    };
-    static constexpr int kChannels = 4;
-    Channel channel[kChannels];
 
-    // polyscope's depth buffer goes on the unit just past the iChannels
-    static constexpr int kSceneDepthUnit = kChannels;
+        // what it was loaded from, so re-setting the same image is a no-op
+        std::string file;
+        Filter filter = Filter::Linear;
+        Wrap   wrap   = Wrap::Clamp;
+
+        // >= 0 for the four ShaderToy channels : they also feed
+        // iChannelResolution[i], which a named texture has no part in
+        int legacy_channel = -1;
+
+        // resolved once per link, like every other uniform location. The
+        // program they belong to is stamped so a relink re-resolves them.
+        int sampler_loc = -1, size_loc = -1;
+        unsigned int loc_program = 0;
+        int unit = -1;              // texture unit assigned at bind time
+    };
+    static constexpr int kChannels = 4;   // how many iChannelN the prelude declares
+    std::map<std::string, Texture> textures;
+
+    // polyscope's depth buffer goes on the unit just past the textures, so it
+    // depends on how many are bound this frame
+    int  scene_depth_unit = kChannels;
     bool bound_scene_depth = false;
+    // how many units were handed out on the last draw, to unbind exactly those
+    int bound_units = 0;
     bool wants_scene_depth = false;   // useSceneDepth()
 
     // how many live shaders asked for scene depth; restores the original peel
@@ -307,8 +393,14 @@ private:
     // true when `src` uses the scene-depth API (own text only, see .cpp)
     static bool referencesSceneDepth(const std::string& src);
 
-    // reset channel i, freeing the texture it owns (if any)
-    void releaseChannel(int i);
+    // drop a texture, freeing the GL object it owns (if any)
+    void releaseTexture(const std::string& name);
+    // tag the four reserved "iChannelN" names, which also feed
+    // iChannelResolution[N]
+    static void markLegacyChannel(const std::string& name, Texture& t);
+    // true when some texture samples our own previous frame : what the
+    // ping-pong second target exists for
+    void refreshFeedback();
 
     // SSBOs, keyed by binding point
     // Shared, so that shareBuffer() can hand the same buffer to another pass.
@@ -330,7 +422,8 @@ private:
         int iCamPos = -1, iCamFov = -1, iScreenRect = -1, iWindowSize = -1;
         int iSceneDepth = -1, iSceneDepthValid = -1, iSceneDepthSize = -1;
         int iMouse = -1, iMouseNorm = -1, iHovered = -1, iDate = -1;
-        int iChannel[kChannels] = {-1, -1, -1, -1};
+        // the samplers themselves are resolved per texture (they are named at
+        // runtime); only the ShaderToy resolution array is a fixed built-in
         int iChannelRes[kChannels] = {-1, -1, -1, -1};
     };
     BuiltinLocs uloc;
