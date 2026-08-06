@@ -109,11 +109,11 @@ public:
         q->setVectorLengthScale(l0,false);
     }
     void playIntro(const TimeObject& t, const StateInSlide &sis) override {
-        q->setVectorLengthScale(l0*smoothstep(t.transition_parameter),false);
+        q->setVectorLengthScale(l0*t.transition_parameter,false);
         q->setEnabled(true);
     }
     void playOutro(const TimeObject& t, const StateInSlide &sis) override {
-        q->setVectorLengthScale(l0*(1-smoothstep(t.transition_parameter)),false);
+        q->setVectorLengthScale(l0*(1-t.transition_parameter),false);
         if (t.transition_parameter > 0.95)
             q->setEnabled(false);
     }

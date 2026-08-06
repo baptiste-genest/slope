@@ -3,6 +3,9 @@
 
 namespace slope {
 
+// the on-screen scale Text is drawn at; display() and getSize() must agree
+static constexpr float kFontScale = 1.5f;
+
 Text::TextPtr Text::Add(const std::string &content, FontID font)
 {
     TextPtr rslt = NewPrimitive<Text>();
@@ -16,15 +19,19 @@ void Text::display(const StateInSlide &sis) const
     pushFont();
 
     //set imgui font size
-    ImGui::SetWindowFontScale(1.5);
+    ImGui::SetWindowFontScale(kFontScale);
 
+    // CalcTextSize reports the unscaled size, so the centring offset has to use
+    // the same factor the text is actually drawn at. It used to use 2 against a
+    // scale of 1.5, which shifted every string left by a quarter of its width —
+    // invisible on a short label, obvious on a sentence.
     auto size = ImGui::CalcTextSize(content.c_str());
-    size.x *= 2;
-    size.y *= 2;
+    size.x *= kFontScale;
+    size.y *= kFontScale;
 
     ImGuiStyle* style = &ImGui::GetStyle();
     auto old = style->Colors[ImGuiCol_Text];
-    style->Colors[ImGuiCol_Text] = RGBA(ImVec4(0,0, 0, alpha));
+    style->Colors[ImGuiCol_Text] = RGBA(ImVec4(0,0, 0, sis.alpha));
     auto S = ImGui::GetWindowSize();
 
     auto P = sis.getAbsolutePosition();
@@ -47,25 +54,22 @@ void Text::pushFont() const
     }
 }
 
-void Text::playIntro(const TimeObject& t, const StateInSlide &sis)
+void Text::playIntro(const TimeObject&, const StateInSlide &sis)
 {
-    alpha = smoothstep(t.transition_parameter);
     display(sis);
 }
 
-void Text::playOutro(const TimeObject& t, const StateInSlide &sis)
+void Text::playOutro(const TimeObject&, const StateInSlide &sis)
 {
-    alpha = 1-smoothstep(t.transition_parameter);
     display(sis);
-
 }
 
 Primitive::Size Text::getSize() const
 {
-    //pushFont();
+    // must agree with display() : this is what the drag editor's hit box and
+    // any relative placement are computed from
     auto size = ImGui::CalcTextSize(content.c_str());
-    //ImGui::PopFont();
-    return Size(size.x,size.y);
+    return Size(size.x * kFontScale, size.y * kFontScale);
 }
 
 }

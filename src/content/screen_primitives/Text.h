@@ -16,7 +16,6 @@ public:
     static TextPtr Add(const std::string &content,FontID font = -1);
 
 private:
-    scalar alpha = 1;
     std::string content;
     FontID fontID;
     FontSize fontSize;

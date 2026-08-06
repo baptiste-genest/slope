@@ -4,11 +4,6 @@
 
 namespace slope {
 
-static parameter smooth01(parameter x) {
-    x = std::clamp(x, 0., 1.);
-    return x * x * (3 - 2 * x);
-}
-
 static ImU32 withAlpha(const RGBA& c, float alpha) {
     ImVec4 v = c.Value;
     v.w *= alpha;
@@ -161,7 +156,7 @@ void Shape2D::draw(const TimeObject&, const StateInSlide& sis)
 
 void Shape2D::playIntro(const TimeObject& t, const StateInSlide& sis)
 {
-    parameter u = smooth01(t.transition_parameter);
+    parameter u = t.transition_parameter;
     auto px = toPixels(sis);
     if (style.filled && u >= 1 && px.size() >= 3)
         ImGui::GetWindowDrawList()->AddConvexPolyFilled(
@@ -172,9 +167,7 @@ void Shape2D::playIntro(const TimeObject& t, const StateInSlide& sis)
 
 void Shape2D::playOutro(const TimeObject& t, const StateInSlide& sis)
 {
-    StateInSlide s = sis;
-    s.alpha *= 1 - smooth01(t.transition_parameter);
-    draw(t, s);
+    draw(t, sis);
 }
 
 // ------------------------------------------------------------------ Box2D
@@ -260,12 +253,12 @@ void Box2D::draw(const TimeObject&, const StateInSlide& sis)
 
 void Box2D::playIntro(const TimeObject& t, const StateInSlide& sis)
 {
-    drawBox(smooth01(t.transition_parameter), sis.alpha);
+    drawBox(t.transition_parameter, sis.alpha);
 }
 
-void Box2D::playOutro(const TimeObject& t, const StateInSlide& sis)
+void Box2D::playOutro(const TimeObject&, const StateInSlide& sis)
 {
-    drawBox(1, sis.alpha * (1 - smooth01(t.transition_parameter)));
+    drawBox(1, sis.alpha);
 }
 
 // ---------------------------------------------------------------- Arrow2D
@@ -396,12 +389,12 @@ void Arrow2D::draw(const TimeObject&, const StateInSlide& sis)
 
 void Arrow2D::playIntro(const TimeObject& t, const StateInSlide& sis)
 {
-    drawArrow(smooth01(t.transition_parameter), sis.alpha);
+    drawArrow(t.transition_parameter, sis.alpha);
 }
 
-void Arrow2D::playOutro(const TimeObject& t, const StateInSlide& sis)
+void Arrow2D::playOutro(const TimeObject&, const StateInSlide& sis)
 {
-    drawArrow(1, sis.alpha * (1 - smooth01(t.transition_parameter)));
+    drawArrow(1, sis.alpha);
 }
 
 }

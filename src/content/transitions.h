@@ -3,6 +3,7 @@
 
 #include "StateInSlide.h"
 #include "TimeObject.h"
+#include "../math/easing.h"
 
 namespace slope {
 
@@ -10,11 +11,27 @@ using TransitionAction = std::function<StateInSlide(const TimeObject&,const Stat
 
 struct TransitionAnimator {
     TransitionAction intro,outro;
+
+    RateFunc rate_in  = rate::smooth_squared;
+    RateFunc rate_out = rate::smooth_squared;
+
+    scalar shapeIn(scalar p) const {
+        return (rate_in ? rate_in : rate::smooth_squared)(std::clamp(p,0.,1.));
+    }
+    scalar shapeOut(scalar p) const {
+        return (rate_out ? rate_out : rate::smooth_squared)(std::clamp(p,0.,1.));
+    }
+
     TransitionAnimator();
 };
 
 TransitionAnimator FadeInFadeOut();
 TransitionAnimator SlideInSlideOut();
+
+// leaves the StateInSlide alone : no fade, no offset. For a primitive whose
+// entrance is animated by something else (a knob driving a radius, a field
+// growing) and which would otherwise play both animations at once.
+TransitionAnimator NoTransition();
 
 }
 

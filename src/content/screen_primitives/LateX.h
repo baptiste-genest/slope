@@ -186,10 +186,10 @@ public:
         display(sis);
     }
     virtual void playIntro(const TimeObject &t, const StateInSlide &sis) override {
-        display(transition.intro(t,sis));
+        display(sis);
     }
     virtual void playOutro(const TimeObject &t, const StateInSlide &sis) override {
-        display(transition.outro(t,sis));
+        display(sis);
     }
 
     // ScreenPrimitive interface

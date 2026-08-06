@@ -74,8 +74,7 @@ float stageAfterSmooth(int kf, int count, float seconds) {
 // the deck's own intro/outro, eased. Multiply your colour by it and the shader
 // joins slide transitions instead of popping in and out.
 float slideAlpha() {
-    float t = clamp(transition_parameter, 0.0, 1.0);
-    return t * t * (3.0 - 2.0 * t);
+    return clamp(transition_parameter, 0.0, 1.0);
 }
 
 // seconds since this shader itself appeared, which unlike from_action does not

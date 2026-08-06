@@ -44,12 +44,10 @@ protected:
         drawBox(sis.getPosition(),size,color,roundness,sis.alpha);
     }
     virtual void playIntro(const TimeObject &t, const StateInSlide &sis) override {
-        auto sist = transition.intro(t,sis);;
-        drawBox(sist.getPosition(),size,color,roundness,sist.alpha);
+        drawBox(sis.getPosition(),size,color,roundness,sis.alpha);
     }
     virtual void playOutro(const TimeObject &t, const StateInSlide &sis) override {
-        auto sist = transition.outro(t,sis);;
-        drawBox(sist.getPosition(),size,color,roundness,sist.alpha);
+        drawBox(sis.getPosition(),size,color,roundness,sis.alpha);
     }
 
     // ScreenPrimitive interface
@@ -115,14 +113,12 @@ protected:
         drawBox(E.pos,E.bbox,color,roundness,sis.alpha);
     }
     virtual void playIntro(const TimeObject &t, const StateInSlide &sis) override {
-        auto sist = transition.intro(t,sis);;
         auto E = ComputeEnglobing(primitivesInside);
-        drawBox(E.pos,E.bbox,color,roundness,sist.alpha);
+        drawBox(E.pos,E.bbox,color,roundness,sis.alpha);
     }
     virtual void playOutro(const TimeObject &t, const StateInSlide &sis) override {
-        auto sist = transition.outro(t,sis);;
         auto E = ComputeEnglobing(primitivesInside);
-        drawBox(E.pos,E.bbox,color,roundness,sist.alpha);
+        drawBox(E.pos,E.bbox,color,roundness,sis.alpha);
     }
 };
 
