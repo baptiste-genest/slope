@@ -41,6 +41,7 @@ file(GLOB SRC_lib
      "src/content/*"
      "src/content/screen_primitives/*"
      "src/content/polyscope_primitives/*"
+     "src/content/polyscope_primitives/quantities/*"
      "src/content/Graphics2D/*"
      "src/content/screen_primitives/plots/*"
      "src/math/*"

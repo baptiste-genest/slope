@@ -1,7 +1,7 @@
 #ifndef VECTORFIELD_H
 #define VECTORFIELD_H
-#include "PolyscopePrimitive.h"
-#include "../../math/utils.h"
+#include "../PolyscopePrimitive.h"
+#include "../../../math/utils.h"
 
 namespace slope {
 
