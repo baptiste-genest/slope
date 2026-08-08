@@ -2,8 +2,34 @@
 #include "io.h"
 #include "imgui.h"
 #include "spdlog/spdlog.h"
+#include "polyscope/transformation_gizmo.h"
+#include "polyscope/view.h"
 
 namespace slope {
+
+// opt-in 3D manipulator for the vec parameters, ownership stays here :
+// polyscope's remove() only deregisters the widget
+static std::map<std::string, std::shared_ptr<polyscope::TransformationGizmo>> vec_gizmos;
+
+static std::shared_ptr<polyscope::TransformationGizmo> makeVecGizmo(const std::string& name,
+                                                                    const vec& value)
+{
+    auto g = std::shared_ptr<polyscope::TransformationGizmo>(
+        new polyscope::TransformationGizmo(name),
+        [](polyscope::TransformationGizmo* g) {
+            if (g == nullptr)
+                return;
+            g->setEnabled(false);
+            g->remove();
+            delete g;
+        });
+    g->setAllowTranslation(true);
+    g->setAllowRotation(false);
+    g->setAllowScaling(false);
+    g->setPosition(glm::vec3(float(value(0)), float(value(1)), float(value(2))));
+    g->setEnabled(true);
+    return g;
+}
 
 std::map<std::string, Params::EntryPtr> Params::registry;
 std::set<std::string> Params::dirty;
@@ -135,6 +161,16 @@ Params::VecParam Params::AddVec(const std::string& name, const vec& def,
     return {e};
 }
 
+Params::DirParam Params::AddDir(const std::string& name, const vec& def)
+{
+    auto e = addEntry<DirEntry>(name);
+    if (!keepEditedValue(name)) {
+        e->value = def.norm() > 1e-9 ? vec(def.normalized()) : vec(0,0,1);
+        applyFileValue(e, name);
+    }
+    return {e};
+}
+
 scalar Params::get(const std::string& name, scalar def, scalar min, scalar max)
 {
     auto it = registry.find(name);
@@ -228,6 +264,206 @@ void Params::VecEntry::fromJson(const json& j)
     value = vec((scalar)j[0], (scalar)j[1], (scalar)j[2]);
 }
 
+// the screen counterpart of the gizmo : a vec2 parameter grabbed where it
+// acts, in 0..1 across the window with y up — gl_FragCoord's convention, so a
+// full screen shader reads the handle's position as its own uv
+static std::set<std::string> vec2_handles;
+static std::string dragged_handle;
+
+static ImVec2 handlePixel(const vec2& value)
+{
+    ImVec2 d = ImGui::GetIO().DisplaySize;
+    return ImVec2(float(value(0)) * d.x, float(1.0 - value(1)) * d.y);
+}
+
+static vec2 handleValue(const ImVec2& p)
+{
+    ImVec2 d = ImGui::GetIO().DisplaySize;
+    return vec2(std::clamp(scalar(p.x / d.x), scalar(0), scalar(1)),
+                std::clamp(scalar(1.f - p.y / d.y), scalar(0), scalar(1)));
+}
+
+// toggle and drag, true when the handle moved the value
+static bool drawVec2Handle(const std::string& name, vec2& value)
+{
+    auto it = vec2_handles.find(name);
+    bool active = it != vec2_handles.end();
+
+    ImGui::SameLine();
+    if (ImGui::SmallButton(active ? "2D*" : "2D")) {
+        if (active) {
+            vec2_handles.erase(it);
+            if (dragged_handle == name)
+                dragged_handle.clear();
+        } else {
+            vec2_handles.insert(name);
+        }
+        return false;
+    }
+    if (!active)
+        return false;
+
+    const ImVec2 c = handlePixel(value);
+    const ImVec2 m = ImGui::GetIO().MousePos;
+    const float  r = 9.f;
+    bool over = (m.x - c.x) * (m.x - c.x) + (m.y - c.y) * (m.y - c.y) < 4.f * r * r;
+
+    bool changed = false;
+    if (dragged_handle == name) {
+        if (ImGui::IsMouseDown(0)) {
+            vec2 moved = handleValue(m);
+            changed = (moved - value).norm() > 1e-6;
+            value = moved;
+        } else {
+            dragged_handle.clear();
+        }
+    } else if (over && dragged_handle.empty() && ImGui::IsMouseClicked(0)) {
+        dragged_handle = name;
+    }
+
+    bool live = over || dragged_handle == name;
+    if (live) // the camera must not spin under the drag
+        ImGui::SetNextFrameWantCaptureMouse(true);
+
+    auto* dl = ImGui::GetForegroundDrawList();
+    ImU32 col = ImGui::GetColorU32(live ? ImGuiCol_ButtonHovered : ImGuiCol_Text);
+    dl->AddCircle(c, r, col, 24, 2.f);
+    dl->AddLine(ImVec2(c.x - r * 1.7f, c.y), ImVec2(c.x + r * 1.7f, c.y), col, 1.f);
+    dl->AddLine(ImVec2(c.x, c.y - r * 1.7f), ImVec2(c.x, c.y + r * 1.7f), col, 1.f);
+    dl->AddText(ImVec2(c.x + r * 1.9f, c.y - r * 1.9f), col, name.c_str());
+
+    return changed;
+}
+
+static void enableGizmo(const std::string& name, const vec& value)
+{
+    if (!vec_gizmos.count(name))
+        vec_gizmos[name] = makeVecGizmo("param " + name, value);
+}
+
+// gizmo toggle and two way sync, true when the gizmo moved the value
+static bool drawVecGizmoLine(const std::string& name, vec& value, bool value_changed)
+{
+    auto it = vec_gizmos.find(name);
+    bool active = it != vec_gizmos.end();
+
+    ImGui::SameLine();
+    if (ImGui::SmallButton(active ? "3D*" : "3D")) {
+        if (active) {
+            vec_gizmos.erase(it); // the deleter disables and deregisters it
+            return false;
+        }
+        vec_gizmos[name] = makeVecGizmo("param " + name, value);
+        return false;
+    }
+    if (!active)
+        return false;
+
+    auto& g = it->second;
+    if (value_changed) {
+        g->setPosition(glm::vec3(float(value(0)), float(value(1)), float(value(2))));
+        return false;
+    }
+
+    glm::vec3 p = g->getPosition();
+    vec moved((scalar)p.x, (scalar)p.y, (scalar)p.z);
+    if ((moved - value).norm() < 1e-6) // float round trip is not an edit
+        return false;
+    value = moved;
+    return true;
+}
+
+// ------------------------------------------------------------ direction ball
+
+// the unit sphere seen from the current camera : x right, y up, z toward the
+// viewer, so the ball is oriented like the scene behind it
+static glm::mat3 viewRotation()
+{
+    return glm::mat3(polyscope::view::getCameraViewMatrix());
+}
+
+static ImVec2 toDisc(const glm::vec3& v, const ImVec2& center, float radius)
+{
+    return ImVec2(center.x + v.x * radius, center.y - v.y * radius);
+}
+
+bool Params::DirEntry::drawUI(const char* label)
+{
+    const float size = ImGui::GetFrameHeight() * 3.f;
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+
+    ImGui::InvisibleButton("##ball", ImVec2(size, size));
+    const ImVec2 center(origin.x + size * 0.5f, origin.y + size * 0.5f);
+    const float radius = size * 0.5f - 2.f;
+
+    glm::mat3 R = viewRotation();
+    glm::vec3 d = R * glm::vec3(float(value(0)), float(value(1)), float(value(2)));
+
+    bool changed = false;
+    if (ImGui::IsItemActive()) { // held : a click aims as well as a drag
+        ImVec2 m = ImGui::GetMousePos();
+        glm::vec2 p((m.x - center.x) / radius, (center.y - m.y) / radius);
+        float r2 = glm::dot(p, p);
+        if (r2 > 1.f) { // past the rim : slide along the silhouette
+            p /= std::sqrt(r2);
+            r2 = 1.f;
+        }
+        float z = std::sqrt(std::max(0.f, 1.f - r2)) * (d.z < 0 ? -1.f : 1.f);
+        d = glm::normalize(glm::vec3(p.x, p.y, z));
+        glm::vec3 w = glm::transpose(R) * d;
+        value = vec(w.x, w.y, w.z);
+        changed = true;
+    }
+    if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1)) { // the hidden axis
+        value = -value;
+        d = -d;
+        changed = true;
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("drag to aim, right click to flip");
+
+    auto* dl = ImGui::GetWindowDrawList();
+    const ImU32 rim  = ImGui::GetColorU32(ImGuiCol_Text, 0.45f);
+    const ImU32 fill = ImGui::GetColorU32(ImGuiCol_FrameBg);
+    const ImU32 col  = ImGui::GetColorU32(ImGuiCol_Text);
+    dl->AddCircleFilled(center, radius, fill, 48);
+    dl->AddCircle(center, radius, rim, 48);
+
+    static const glm::vec3 axes[3] = {{1,0,0},{0,1,0},{0,0,1}};
+    static const ImU32 axis_cols[3] = {IM_COL32(220,80,80,180), IM_COL32(80,200,80,180),
+                                       IM_COL32(90,120,230,180)};
+    for (int i = 0; i < 3; i++) {
+        glm::vec3 a = R * axes[i];
+        dl->AddLine(center, toDisc(a * 0.85f, center, radius), axis_cols[i], 1.5f);
+    }
+
+    ImVec2 tip = toDisc(d, center, radius);
+    dl->AddLine(center, tip, col, 2.f);
+    if (d.z >= 0)
+        dl->AddCircleFilled(tip, 4.f, col, 16);
+    else
+        dl->AddCircle(tip, 4.f, col, 16, 2.f);
+
+    ImGui::SameLine();
+    ImGui::BeginGroup();
+    ImGui::TextUnformatted(label);
+    ImGui::TextDisabled("%.2f %.2f %.2f", value(0), value(1), value(2));
+    ImGui::EndGroup();
+
+    return changed;
+}
+
+json Params::DirEntry::toJson() const
+{
+    return {value(0), value(1), value(2)};
+}
+
+void Params::DirEntry::fromJson(const json& j)
+{
+    vec v((scalar)j[0], (scalar)j[1], (scalar)j[2]);
+    value = v.norm() > 1e-9 ? vec(v.normalized()) : vec(0,0,1);
+}
+
 // -------------------------------------------------------------------- panel
 
 void Params::DrawPanel()
@@ -238,6 +474,14 @@ void Params::DrawPanel()
 
     static bool show_all = false;
     ImGui::Checkbox("show all parameters", &show_all);
+    // the handles of every vec2 / vec parameter listed below, at once
+    ImGui::SameLine();
+    ImGui::TextDisabled("handles");
+    ImGui::SameLine();
+    bool handles_on = ImGui::SmallButton("all");
+    ImGui::SameLine();
+    if (ImGui::SmallButton("none"))
+        clearGizmos();
     ImGui::Separator();
 
     bool any_shown = false;
@@ -261,7 +505,17 @@ void Params::DrawPanel()
         if (!group_open)
             continue;
         ImGui::PushID(name.c_str());
-        if (e->drawUI(label.c_str())) {
+        bool changed = e->drawUI(label.c_str());
+        if (auto v = std::dynamic_pointer_cast<VecEntry>(e)) {
+            if (handles_on)
+                enableGizmo(name, v->value);
+            changed |= drawVecGizmoLine(name, v->value, changed);
+        } else if (auto v2 = std::dynamic_pointer_cast<Vec2Entry>(e)) {
+            if (handles_on)
+                vec2_handles.insert(name);
+            changed |= drawVec2Handle(name, v2->value);
+        }
+        if (changed) {
             dirty.insert(name);
             edited.insert(name);
         }
@@ -291,6 +545,18 @@ void Params::DrawPanel()
 bool Params::hasDirty()
 {
     return !dirty.empty();
+}
+
+bool Params::hasLiveGizmo()
+{
+    return !vec_gizmos.empty() || !vec2_handles.empty();
+}
+
+void Params::clearGizmos()
+{
+    vec_gizmos.clear(); // the deleters disable and deregister the widgets
+    vec2_handles.clear();
+    dragged_handle.clear();
 }
 
 void Params::saveAllDirty()

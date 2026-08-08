@@ -88,7 +88,6 @@ private:
 
     void loadSlides();
 
-    bool halt_slope_display = false;
     PlaybackState state;
 
     WindowManager wm;
@@ -103,6 +102,8 @@ private:
     void handleInputs();
 
     void handleGuizmos();
+
+    bool inGizmoMode() const;
 
     void displayPopUps();
 

@@ -323,23 +323,7 @@ static bool validGLSLName(const std::string& n)
     return n.compare(0, 3, "gl_") != 0;
 }
 
-// The type of a uniform written as a bare value : the yaml literal says it.
-//   1.0 -> float   3 -> int   true -> bool
-//   [x,y] -> vec2  [x,y,z] -> vec3  [r,g,b,a] / "#rrggbb" -> color
-static std::string inferUniformType(const json& v)
-{
-    if (v.is_boolean())        return "bool";
-    if (v.is_number_integer()) return "int";
-    if (v.is_number())         return "float";
-    if (v.is_string())         return "color";     // "#rrggbb"
-    if (v.is_array())
-        switch (v.size()) {
-        case 2: return "vec2";
-        case 3: return "vec3";
-        case 4: return "color";
-        }
-    return "";
-}
+static const char* uniform_types = "float/int/bool/vec2/vec3/dir/color";
 
 static vec2 parseVec2(const json& v)
 {
@@ -355,16 +339,79 @@ static vec parseVec3(const json& v)
     return vec(v[0].get<scalar>(), v[1].get<scalar>(), v[2].get<scalar>());
 }
 
+// one uniform : "glsl" is the name the shader sees, "pname" the parameter it is
+// bound to. The two differ only for an array element, "controls[3]".
+static void declareUniform(const ShaderPtr& shader, const std::string& glsl,
+                           const std::string& pname, const std::string& type,
+                           const json& def, scalar mn, scalar mx)
+{
+    if (type == "float") {
+        auto p = Params::Add(pname, def.is_null() ? 0. : def.get<scalar>(), mn, mx);
+        shader->bind(glsl, [p] { return scalar(p); });
+    } else if (type == "int") {
+        auto p = Params::AddInt(pname, def.is_null() ? 0 : def.get<int>(),
+                                int(mn), int(mx));
+        shader->bindInt(glsl, [p] { return int(p); });
+    } else if (type == "bool") {
+        auto p = Params::AddBool(pname, def.is_null() ? false : def.get<bool>());
+        shader->bindInt(glsl, [p] { return bool(p) ? 1 : 0; });
+    } else if (type == "vec2") {
+        auto p = Params::AddVec2(pname, def.is_null() ? vec2::Zero() : parseVec2(def), mn, mx);
+        shader->bind(glsl, [p] { return vec2(p); });
+    } else if (type == "vec3") {
+        auto p = Params::AddVec(pname, def.is_null() ? vec::Zero() : parseVec3(def), mn, mx);
+        shader->bind(glsl, [p] { return vec(p); });
+    } else if (type == "dir") {
+        auto p = Params::AddDir(pname, def.is_null() ? vec(0,0,1) : parseVec3(def));
+        shader->bind(glsl, [p] { return vec(p); });
+    } else if (type == "color") {
+        auto p = Params::AddColor(pname, def.is_null() ? RGBA(1.f,1.f,1.f,1.f)
+                                                       : parseColor(def));
+        shader->bind(glsl, [p] { return RGBA(p); });
+    } else {
+        throw std::runtime_error("uniform \"" + glsl + "\" : unknown type \"" + type
+                                 + "\" (" + uniform_types + ")");
+    }
+}
+
+// the N of a "vec3[8]", or 0 when the type carries no array suffix
+static int arrayCount(const std::string& name, const std::string& type)
+{
+    auto open = type.find('[');
+    if (open == std::string::npos)
+        return 0;
+    if (type.back() != ']')
+        throw std::runtime_error("uniform \"" + name + "\" : malformed array type \""
+                                 + type + "\", write \"<type>[N]\"");
+    int n = 0;
+    try {
+        size_t used = 0;
+        n = std::stoi(type.substr(open + 1, type.size() - open - 2), &used);
+        if (used != type.size() - open - 2)
+            n = 0;
+    } catch (const std::exception&) {
+        n = 0;
+    }
+    if (n < 1 || n > 64)
+        throw std::runtime_error("uniform \"" + name + "\" : an array uniform needs a "
+                                 "size between 1 and 64, got \"" + type + "\"");
+    return n;
+}
+
 // "uniforms:" on a shader item. Each entry becomes a persistent, runtime
 // tunable Params entry (Tuner panel, saved to views/params.json) bound to the
 // shader uniform of the same name and re-read every frame — so the value a
 // shader reacts to is dragged live and survives the session, with no C++.
 //
 //   uniforms:
-//     sun:   [0.3, 0.9, 0.2]                  # type read off the literal
-//     tint:  "#ffcc88"
-//     speed: {default: 1.0, min: 0, max: 5}   # long form : bounds -> slider
-//     steps: {type: int, default: 64, max: 200}
+//     sun:      dir                                 # a type name, zero valued
+//     tint:     {type: color, default: "#ffcc88"}   # long form : a default
+//     speed:    {type: float, default: 1.0, min: 0, max: 5}  # bounds -> slider
+//     controls: vec3[8]                             # an array : one parameter
+//                                                   # per element, controls[i]
+//
+// An array's "default" is a list of one value per element. Quote the type in a
+// flow mapping, {type: "vec3[8]", ...}, where yaml reads brackets itself.
 //
 // The parameter is named "<item>/<uniform>", which is also how the Tuner panel
 // groups it. A uniform the compiled program does not declare is ignored, like
@@ -380,59 +427,46 @@ void DeckLoader::declareShaderUniforms(const ShaderPtr& shader, const json& item
     const json& us = item["uniforms"];
     if (!us.is_object())
         throw std::runtime_error("\"uniforms\" must be a map of "
-                                 "name: default (or name: {type, default, min, max})");
+                                 "name: type (or name: {type, default, min, max})");
 
     for (const auto& [name, spec] : us.items()) {
         if (!validGLSLName(name)) {
             spdlog::warn("deck: \"{}\" is not a usable GLSL uniform name, ignored", name);
             continue;
         }
-        json def = spec;
+        json def;
         std::string type;
         scalar mn = 0, mx = 0;
-        if (spec.is_object()) {
+        if (spec.is_string()) {
+            type = spec.get<std::string>();
+        } else if (spec.is_object()) {
             def = spec.value("default", json());
             type = spec.value("type", "");
             mn = spec.value("min", scalar(0));
             mx = spec.value("max", scalar(0));
             if (type.empty())
-                type = inferUniformType(def);
-            if (type.empty())
-                throw std::runtime_error("uniform \"" + name + "\" needs a \"type\" "
-                                         "(float/int/bool/vec2/vec3/color) or a "
-                                         "\"default\" to read it from");
+                throw std::runtime_error("uniform \"" + name + "\" needs a \"type\" ("
+                                         + uniform_types + ")");
         } else {
-            type = inferUniformType(spec);
-            if (type.empty())
-                throw std::runtime_error("uniform \"" + name + "\" : cannot tell the type "
-                                         "of " + spec.dump() + ", use the long form "
-                                         "{type: ..., default: ...}");
+            throw std::runtime_error("uniform \"" + name + "\" : write its type, "
+                                     "\"" + name + ": <" + uniform_types + ">\", or the "
+                                     "long form {type: ..., default: ...}");
         }
 
-        const std::string pname = ref + "/" + name;
-        if (type == "float") {
-            auto p = Params::Add(pname, def.is_null() ? 0. : def.get<scalar>(), mn, mx);
-            shader->bind(name, [p] { return scalar(p); });
-        } else if (type == "int") {
-            auto p = Params::AddInt(pname, def.is_null() ? 0 : def.get<int>(),
-                                    int(mn), int(mx));
-            shader->bindInt(name, [p] { return int(p); });
-        } else if (type == "bool") {
-            auto p = Params::AddBool(pname, def.is_null() ? false : def.get<bool>());
-            shader->bindInt(name, [p] { return bool(p) ? 1 : 0; });
-        } else if (type == "vec2") {
-            auto p = Params::AddVec2(pname, def.is_null() ? vec2::Zero() : parseVec2(def), mn, mx);
-            shader->bind(name, [p] { return vec2(p); });
-        } else if (type == "vec3") {
-            auto p = Params::AddVec(pname, def.is_null() ? vec::Zero() : parseVec3(def), mn, mx);
-            shader->bind(name, [p] { return vec(p); });
-        } else if (type == "color") {
-            auto p = Params::AddColor(pname, def.is_null() ? RGBA(1.f,1.f,1.f,1.f)
-                                                           : parseColor(def));
-            shader->bind(name, [p] { return RGBA(p); });
-        } else {
-            throw std::runtime_error("uniform \"" + name + "\" : unknown type \"" + type
-                                     + "\" (float/int/bool/vec2/vec3/color)");
+        int count = arrayCount(name, type);
+        if (count == 0) {
+            declareUniform(shader, name, ref + "/" + name, type, def, mn, mx);
+            continue;
+        }
+        if (!def.is_null() && (!def.is_array() || int(def.size()) != count))
+            throw std::runtime_error("uniform \"" + name + "\" : its \"default\" must be "
+                                     "a list of " + std::to_string(count) + " values, one "
+                                     "per element");
+        std::string base = type.substr(0, type.find('['));
+        for (int i = 0; i < count; i++) {
+            std::string idx = "[" + std::to_string(i) + "]";
+            declareUniform(shader, name + idx, ref + "/" + name + idx, base,
+                           def.is_null() ? json() : def[i], mn, mx);
         }
     }
 }

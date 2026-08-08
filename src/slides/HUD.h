@@ -17,6 +17,7 @@ public:
     void initialize(int n_slides, const std::function<std::string(int)>& get_title);
     void drawSlideNumber(size_t current_slide) const;
     void drawPauseIndicator(float elapsed, float duration) const;
+    void drawGizmoMode(const std::string& what) const;
 };
 
 } // namespace slope

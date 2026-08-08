@@ -75,6 +75,13 @@ public:
         json toJson() const override;
         void fromJson(const json& j) override;
     };
+    // a unit vector, aimed on a camera aligned ball rather than by components
+    struct DirEntry : Entry {
+        vec value = vec(0,0,1);
+        bool drawUI(const char* label) override;
+        json toJson() const override;
+        void fromJson(const json& j) override;
+    };
 
     // reading through a handle stamps the entry, so the Tuner panel can
     // show only the parameters used by the current slide's updaters
@@ -90,6 +97,7 @@ public:
     using ColorParam  = Handle<ColorEntry, RGBA>;
     using Vec2Param   = Handle<Vec2Entry, vec2>;
     using VecParam    = Handle<VecEntry, vec>;
+    using DirParam    = Handle<DirEntry, vec>;
 
     // min == max means unconstrained (drag instead of slider)
     static ScalarParam Add(const std::string& name, scalar def, scalar min = 0, scalar max = 0);
@@ -100,6 +108,7 @@ public:
                                scalar min = 0, scalar max = 0);
     static VecParam    AddVec(const std::string& name, const vec& def,
                               scalar min = 0, scalar max = 0);
+    static DirParam    AddDir(const std::string& name, const vec& def);
 
     // lazy variant : registers on first use, then reads
     static scalar get(const std::string& name, scalar def, scalar min = 0, scalar max = 0);
@@ -110,6 +119,11 @@ public:
     static void NewFrame() {frame++;}
 
     static bool hasDirty();
+
+    // 3D manipulators on the vec parameters, opted in from the panel
+    static bool hasLiveGizmo();
+    static void clearGizmos();
+
     static void saveAllDirty();
     static void HotReloadIfModified();
 

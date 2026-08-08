@@ -28,6 +28,20 @@ void slope::HUD::drawSlideNumber(size_t current_slide) const
     DSN.first->play(TimeObject(), DSN.second);
 }
 
+void slope::HUD::drawGizmoMode(const std::string& what) const
+{
+    auto* dl = ImGui::GetWindowDrawList();
+    auto  S  = ImGui::GetWindowSize();
+
+    auto& bg = polyscope::view::bgColor;
+    auto inv = [](float f) { return (int)((1.0f - f) * 255 + 0.5f); };
+    ImU32 col = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]), 200);
+
+    std::string label = "gizmo mode : " + what;
+    float size = ImGui::GetFontSize() * 1.5f;
+    dl->AddText(ImGui::GetFont(), size, ImVec2(S.x * 0.02f, S.y * 0.02f), col, label.c_str());
+}
+
 void slope::HUD::drawPauseIndicator(float elapsed, float duration) const
 {
     float remaining = 1.0f - elapsed / duration;

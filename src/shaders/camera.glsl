@@ -64,13 +64,33 @@ void orbitRay(out vec3 ro, out vec3 rd) {
 // rectangle, so the fragment is first mapped back to the window pixel it will
 // end up on (iScreenRect), then unprojected with polyscope's matrices.
 
-// this fragment's position in normalised device coordinates, as polyscope sees it
-vec2 polyscopeNDC() {
+// ── the screen, shared with slope ────────────────────────────────────────────
+// What polyscopeRay is to the 3D scene, screenPoint is to the window : the
+// referential a shader shares with everything outside it, whatever rectangle
+// it is drawn into. slope's 2D parameters live in exactly this space, so a
+// handle dragged in the panel is at screenPoint() == the parameter's value.
+
+// this fragment in screen coordinates : 0..1 across the window, y up
+vec2 screenPoint() {
     vec2 f  = gl_FragCoord.xy / iResolution;                 // 0..1 in the target, y up
     vec2 px = iScreenRect.xy + vec2(f.x, 1.0 - f.y) * iScreenRect.zw;  // window px, y down
-    return vec2(2.0 * px.x / iWindowSize.x - 1.0,
-                1.0 - 2.0 * px.y / iWindowSize.y);
+    return vec2(px.x / iWindowSize.x, 1.0 - px.y / iWindowSize.y);
 }
+
+// the way back : a screen coordinate as this shader's own uv (0..1, y up),
+// outside 0..1 when it falls off the rectangle
+vec2 screenToLocal(vec2 s) {
+    vec2 px = vec2(s.x * iWindowSize.x, (1.0 - s.y) * iWindowSize.y);
+    vec2 q  = (px - iScreenRect.xy) / iScreenRect.zw;        // 0..1 in the rect, y down
+    return vec2(q.x, 1.0 - q.y);
+}
+
+// the window's aspect, to keep a picture square on screen rather than in the
+// rectangle : iAspect is the rectangle's own
+float screenAspect() { return iWindowSize.x / iWindowSize.y; }
+
+// this fragment's position in normalised device coordinates, as polyscope sees it
+vec2 polyscopeNDC() { return 2.0 * screenPoint() - 1.0; }
 
 void polyscopeRay(out vec3 ro, out vec3 rd) {
     vec2 ndc = polyscopeNDC();

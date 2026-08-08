@@ -6,6 +6,7 @@
 #include "content/color_tools.h"
 #include "content/polyscope_primitives/BackgroundColor.h"
 #include "content/Params.h"
+#include "ImGuizmo.h"
 
 
 void slope::Slideshow::nextFrame()
@@ -54,15 +55,19 @@ void slope::Slideshow::forceNextFrame()
 void slope::Slideshow::play() {
 
     handleGuizmos();
-    if (halt_slope_display)
-        return;
 
     polyscope::view::bgColor = BackgroundColor::Default.toArray();
 
     Params::NewFrame();
+    if (!wm.isOpen(WindowType::Tuner))
+        Params::clearGizmos(); // no panel, no sync
 
     ImGuiWindowConfig();
-    ImGui::Begin("Slope",NULL,window_flags);
+    // this window's active id would block ImGuizmo from grabbing the gizmo
+    ImGuiWindowFlags flags = window_flags;
+    if (inGizmoMode())
+        flags |= ImGuiWindowFlags_NoMouseInputs;
+    ImGui::Begin("Slope",NULL,flags);
 
     if (!initialized)
         initializeSlides();
@@ -99,9 +104,15 @@ void slope::Slideshow::play() {
     if (display_slide_number)
         hud.drawSlideNumber(state.current);
 
+    if (inGizmoMode())
+        hud.drawGizmoMode(wm.isOpen(WindowType::Transform) ? "transform" : "parameter");
+
 
     ImGui::End();
     displayPopUps();
+
+    // polyscope aims the gizmos at a window drawn first, hence under everything
+    ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList());
 }
 
 void slope::Slideshow::renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T)
@@ -525,11 +536,15 @@ void slope::Slideshow::addKeyboardInputs()
 }
 
 
+bool slope::Slideshow::inGizmoMode() const
+{
+    return Params::hasLiveGizmo() || wm.isOpen(WindowType::Transform);
+}
+
 void slope::Slideshow::handleGuizmos()
 {
     if (ImGui::IsKeyPressed(ImGuiKey_T)){
         if (wm.isOpen(WindowType::Transform)){
-            halt_slope_display = false;
             for (auto& pis : slides[state.current].getPolyscopePrimitives()){
                 auto& pt = slides[state.current].at(pis.first).persistentTransform;
                 if (!pt.isActive())
@@ -537,8 +552,7 @@ void slope::Slideshow::handleGuizmos()
                 pt.guizmo = nullptr; // the deleter disables and deregisters it
             }
         }
-        if (wm.Toggle(WindowType::Transform))
-            halt_slope_display = true;
+        wm.Toggle(WindowType::Transform);
     }
 
     if (wm.isOpen(WindowType::Transform)){
