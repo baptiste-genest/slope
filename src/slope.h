@@ -3,6 +3,7 @@
 
 #include "content/Options.h"
 #include "content/screen_primitives/Image.h"
+#include "content/screen_primitives/Video.h"
 #include "content/screen_primitives/Text.h"
 #include "math/kernels.h"
 #include "slides/Slideshow.h"
