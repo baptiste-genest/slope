@@ -70,6 +70,9 @@ public:
     void togglePlay() { playing_ = !playing_; }
     bool isPlaying() const { return playing_; }
 
+    /// default size, multiplied by whatever scale the slide state carries
+    scalar scale = 1;
+
     /// play glyph over a paused clip, so a slide that waits for a click says so
     bool show_play_overlay = true;
 

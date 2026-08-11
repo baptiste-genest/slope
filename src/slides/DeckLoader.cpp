@@ -572,8 +572,19 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
     }
     else if (item.contains("image")) {
         std::string file = item["image"];
-        prim = cached(id + "image:" + file,
-                      [&] { return Image::Add(file); });
+        scalar scale = item.value("scale", 1.);
+        prim = cached(id + "image:" + file + ":" + std::to_string(scale),
+                      [&] { return Image::Add(file, scale); });
+        name = std::filesystem::path(file).stem().string();
+    }
+    else if (item.contains("gif")) {
+        std::string file = item["gif"];
+        int fps = item.value("fps", 10);
+        scalar scale = item.value("scale", 1.);
+        bool loop = item.value("loop", true);
+        prim = cached(id + "gif:" + file + ":" + std::to_string(fps) + ":"
+                          + std::to_string(scale) + (loop ? ":loop" : ""),
+                      [&]() -> PrimitivePtr { return Gif::Add(file, fps, scale, loop); });
         name = std::filesystem::path(file).stem().string();
     }
     else if (item.contains("video")) {
@@ -592,6 +603,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
         scalar sp = item.value("speed", 1.);
         vid->speed = [sp] { return sp; };
         vid->show_stats = item.value("stats", false);
+        vid->scale = item.value("scale", 1.);
         name = std::filesystem::path(file).stem().string();
     }
     else if (item.contains("webcam")) {
@@ -604,7 +616,9 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
         prim = cached(id + "webcam:" + dev + ":" + std::to_string(w) + "x"
                           + std::to_string(h) + "@" + std::to_string(fps) + ":" + fmt,
                       [&]() -> PrimitivePtr { return Webcam::Add(dev, w, h, fps, fmt); });
-        std::static_pointer_cast<Webcam>(prim)->show_stats = item.value("stats", false);
+        auto cam = std::static_pointer_cast<Webcam>(prim);
+        cam->show_stats = item.value("stats", false);
+        cam->scale = item.value("scale", 1.);
         name = std::filesystem::path(dev).stem().string();
     }
     else if (item.contains("shader")) {
@@ -629,7 +643,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
     }
     else
         throw std::runtime_error("expected a screen item "
-                                 "(title/load/latex/formula/image/video/webcam/shader), "
+                                 "(title/load/latex/formula/image/gif/video/webcam/shader), "
                                  "got: "
                                  + item.dump());
 
@@ -761,9 +775,10 @@ static void warnUnknownKeys(const json& item)
         {"load",    placement},
         {"latex",   with(placement, {"scale","width"})},
         {"formula", with(placement, {"scale","width"})},
-        {"image",   placement},
-        {"video",   with(placement, {"decode_width","loop","autoplay","speed","stats"})},
-        {"webcam",  with(placement, {"width","height","fps","input_format","stats"})},
+        {"image",   with(placement, {"scale"})},
+        {"gif",     with(placement, {"scale","fps","loop"})},
+        {"video",   with(placement, {"scale","decode_width","loop","autoplay","speed","stats"})},
+        {"webcam",  with(placement, {"scale","width","height","fps","input_format","stats"})},
         {"shader",  with(placement, {"resolution","uniforms","textures"})},
         {"object",  {"id","at","alpha","group"}},
         {"mesh",    {"id","at","alpha","smooth","normalize","group"}},

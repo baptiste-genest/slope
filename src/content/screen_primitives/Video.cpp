@@ -514,7 +514,7 @@ void Video::playOutro(const TimeObject& t, const StateInSlide& sis) { step(t, si
 // an unplayable file has no texture, and its -1 size would poison every box
 Primitive::Size Video::getSize() const
 {
-    return isValid() ? Image::getScaledSize(tex_, 1) : Size::Zero();
+    return isValid() ? Image::getScaledSize(tex_, scale) : Size::Zero();
 }
 
 // leaving the slide kills the decoder, the next appearance starts from zero
@@ -703,14 +703,14 @@ bool Video::saveFrame(const std::string& file) const
 void Video::display(const StateInSlide& sis)
 {
     anchor->updatePos(sis.getPosition());
-    DisplayImage(tex_, sis, sis.getScale());
+    DisplayImage(tex_, sis, scale * sis.getScale());
 }
 
 // upright box, so a tilted clip is picked by its bounds
 bool Video::rect(const StateInSlide& sis, ImVec2& pmin, ImVec2& pmax) const
 {
     if (!isValid()) return false;
-    const Size   s = Image::getScaledSize(tex_, sis.getScale());
+    const Size   s = Image::getScaledSize(tex_, scale * sis.getScale());
     const ImVec2 P = sis.getAbsolutePosition();
     pmin = ImVec2(float(P.x - s(0) * 0.5), float(P.y - s(1) * 0.5));
     pmax = ImVec2(float(pmin.x + s(0)),    float(pmin.y + s(1)));
