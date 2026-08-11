@@ -28,10 +28,24 @@ public:
     using ImagePtr = std::shared_ptr<Image>;
 
     Image() {}
+    ~Image();
     bool isValid() {return data.width != -1;}
     void display(const StateInSlide& sis) const;
 
     static ImagePtr Add(std::string filename,scalar scale = 1);
+
+    /// an image whose pixels the code produces rather than a file, transparent
+    /// until the first updateImage
+    static ImagePtr Blank(int w,int h);
+
+    /// replaces the pixels, RGBA with the first row at the top. It reallocates
+    /// on a size change, so a source that switches resolution is fine, and a
+    /// null pointer just clears to transparent
+    void updateImage(const unsigned char* rgba,int w,int h);
+
+    /// same from a file, which is the short way to show something that was
+    /// just written to disk. A file that will not load leaves the image as is
+    void updateImage(const std::string& file);
 
 
     static ImVec2 getSize(std::string filename);
@@ -42,6 +56,7 @@ public:
 private:
     static std::vector<Image> images;
     static size_t count;
+    bool owns_texture = false;
 
 
     // Primitive interface

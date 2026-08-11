@@ -71,6 +71,68 @@ slope::ImageData slope::loadImage(path file)
     return data;
 }
 
+slope::Image::ImagePtr slope::Image::Blank(int w, int h)
+{
+    auto img = NewPrimitive<Image>();
+    img->updateImage(nullptr,w,h);
+    return img;
+}
+
+// an Image owns its texture alone, so the old one goes when the size changes
+void slope::Image::updateImage(const unsigned char *rgba, int w, int h)
+{
+    if (w <= 0 || h <= 0)
+        return;
+
+    if (data.texture == 0 || data.width != w || data.height != h){
+        if (data.texture && glfwGetCurrentContext())
+            glDeleteTextures(1,&data.texture);
+        glGenTextures(1,&data.texture);
+        glBindTexture(GL_TEXTURE_2D,data.texture);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        data.width  = w;
+        data.height = h;
+        owns_texture = true;
+
+        std::vector<unsigned char> blank;
+        if (!rgba)
+            blank.assign(size_t(w)*size_t(h)*4,0);
+        glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,w,h,0,GL_RGBA,GL_UNSIGNED_BYTE,
+                     rgba ? rgba : blank.data());
+        return;
+    }
+
+    if (!rgba)
+        return;
+    glBindTexture(GL_TEXTURE_2D,data.texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT,4);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH,0);
+    glTexSubImage2D(GL_TEXTURE_2D,0,0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,rgba);
+}
+
+void slope::Image::updateImage(const std::string &file)
+{
+    try {
+        ImageData fresh = loadImage(formatPath(file));
+        if (data.texture && glfwGetCurrentContext())
+            glDeleteTextures(1,&data.texture);
+        data = fresh;
+        owns_texture = true;
+    } catch (const std::exception& e) {
+        spdlog::error("[image] {}",e.what());   // never mid frame, never fatal
+    }
+}
+
+// primitives outlive the window, deleting a texture then hits a dead context
+slope::Image::~Image()
+{
+    if (owns_texture && data.texture && glfwGetCurrentContext())
+        glDeleteTextures(1,&data.texture);
+}
+
 void slope::Image::draw(const TimeObject &, const StateInSlide &sis)
 {
     display(sis);
