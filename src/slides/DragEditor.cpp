@@ -297,8 +297,11 @@ void slope::DragEditor::handleGroup(Slide& cs, bool ctrl, bool shift, WindowMana
     }
 }
 
+bool slope::DragEditor::placing = false;
+
 void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
 {
+    placing = isActive();
     if (wm.isOtherOpen(WindowType::DragAndDrop))
         return;
 
