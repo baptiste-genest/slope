@@ -229,6 +229,8 @@ private:
     path source_path;
     json source;
     std::filesystem::file_time_type source_last_modified;
+    // last LatexLoader::generation this deck was built against
+    int latex_generation = 0;
     bool initialized = false;
 
     // primitives are cached across rebuilds so a hot reload reuses textures,

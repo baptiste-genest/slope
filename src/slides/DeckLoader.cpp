@@ -58,6 +58,7 @@ void DeckLoader::init(path deck_file)
     parse();
     loadLatexResources();
     source_last_modified = std::filesystem::last_write_time(source_path);
+    latex_generation = LatexLoader::generation;
     initialized = true;
 }
 
@@ -198,10 +199,14 @@ void DeckLoader::hotReload(Slideshow& show)
         return;
     bool deck_changed = sourceModified();
     bool cams_changed = camerasModified();
-    if (!deck_changed && !cams_changed)
+    // a "load:" of a key the json did not have fails the build, so a fixed
+    // json has to rebuild the deck and not only refresh the latex content
+    bool latex_changed = LatexLoader::generation != latex_generation;
+    latex_generation = LatexLoader::generation;
+    if (!deck_changed && !cams_changed && !latex_changed)
         return;
     spdlog::info("{} changed, rebuilding slides...",
-                 deck_changed ? "deck file" : "camera view");
+                 deck_changed ? "deck file" : (cams_changed ? "camera view" : "latex source"));
     show.recompose([this](SlideManager& sm) { build(sm); }, used_primitives);
 }
 

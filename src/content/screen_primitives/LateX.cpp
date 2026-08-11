@@ -502,10 +502,15 @@ void slope::LatexLoader::ReloadContentAndUpdate()
     try {
         parseJson();
         for (auto& [key,objptr] : loaded) {
-            const auto& content = source[key];
-            objptr->updateContent(content);
+            // a key the edited json no longer has must not fail the reload
+            if (!source.contains(key)) {
+                spdlog::warn("latex source no longer defines key {}", key);
+                continue;
+            }
+            objptr->updateContent(source[key]);
         }
         Latex::RegenerateAll();
+        generation++;
     }
     catch (const std::exception& e) {
         spdlog::error("Failed to reload latex: {}", e.what());
@@ -534,6 +539,7 @@ slope::json slope::LatexLoader::source;
 std::map<slope::LatexLoader::key,slope::LatexPtr> slope::LatexLoader::loaded;
 std::filesystem::file_time_type slope::LatexLoader::source_last_modified;
 bool slope::LatexLoader::initialized = false;
+int slope::LatexLoader::generation = 0;
 
 
 // preview/tightpage makes each body its own page, cropped to its own content :

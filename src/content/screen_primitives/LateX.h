@@ -40,6 +40,8 @@ struct LatexLoader {
     static std::map<key,LatexPtr> loaded;
     static std::filesystem::file_time_type source_last_modified;
     static bool initialized;
+    // bumped on every successful reload, watched by the deck loader
+    static int generation;
 
     static void Init(path P);
     static LatexPtr Load(key k);
