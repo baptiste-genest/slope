@@ -702,10 +702,23 @@ AnchorPtr DeckLoader::makeHandleAnchor(const json& item)
     return LabelAnchor::Add(item.value("id", "stack"));
 }
 
+// the fields carried by the slide state rather than by the primitive, so a
+// later "set" of any of them is animated by the transition
+static void applyStateOptions(StateInSlide& sis, const json& item)
+{
+    if (item.contains("alpha"))
+        sis.alpha = item["alpha"].get<scalar>();
+    if (item.contains("rot"))
+        sis.angle = item["rot"].get<scalar>() * M_PI / 180.;
+    if (item.contains("zoom"))
+        sis.scale = item["zoom"].get<scalar>();
+}
+
 // applies the placement fields of a screen item :
 // at (label, [x,y] or named position) or below/above/right_of/left_of
 void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
-                                 const json& item, const std::string& default_label)
+                                 const json& item, const std::string& default_label,
+                                 bool keep_placement)
 {
     scalar alpha = item.value("alpha", 1.);
 
@@ -723,6 +736,10 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         if (item[rel.key].is_string())
             other = resolveScreen(item[rel.key]);
         show << PlaceRelative(prim, other, rel.X, rel.Y, padding, padding);
+        auto& slide = show.getLastSlide();
+        auto placed = slide.find(std::static_pointer_cast<Primitive>(prim));
+        if (placed != slide.end())
+            applyStateOptions(placed->second, item);
         used_primitives.insert(prim);
         return;
     }
@@ -739,12 +756,21 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
     }
     else if (default_label != "")
         pis = prim->at(default_label, alpha);
+    else if (keep_placement) {
+        // a "set" that only changes state keeps wherever the item already is
+        auto& slide = show.getLastSlide();
+        auto placed = slide.find(std::static_pointer_cast<Primitive>(prim));
+        if (placed == slide.end())
+            throw std::runtime_error("\"set\" of an item that is not on this slide");
+        pis = {prim, placed->second};
+    }
     else {
-        // no placement given : center, like `show << primitive`
+        // no placement given, center like `show << primitive`
         show << std::static_pointer_cast<Primitive>(prim);
         used_primitives.insert(prim);
         return;
     }
+    applyStateOptions(pis.second, item);
     show.addToLastSlide(pis);
     used_primitives.insert(pis.first);
 }
@@ -766,7 +792,8 @@ static RGBA parseColor(const json& c)
 static void warnUnknownKeys(const json& item)
 {
     static const std::set<std::string> placement =
-        {"id","at","alpha","below","above","right_of","left_of","padding","group"};
+        {"id","at","alpha","rot","zoom",
+         "below","above","right_of","left_of","padding","group"};
     auto with = [](std::set<std::string> s, std::initializer_list<std::string> more) {
         s.insert(more); return s;
     };
@@ -780,7 +807,7 @@ static void warnUnknownKeys(const json& item)
         {"video",   with(placement, {"scale","decode_width","loop","autoplay","speed","stats"})},
         {"webcam",  with(placement, {"scale","width","height","fps","input_format","stats"})},
         {"shader",  with(placement, {"resolution","uniforms","textures"})},
-        {"object",  {"id","at","alpha","group"}},
+        {"object",  {"id","at","alpha","rot","zoom","group"}},
         {"mesh",    {"id","at","alpha","smooth","normalize","group"}},
         {"arrow",   {"id","alpha","group"}},
         {"box",     {"id","alpha","padding","padx","pady","thickness","color","fill_color","filled","group"}},
@@ -790,7 +817,8 @@ static void warnUnknownKeys(const json& item)
         {"keyframe",{}},
         {"remove",  {}},
         {"replace", {"with"}},
-        {"set",     {"at","alpha","below","above","right_of","left_of","padding"}},
+        {"set",     {"at","alpha","rot","zoom",
+                     "below","above","right_of","left_of","padding"}},
     };
     for (const auto& [type, fields] : allowed) {
         if (!item.contains(type))
@@ -828,10 +856,9 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             removeOne(item["remove"]);
     }
     else if (item.contains("set")) {
-        // re-places an already defined item (referenced by id or content)
-        // without redefining it : same placement fields as a regular item
+        // re-places or restyles an already defined item, without redefining it
         auto prim = resolveScreen(item["set"]);
-        placeScreenItem(show, prim, item, "");
+        placeScreenItem(show, prim, item, "", true);
     }
     else if (item.contains("replace")) {
         if (!item.contains("with"))

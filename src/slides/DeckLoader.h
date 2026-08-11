@@ -107,9 +107,16 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *                                        # (remove...) map over their members
  *       - step                           # = inNextFrame : every item after
  *       - latex: appears_later           # it belongs to the next step
- *       - set: some_id                   # re-places an existing item : new
- *         at: new_label                  # anchor (or below/above/...) from
- *                                        # this frame on, transition animated
+ *       - set: some_id                   # re-places or restyles an existing
+ *         at: new_label                  # item from this frame on, animated
+ *         alpha: 0.3                     # by the transition. Any of the
+ *         rot: -20                       # state fields below, and without a
+ *         zoom: 1.5                      # placement it stays where it is
+ *       - latex: any item                # alpha, rot (degrees) and zoom apply
+ *         alpha: 0.5                     # to any screen item, they live in
+ *         rot: 20                        # the slide state so they animate
+ *         zoom: 1.5                      # between steps. zoom multiplies the
+ *                                        # wheel-set anchor scale
  *       - remove: [key_in_latex_json, registered_name, groupA]
  *       - replace: fig
  *         with: {image: other.png}
@@ -271,8 +278,10 @@ private:
     void declareShaderTextures(const ShaderPtr& shader, const json& item);
 
     // applies at/below/above/right_of/left_of placement and adds to the slide
+    // keep_placement leaves an item where it is when no placement is given
     void placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
-                         const json& item, const std::string& default_label);
+                         const json& item, const std::string& default_label,
+                         bool keep_placement = false);
 
     PrimitivePtr resolve(const std::string& name) const;
     ScreenPrimitivePtr resolveScreen(const std::string& name) const;

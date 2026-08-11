@@ -70,8 +70,9 @@ struct StateInSlide {
     }
 
     scalar getScale() const {
+        // the wheel-editable anchor scale composes with the one asked for here
         if (anchor->isPersistent())
-            return anchor->getScale();
+            return anchor->getScale() * scale;
         return scale;
     }
 
