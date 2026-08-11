@@ -8,6 +8,11 @@
 #include "content/Params.h"
 #include "ImGuizmo.h"
 
+// X11 comes in through GLFW and defines None, which eats TransparencyMode::None
+#ifdef None
+#undef None
+#endif
+
 
 void slope::Slideshow::nextFrame()
 {
@@ -76,6 +81,12 @@ void slope::Slideshow::play() {
     auto& CS = slides[state.current];
     setInnerTime();
     TimeObject T = getTimeObject();
+
+    // Depth peeling costs a full scene pass per layer, and alpha only drops
+    // during transitions. Dropping it here lets polyscope turn it back on by
+    // itself, which it does on any setTransparency below 1 or any transparency
+    // quantity, both re-asserted every frame by the primitives that need them.
+    polyscope::options::transparencyMode = polyscope::TransparencyMode::None;
 
     renderSlide(t, CS, T);
 
@@ -251,7 +262,8 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
     polyscope::options::groundPlaneEnabled = false;
     polyscope::options::giveFocusOnShow = false;
     polyscope::options::automaticallyComputeSceneExtents = false;
-    polyscope::options::transparencyMode = polyscope::TransparencyMode::Pretty;
+    // polyscope defaults to 8, which is 8 full scene passes during a fade
+    polyscope::options::transparencyRenderPasses = 4;
     polyscope::state::lengthScale = 2.;
     polyscope::state::boundingBox =
         std::tuple<glm::vec3, glm::vec3>{ {-1., -1., -1.}, {1., 1., 1.} };
@@ -338,6 +350,7 @@ void slope::Slideshow::exportPDF()
             - std::chrono::duration_cast<TimeStamp::duration>(DurationSec(settle_time));
         TimeObject T = getTimeObject();
         auto& CS = slides[state.current];
+        polyscope::options::transparencyMode = polyscope::TransparencyMode::None;
         for (auto& s : CS.getDepthSorted())
             s.first->play(T, CS[s.first]);
         if (display_slide_number)
