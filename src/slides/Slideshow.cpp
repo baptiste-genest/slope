@@ -282,9 +282,7 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 
     ImPlot::CreateContext();
 
-    // a headless backend (EGL, picked automatically when there is no
-    // display, e.g. --export on a CI runner) never initializes GLFW at all,
-    // so touching the window here would crash rather than just no-op
+    // a headless backend never initializes GLFW, touching the window crashes
     if (!polyscope::render::engine->isHeadless()) {
         GLFWwindow* win = glfwGetCurrentContext();
         glfwSetWindowUserPointer(win, this);
@@ -348,8 +346,7 @@ void slope::Slideshow::exportPDF()
     if (!initialized)
         initializeSlides();
 
-    // a hardcoded /tmp is a POSIX-only assumption ; the platform temp dir is
-    // the portable equivalent (%TEMP% on Windows, /tmp on Linux/macOS)
+    // /tmp is POSIX only, this is %TEMP% on Windows and /tmp elsewhere
     const std::filesystem::path tmp_dir = std::filesystem::temp_directory_path();
     auto slidePng = [&](int i) {
         return tmp_dir / ("slope_export_slide_" + std::to_string(i) + ".png");

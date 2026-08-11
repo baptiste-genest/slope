@@ -213,10 +213,7 @@ void slope::Latex::HotReloadPrefixIfModified()
 static std::string quote(const std::string& s) {
     std::string t = s;
 #ifdef _WIN32
-    // Options::CachePath carries a trailing separator, and a backslash
-    // immediately before the closing quote is read as escaping that quote by
-    // the argv parser MSVC-built programs (pdflatex.exe, convert.exe) use.
-    // A directory argument doesn't need the separator, so drop it.
+    // drop the trailing separator, a backslash before the quote escapes it
     while (!t.empty() && (t.back() == '\\' || t.back() == '/'))
         t.pop_back();
 #endif
@@ -346,9 +343,7 @@ void slope::GenerateLatex(const path &filename,
         throw std::runtime_error("Fail to generate latex");
     }
 
-    // settings (-density/-quality) before the input, operators (-trim/-border)
-    // after it : ImageMagick 6 tolerates operators placed before the input,
-    // ImageMagick 7's `magick` does not, and this order is byte-identical on 6
+    // settings before the input, operators after, ImageMagick 7 requires it
     std::string convert_cmd = fmt::format("{} -density {} -quality 100 {} -trim -bordercolor none -border {} -colorspace sRGB {} >> {} 2>&1",
                                           quote(Options::PathToCONVERT),
                                           Options::PDFtoPNGDensity,

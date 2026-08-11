@@ -11,27 +11,17 @@
 
 namespace slope {
 
-// takes `const path&` rather than `std::string` so a slope::path argument
-// never goes through path::operator string_type(), which is std::wstring on
-// Windows and would silently fail to convert to std::string there
+// const path&, not std::string, path::c_str() is wchar_t* on Windows
 inline std::string formatPath(const path& p) {
     if (p.is_absolute()) return p.string();
     return Options::ProjectDataPath + p.string();
 }
 
-// Options::CachePath/ProjectPath/ProjectViewsPath are plain strings with a
-// trailing separator, built by simple concatenation everywhere they're used
-// (Options::CachePath + filename, etc). Keep that separator the platform's
-// native one rather than a hand-written "/", so a path never ends up mixing
-// both on Windows.
+// the Options paths are concatenated with filenames, so keep a native separator
 inline std::string normalizedDir(const path& p) {
     path np = p;
 #ifdef _WIN32
-    // Resolve 8.3 short names ("C:\Users\RUNNER~1\...", which is what
-    // %TEMP% expands to for a long user name) to their long form. TeX treats
-    // '~' as an active character in the file name it is handed on the
-    // command line, so a short path makes pdflatex split it at the tilde and
-    // give up : "! I can't find file `C:/Users/RUNNER'".
+    // expand 8.3 short names, TeX treats their '~' as an active character
     std::error_code ec;
     path canonical = std::filesystem::weakly_canonical(np, ec);
     if (!ec && !canonical.empty())
@@ -46,19 +36,7 @@ inline std::string normalizedDir(const path& p) {
     return s;
 }
 
-// Runs a shell command the way std::system() does, but works around a
-// cmd.exe parsing rule that would otherwise break every command we build.
-//
-// std::system() on Windows runs `cmd.exe /c <command>`. Per `cmd /?`, when
-// the command line starts with a quote and does NOT consist of exactly two
-// quote characters, cmd strips the first and the last quote of the whole
-// line before parsing it. Our commands quote the executable *and* two or
-// three path arguments, so that strip turns the leading `"prog.exe"` into a
-// bare `prog.exe"` with a stray trailing quote -- an invalid Windows
-// filename, rejected with "The filename, directory name, or volume label
-// syntax is incorrect" before the program is ever launched. Wrapping the
-// entire command line in one more pair of quotes makes cmd's strip a no-op
-// and leaves the intended command intact.
+// std::system() on Windows, where cmd.exe /c strips the outermost quote pair
 inline int runCommand(const std::string& cmd) {
 #ifdef _WIN32
     return std::system(("\"" + cmd + "\"").c_str());

@@ -27,13 +27,7 @@ namespace slope {
 namespace {
 
 #if !defined(__APPLE__) && !defined(_WIN32)
-// polyscope's headless EGL backend (Linux only, auto-selected when there is
-// no display, e.g. --export on a CI runner) never initializes GLFW, so
-// glfwGetProcAddress can't resolve anything there. Fall back to the same
-// two-step its own glad-based loader uses in that case (see
-// gl_engine_egl.cpp): dlsym straight off libGL first, then eglGetProcAddress
-// for anything not directly exported. Both libraries are dlopen'd at
-// runtime rather than linked, so this adds no new build dependency.
+// the headless EGL backend never initializes GLFW, so resolve without it
 void* linuxHeadlessProcAddress(const char* name)
 {
     static void* gl_handle = [] () -> void* {

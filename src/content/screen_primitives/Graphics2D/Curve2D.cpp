@@ -32,8 +32,7 @@ slope::Figure::FigurePtr slope::Figure::Add(Figure& F,vec2 rel_size)
 
 
     if (!io::file_exists(filename)){
-        // "/tmp" does not exist on Windows, and a bare "convert" there
-        // resolves to System32's unrelated FAT-to-NTFS converter
+        // no /tmp on Windows, and a bare "convert" there is System32's own
         std::error_code ec;
         path svg = std::filesystem::temp_directory_path(ec) / "slope_buffer.svg";
         {

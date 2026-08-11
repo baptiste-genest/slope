@@ -32,10 +32,7 @@ namespace slope {
 
 size_t Video::MemoryBudget = 96u << 20;
 
-// video playback pipes raw frames out of ffmpeg via fork()/pipe()/execvp() to
-// get a killable PID (see spawn() below), none of which exist on Windows; a
-// real port needs CreateProcess + anonymous pipes, so for now the primitive
-// simply reports itself unavailable there, the same as when ffmpeg is missing
+// playback needs fork/pipe/execvp, so on Windows the primitive is unavailable
 #ifndef _WIN32
 
 namespace {
@@ -799,8 +796,7 @@ void Video::logStats(const TimeObject& t)
 
 VideoInfo probeVideo(const std::string&) { return VideoInfo{}; }
 
-// stream_/warm_ never hold anything on Windows, so this only needs to exist
-// as a complete type for their shared_ptr members to be destructible
+// never holds anything here, it only has to be complete for the shared_ptr
 struct Video::Stream {};
 
 VideoPtr Video::Add(const std::string& file, int decode_width, bool loop, bool autoplay)

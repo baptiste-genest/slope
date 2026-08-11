@@ -1,11 +1,4 @@
-// Verifies that every project-relative path slope sets up during CLI parsing
-// (src/slides/CLI.cpp) actually exists on disk and is writable, not just a
-// string. Motivated by a real report: a deck that never touched a label
-// anchor or a Params entry never triggered any of the ad hoc,
-// feature-specific mkdir calls scattered around the codebase
-// (LabelAnchor::writeAtLabel in Anchor.cpp, TimeTracker::save, Params::save),
-// so views/ silently never existed for it, even though it did for a
-// DeckLoader-based deck that happened to touch one of those paths.
+// every path parseCLI() sets up must exist on disk and be writable
 #include "slope.h"
 
 #include <filesystem>
@@ -44,8 +37,7 @@ int main()
     fs::path project = fs::temp_directory_path() / "slope_test_paths";
     std::error_code ec;
     fs::remove_all(project, ec);
-    // deliberately not pre-created : a first run against a brand-new project
-    // path is exactly the scenario the report came from
+    // not pre-created, a brand-new project path is the reported case
 
     std::vector<std::string> arg_storage = {
         (project / "test_paths").string(), "--project_path", project.string()

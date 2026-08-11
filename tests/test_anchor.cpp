@@ -1,5 +1,4 @@
-// Exercises LabelAnchor's .pos persistence (Anchor.cpp): the on-disk format
-// slide positions are saved to and reloaded from across editing sessions.
+// LabelAnchor's .pos persistence, the format positions survive a session in
 #include "slope.h"
 #include <cmath>
 #include <filesystem>
@@ -30,7 +29,7 @@ int main()
 
     slope::Options::ProjectViewsPath = slope::normalizedDir(tmp);
 
-    // constructing a LabelAnchor writes a default .pos the first time a label is seen
+    // a new label writes its default .pos on construction
     fs::path posfile = tmp / "my_label.pos";
     CHECK(!fs::exists(posfile));
     auto a = slope::LabelAnchor::Add("my_label");
@@ -39,10 +38,7 @@ int main()
     CHECK(nearlyEqual(a->getPos().y(), 0.5));
     CHECK(nearlyEqual(a->getScale(), 1.0));
 
-    // a pre-existing .pos file (e.g. from a previous slide session) must be
-    // loaded as-is: the constructor writes a default only when the file is
-    // missing, and this label has not been read before, so nothing else has
-    // populated the in-memory session cache for it yet
+    // an existing .pos is loaded as is, the default is only for a missing file
     {
         fs::path existing = tmp / "existing_label.pos";
         std::ofstream(existing) << "0.1 0.2 3\n";
@@ -52,8 +48,7 @@ int main()
         CHECK(nearlyEqual(b->getScale(), 3.0));
     }
 
-    // the editor writes new positions to a session cache first, and only
-    // saveAllDirty() persists them to disk
+    // the editor writes to the session cache, saveAllDirty() persists it
     slope::LabelAnchor::writeToSessionAt("my_label", 0.25, 0.75, 2.0);
     CHECK(slope::LabelAnchor::hasDirty());
     {
@@ -73,8 +68,7 @@ int main()
         CHECK(nearlyEqual(s, 2.0));
     }
 
-    // a label whose .pos is missing/corrupt falls back to sane defaults
-    // instead of throwing, so a broken checkout never crashes a presentation
+    // a corrupt .pos falls back to defaults instead of throwing
     {
         std::ofstream(tmp / "orphan.pos") << "not a number\n";
         auto c = std::make_shared<slope::LabelAnchor>("orphan");

@@ -5,10 +5,7 @@ namespace slope {
 
 namespace {
 
-// the shortcuts are authored as "Ctrl+..." since that's the binding
-// (ImGuiKey_LeftCtrl, see DragEditor.cpp/Slideshow.cpp) ; macOS keyboards
-// and users call that same key "Cmd" by convention, so only the label shown
-// here changes, not the actual key checked
+// only the label changes, the binding stays ImGuiKey_LeftCtrl everywhere
 std::string platformLabel(std::string shortcut)
 {
 #ifdef __APPLE__

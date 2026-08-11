@@ -569,8 +569,7 @@ void Params::saveAllDirty()
         if (registry.count(name))
             file_values[name] = registry[name]->toJson();
 
-    // std::filesystem rather than shelling out to mkdir : "2>/dev/null" is
-    // not valid cmd.exe syntax, and this needs no shell at all
+    // std::filesystem, no shell needed and cmd.exe has no "2>/dev/null"
     std::error_code mkdir_ec;
     std::filesystem::create_directories(Options::ProjectViewsPath, mkdir_ec);
     std::ofstream f(file());

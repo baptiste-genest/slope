@@ -1,14 +1,4 @@
-// Exercises the --export pipeline end to end: headless/offscreen polyscope
-// init, a deck touching a representative slice of slope's primitive types,
-// per-slide screenshots, and the ImageMagick PDF assembly
-// (Slideshow::exportPDF, src/slides/Slideshow.cpp). The deck shape is modeled
-// on ~/dev/slope_dev/examples/stress's (text, shapes, boxes, label anchors,
-// latex, meshes placed by both a label and a plain transform, a translucent
-// mesh, a fragment shader), sized down for a single correctness pass rather
-// than a profiling loop.
-//
-// This is the one test in this suite that needs a real (or headless/EGL)
-// OpenGL context; test_latex/test_anchor deliberately avoid that.
+// --export end to end, the only test here needing an OpenGL context
 #include "slope.h"
 #include "extern/stb_image.h"
 #include "GLFW/glfw3.h"
@@ -26,23 +16,12 @@ using namespace slope;
 
 namespace fs = std::filesystem;
 
-// ctest's dedicated "this test does not apply here" exit code (see
-// SKIP_RETURN_CODE in tests/CMakeLists.txt)
+// ctest's skip code, see SKIP_RETURN_CODE in tests/CMakeLists.txt
 static constexpr int kSkip = 125;
 
 #if defined(__APPLE__) || defined(_WIN32)
-// unlike Linux, neither macOS nor Windows has an EGL-style headless
-// rendering fallback (EGL is a Linux-only backend in polyscope's own
-// CMakeLists.txt), and when GLFW can't create a context (no real
-// display/GPU driver session -- the case on GH's macOS and windows-latest
-// CI runners at the time of writing: "NSGL: Failed to find a suitable pixel
-// format" / "WGL: The driver does not appear to support OpenGL"),
-// polyscope's own GLFW backend (gl_engine_glfw.cpp) doesn't null-check the
-// failed window before calling glfwSetWindowPos on it, which aborts the
-// whole process rather than throwing something a try/catch could stop.
-// Probe for exactly that failure ourselves first, with the same context
-// hints polyscope itself uses, so we can skip cleanly instead of hitting
-// that crash.
+// probe for a context first, polyscope aborts on a failed window rather
+// than throwing, and only Linux has the EGL fallback
 static bool canCreateGLContext()
 {
     if (!glfwInit())
@@ -60,21 +39,14 @@ static bool canCreateGLContext()
 }
 #endif
 
-// normalized RMSE (0-1) a slide's rendering may differ from the committed
-// reference by and still pass ; different GPUs/drivers/font rasterizers
-// never produce byte-identical output, so this needs to be generous enough
-// to absorb that while still catching an actually broken/missing render.
-// Picked without cross-platform data to calibrate against (macOS/Windows
-// can't be tested locally) -- expect this to need retuning once real CI
-// numbers are in for all three platforms.
+// normalized RMSE tolerance, no two GPUs rasterize a slide identically
+// picked without macOS/Windows numbers, expect to retune it
 static constexpr double kMaxRMSE = 0.10;
 
 static std::string quote(const std::string& s) { return "\"" + s + "\""; }
 
-// ImageMagick's `compare -metric RMSE a b null:` writes "<abs> (<normalized>)"
-// to stderr and always exits non-zero once there is any difference at all,
-// so the exit code is useless here ; parse the normalized figure instead.
-// Returns -1 if the run or the parse failed.
+// compare exits non-zero on any difference, so read the figure it prints
+// returns -1 when the run or the parse failed
 static double compareRMSE(const fs::path& compare_bin, const std::string& a, const std::string& b,
                            const fs::path& stderr_capture)
 {
@@ -150,9 +122,7 @@ int main()
 
     const int W = 320, H = 180; // small on purpose : this is a correctness check, not a render benchmark
 
-    // Slideshow::init() derives Options::CachePath from argv[0]'s parent
-    // directory, so argv[0] needs to be a real, writable path rather than a
-    // bare literal (which would resolve to the filesystem root)
+    // CachePath comes from argv[0]'s parent, so it must be a real path
     std::vector<std::string> arg_storage = {
         (project / "test_export").string(), "--project_path", project.string(),
         "--export", "--resolution", std::to_string(W) + "x" + std::to_string(H)
@@ -168,7 +138,7 @@ int main()
 
     const int N = 6; // primitives per slide
 
-    // slide 0 : text, filled shapes, boxes
+    // text, filled shapes, boxes
     show << Title("Text, shapes, boxes")->at(TOP);
     for (int i = 0; i < N; ++i)
         show << Text::Add("slope " + std::to_string(i))->at(scatter(i, N));
@@ -180,21 +150,18 @@ int main()
     for (int i = 0; i < N; ++i)
         show << FixedBox::Add(vec2(0.05, 0.03))->at(scatter(i, N));
 
-    // slide 1 : label anchors, resolved through LabelAnchor::readFromLabel /
-    // the .pos files test_anchor.cpp exercises directly
+    // label anchors, the .pos files test_anchor.cpp covers directly
     show << newFrame << Title("Label anchors")->at(TOP);
     for (int i = 0; i < N; ++i)
         show << Text::Add("label " + std::to_string(i))->at("export_test_" + std::to_string(i));
 
-    // slide 2 : latex, through the primitive/caching layer this time rather
-    // than GenerateLatex() directly (test_latex.cpp)
+    // latex through the primitive layer, not GenerateLatex() directly
     show << newFrame << Title("LaTeX")->at(TOP);
     for (int i = 0; i < N; ++i)
         show << Formula::Add("\\alpha_{" + std::to_string(i) + "} = \\int_0^1 x^"
                               + std::to_string(i) + " dx")->at(scatter(i, N));
 
-    // slide 3/4 : polyscope meshes, one set placed by a plain transform and
-    // one translucent (exercises depth peeling)
+    // polyscope meshes, the translucent one exercises depth peeling
     {
         vecs V; Faces F;
         makeSphere(V, F, 0.3);
@@ -206,7 +173,7 @@ int main()
             show << Mesh::Add(V, F, true)->at(vec(0.4 * (i % 3) - 0.4, 0.4 * (i / 3) - 0.4, 0), 0.4);
     }
 
-    // slide 5 : a fragment shader, GPU-side rendering rather than a placed texture
+    // a fragment shader, rendered on the GPU rather than placed
     show << newFrame << Title("Shader")->at(TOP);
     show << Shader::Add(R"(
         void main() {
@@ -233,7 +200,7 @@ int main()
         CHECK(w == W);
         CHECK(h == H);
 
-        // a failed or empty render is a uniform color ; a real slide never is
+        // a failed render is a uniform color, a real slide never is
         bool uniform = true;
         for (int p = 3; p < w * h * 3 && uniform; p += 3)
             if (pixels[p] != pixels[0] || pixels[p + 1] != pixels[1] || pixels[p + 2] != pixels[2])
@@ -258,8 +225,7 @@ int main()
             std::cout << "reference saved to " << save_to << std::endl;
         }
     } else if (fs::exists(pdf)) {
-        // compares each page against the committed reference, tolerant of the
-        // small per-pixel noise different GPUs/drivers/font rasterizers produce
+        // each page against the reference, tolerant of per-pixel noise
         fs::path reference = fs::path(SLOPE_TEST_SOURCE_DIR) / "export_reference.pdf";
         fs::path convert_bin(Options::PathToCONVERT);
         fs::path compare_bin = convert_bin.parent_path() / "compare";

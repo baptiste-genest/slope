@@ -1,6 +1,4 @@
-// Exercises the actual pdflatex/imagemagick pipeline (LateX.cpp) against a
-// scratch directory, without needing an OpenGL context: it stops short of
-// loadImage(), which is the only GL-touching step in that path.
+// the real pdflatex/imagemagick pipeline, stopping short of loadImage()
 #include "slope.h"
 #include <filesystem>
 #include <fstream>
@@ -29,7 +27,7 @@ int main()
     slope::Options::CachePath = slope::normalizedDir(tmp);
     slope::Options::LogPath = (tmp / "slope.log").string();
 
-    // single-formula compile: the direct, non-batched path used by ensureRendered()
+    // the non-batched path, used by ensureRendered()
     {
         std::string doc = slope::WriteTexFile("Hello \\LaTeX{} World", false);
         slope::path png = tmp / "single.png";
@@ -65,8 +63,7 @@ int main()
         CHECK(baseline > 0);
     }
 
-    // batched compile: the path used by RegenerateAll()/FlushPending(), one
-    // pdflatex run producing several pages that get split back out by name
+    // the batched path, one pdflatex run split back out by name
     {
         slope::path png1 = tmp / "batch1.png", png2 = tmp / "batch2.png";
         std::vector<slope::LatexJob> jobs = {
@@ -79,9 +76,7 @@ int main()
         CHECK(fs::exists(png1) && fs::file_size(png1) > 0);
         CHECK(fs::exists(png2) && fs::file_size(png2) > 0);
 
-        // two distinct formulas must not collapse onto the same image: the
-        // batch splitter maps pdf pages back to files by index, so a mixup
-        // here would mean every primitive after the first got the wrong page
+        // the splitter maps pages back by index, a mixup shifts every formula
         auto readAll = [](const fs::path &p) {
             std::ifstream f(p, std::ios::binary);
             return std::string(std::istreambuf_iterator<char>(f), {});
@@ -89,7 +84,7 @@ int main()
         CHECK(readAll(png1) != readAll(png2));
     }
 
-    // an invalid document must fail loudly rather than silently produce a bad image
+    // an invalid document must fail loudly
     {
         bool threw = false;
         try {

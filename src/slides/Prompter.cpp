@@ -1,5 +1,4 @@
-// polyscope only links glad on Windows/Linux (see deps/glad/src/CMakeLists.txt);
-// macOS uses the native GL framework directly, same as Shader.cpp's own loader
+// polyscope only links glad on Windows/Linux, macOS uses the native framework
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
 #else

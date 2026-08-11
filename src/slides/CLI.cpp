@@ -68,22 +68,13 @@ int slope::parseCLI(int argc,char** argv) {
 
     slope::Options::CachePath = normalizedDir(std::filesystem::path(argv[0]).parent_path() / "slope_cache");
 
-    // ProjectPath and ProjectViewsPath used to be created lazily, only as a
-    // side effect of specific features writing into them for the first time
-    // (LabelAnchor::writeAtLabel, TimeTracker::save, Params::save) ; a deck
-    // that never happened to touch any of those never got a views/ folder at
-    // all. Create both upfront instead, the same way CachePath already is.
-    // ProjectDataPath is deliberately left alone : it holds input assets the
-    // deck reads from, and silently creating it would mask a typo'd path.
+    // created upfront, a deck that writes to neither used to get no views/
+    // ProjectDataPath is left alone, creating it would mask a typo'd path
     std::filesystem::create_directories(slope::Options::ProjectPath);
     std::filesystem::create_directories(slope::Options::ProjectViewsPath);
     std::filesystem::create_directories(slope::Options::CachePath);
 
-    // LogPath defaults to "/tmp/slope.log", which does not exist on Windows :
-    // every latex/convert command redirects into it (">> <log> 2>&1"), so an
-    // unwritable path there fails the command before the tool even runs.
-    // temp_directory_path() is /tmp on Linux and macOS, so this keeps the
-    // existing location on those platforms and picks %TEMP% on Windows.
+    // every latex command redirects into the log, so it must be writable
     {
         std::error_code ec;
         path tmp = std::filesystem::temp_directory_path(ec);
@@ -105,7 +96,7 @@ int slope::parseCLI(int argc,char** argv) {
 
     if (clear_cache){
         spdlog::info("clearing cache");
-        // std::filesystem rather than "rm -rf", which does not exist on Windows
+        // std::filesystem, Windows has no "rm -rf"
         std::error_code ec;
         for (const char* dir : {"cache", "formulas"}) {
             std::filesystem::remove_all(Options::ProjectDataPath + dir, ec);

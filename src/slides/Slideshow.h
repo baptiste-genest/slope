@@ -8,10 +8,7 @@
 #include "../content/screen_primitives/plots/Plot.h"
 #include "CLI.h"
 
-// must come before GLFW/glfw3.h : mixing GLFW's own default GL header
-// inclusion with glad's (pulled in transitively by Image.h et al.) in the
-// same translation unit makes their overlapping constant definitions
-// conflict (see Prompter.cpp/Image.h for the same pattern)
+// must come before GLFW/glfw3.h, their constant definitions overlap
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
 #else

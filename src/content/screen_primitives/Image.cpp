@@ -38,8 +38,7 @@ slope::Primitive::Size slope::Image::getScaledSize(const ImageData &data, scalar
 
 slope::ImageData slope::loadImage(path file)
 {
-    // path::c_str() is wchar_t* on Windows, not char* ; stbi_load and the
-    // error message below both need the portable, always-UTF-8 std::string
+    // path::c_str() is wchar_t* on Windows, stbi_load needs the string
     std::string filename = file.string();
     int w,h;
     // Load from file
@@ -250,10 +249,7 @@ std::vector<slope::ImageData> slope::loadGif(path filename)
     std::string folder = slope::Options::CachePath + H;
     if (!io::folder_exists(folder) || Options::ignore_cache){
         spdlog::info("Decomposing gif " + filename.string());
-        // std::filesystem instead of rm/mkdir (neither behaves like this on
-        // Windows), and the configured ImageMagick rather than a bare
-        // "convert", which on Windows resolves to System32's unrelated
-        // FAT-to-NTFS converter
+        // std::filesystem instead of rm/mkdir, and the configured ImageMagick
         std::error_code ec;
         std::filesystem::remove_all(folder, ec);
         std::filesystem::create_directories(folder, ec);
