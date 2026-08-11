@@ -24,6 +24,16 @@ if (NOT SLOPE_CONVERT)
 endif()
 set(SLOPE_PDFLATEX ${PDFLATEX_COMPILER})
 
+## Video playback is opt-in content, a missing ffmpeg is not a build error but
+## a Video primitive that will refuse to play at runtime.
+find_program(SLOPE_FFMPEG ffmpeg)
+find_program(SLOPE_FFPROBE ffprobe)
+if (NOT SLOPE_FFMPEG OR NOT SLOPE_FFPROBE)
+  message(STATUS "ffmpeg/ffprobe not found, the Video primitive will be unavailable")
+  set(SLOPE_FFMPEG ffmpeg)
+  set(SLOPE_FFPROBE ffprobe)
+endif()
+
 ## Where "#include <...>" inside a shader looks for the shader stdlib. Defaults
 ## to the source tree, which is what a build-from-source workflow wants; the
 ## install rule below also drops a copy under share/ for an installed slope.
@@ -32,6 +42,7 @@ set(SLOPE_SHADER_PATH "${PROJECT_SOURCE_DIR}/src/shaders/" CACHE PATH
 
 message(STATUS "pdflatex compiler: ${SLOPE_PDFLATEX}")
 message(STATUS "convert tool: ${SLOPE_CONVERT}")
+message(STATUS "ffmpeg: ${SLOPE_FFMPEG}")
 message(STATUS "shader stdlib: ${SLOPE_SHADER_PATH}")
 configure_file(${PROJECT_SOURCE_DIR}/src/content/Options.cpp.in
                ${PROJECT_SOURCE_DIR}/src/content/Options.cpp)

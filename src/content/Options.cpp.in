@@ -15,6 +15,8 @@ size_t Options::ScreenResolutionHeight = 1080;
 
 std::string Options::PathToPDFLATEX = "@SLOPE_PDFLATEX@";
 std::string Options::PathToCONVERT = "@SLOPE_CONVERT@";
+std::string Options::PathToFFMPEG = "@SLOPE_FFMPEG@";
+std::string Options::PathToFFPROBE = "@SLOPE_FFPROBE@";
 std::string Options::ShaderPath = "@SLOPE_SHADER_PATH@";
 
 size_t Options::PDFtoPNGDensity = 800;

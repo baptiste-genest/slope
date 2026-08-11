@@ -35,6 +35,10 @@ static bool HideSlideNumbers;
 static std::string PathToPDFLATEX;
 static std::string PathToCONVERT;
 
+/// Video decoding, optional, a bare name still resolves through PATH
+static std::string PathToFFMPEG;
+static std::string PathToFFPROBE;
+
 /// Where a shader's "#include <...>" finds the shader stdlib
 static std::string ShaderPath;
 
