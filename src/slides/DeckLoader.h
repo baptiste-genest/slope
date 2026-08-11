@@ -49,11 +49,12 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *                                       # from latex.json, anchored at = key
  *       - latex: inline \LaTeX
  *         at: some_label
+ *         scale: 1.2                    # width is the wrapping width in pt,
+ *         width: 300                    # where the lines break
  *       - formula: e^{i\pi}+1=0
  *         at: [0.5, 0.4]
  *       - image: figure.png
  *         at: fig
- *         scale: 0.5
  *       - video: clip.mp4               # streamed from disk, one ffmpeg pipe
  *         at: vid                       # decode_width caps the decode (the
  *         decode_width: 960             # window width by default), loop and

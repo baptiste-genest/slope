@@ -555,22 +555,25 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
     else if (item.contains("latex")) {
         std::string txt = item["latex"];
         scalar scale = item.value("scale", Options::DefaultLatexScale);
-        prim = cached(id + "latex:" + txt + ":" + std::to_string(scale),
-                      [&] { return Latex::Add(txt, scale); });
+        int width = item.value("width", -1);
+        prim = cached(id + "latex:" + txt + ":" + std::to_string(scale)
+                          + ":" + std::to_string(width),
+                      [&] { return Latex::Add(txt, scale, width); });
         name = "";
     }
     else if (item.contains("formula")) {
         std::string txt = item["formula"];
         scalar scale = item.value("scale", Options::DefaultLatexScale);
-        prim = cached(id + "formula:" + txt + ":" + std::to_string(scale),
-                      [&] { return Formula::Add(txt, scale); });
+        int width = item.value("width", -1);
+        prim = cached(id + "formula:" + txt + ":" + std::to_string(scale)
+                          + ":" + std::to_string(width),
+                      [&] { return Formula::Add(txt, scale, width); });
         name = "";
     }
     else if (item.contains("image")) {
         std::string file = item["image"];
-        scalar scale = item.value("scale", 1.);
-        prim = cached(id + "image:" + file + ":" + std::to_string(scale),
-                      [&] { return Image::Add(file, scale); });
+        prim = cached(id + "image:" + file,
+                      [&] { return Image::Add(file); });
         name = std::filesystem::path(file).stem().string();
     }
     else if (item.contains("video")) {
@@ -756,9 +759,9 @@ static void warnUnknownKeys(const json& item)
     static const std::map<std::string, std::set<std::string>> allowed = {
         {"title",   placement},
         {"load",    placement},
-        {"latex",   with(placement, {"scale"})},
-        {"formula", with(placement, {"scale"})},
-        {"image",   with(placement, {"scale"})},
+        {"latex",   with(placement, {"scale","width"})},
+        {"formula", with(placement, {"scale","width"})},
+        {"image",   placement},
         {"video",   with(placement, {"decode_width","loop","autoplay","speed","stats"})},
         {"webcam",  with(placement, {"width","height","fps","input_format","stats"})},
         {"shader",  with(placement, {"resolution","uniforms","textures"})},
