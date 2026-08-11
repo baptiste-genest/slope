@@ -4,6 +4,8 @@
 #include "../content/screen_primitives/Shape2D.h"
 #include "../content/screen_primitives/Stack2D.h"
 #include "../content/screen_primitives/Shader.h"
+#include "../content/screen_primitives/Video.h"
+#include "../content/screen_primitives/Webcam.h"
 #include "../content/Params.h"
 #include "../content/polyscope_primitives/Mesh.h"
 #include "spdlog/spdlog.h"
@@ -571,6 +573,37 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
                       [&] { return Image::Add(file, scale); });
         name = std::filesystem::path(file).stem().string();
     }
+    else if (item.contains("video")) {
+        std::string file = item["video"];
+        int  dw       = item.value("decode_width", 0);
+        bool loop     = item.value("loop", true);
+        bool autoplay = item.value("autoplay", true);
+        // those three shape the decoder and belong in the key, the fields
+        // below are re-applied to the cached primitive on every build
+        prim = cached(id + "video:" + file + ":" + std::to_string(dw)
+                          + (loop ? ":loop" : "") + (autoplay ? ":auto" : ""),
+                      [&]() -> PrimitivePtr {
+                          return Video::Add(file, dw, loop, autoplay);
+                      });
+        auto vid = std::static_pointer_cast<Video>(prim);
+        scalar sp = item.value("speed", 1.);
+        vid->speed = [sp] { return sp; };
+        vid->show_stats = item.value("stats", false);
+        name = std::filesystem::path(file).stem().string();
+    }
+    else if (item.contains("webcam")) {
+        // the device is in the key, a camera only opens once
+        std::string dev = item["webcam"];
+        int w   = item.value("width", 1280);
+        int h   = item.value("height", 720);
+        int fps = item.value("fps", 30);
+        std::string fmt = item.value("input_format", "mjpeg");
+        prim = cached(id + "webcam:" + dev + ":" + std::to_string(w) + "x"
+                          + std::to_string(h) + "@" + std::to_string(fps) + ":" + fmt,
+                      [&]() -> PrimitivePtr { return Webcam::Add(dev, w, h, fps, fmt); });
+        std::static_pointer_cast<Webcam>(prim)->show_stats = item.value("stats", false);
+        name = std::filesystem::path(dev).stem().string();
+    }
     else if (item.contains("shader")) {
         // a single-pass fragment shader, its uniforms declared right here.
         // Multi-pass, channels and SSBOs stay on the C++ side : they need an
@@ -593,7 +626,8 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
     }
     else
         throw std::runtime_error("expected a screen item "
-                                 "(title/load/latex/formula/image/shader), got: "
+                                 "(title/load/latex/formula/image/video/webcam/shader), "
+                                 "got: "
                                  + item.dump());
 
     name = item.value("id", name);
@@ -725,6 +759,8 @@ static void warnUnknownKeys(const json& item)
         {"latex",   with(placement, {"scale"})},
         {"formula", with(placement, {"scale"})},
         {"image",   with(placement, {"scale"})},
+        {"video",   with(placement, {"decode_width","loop","autoplay","speed","stats"})},
+        {"webcam",  with(placement, {"width","height","fps","input_format","stats"})},
         {"shader",  with(placement, {"resolution","uniforms","textures"})},
         {"object",  {"id","at","alpha","group"}},
         {"mesh",    {"id","at","alpha","smooth","normalize","group"}},

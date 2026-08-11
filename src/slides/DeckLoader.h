@@ -54,6 +54,15 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *       - image: figure.png
  *         at: fig
  *         scale: 0.5
+ *       - video: clip.mp4               # streamed from disk, one ffmpeg pipe
+ *         at: vid                       # decode_width caps the decode (the
+ *         decode_width: 960             # window width by default), loop and
+ *         autoplay: false               # autoplay default true, a click on
+ *         speed: 1                      # the clip plays or pauses it
+ *       - webcam: /dev/video0           # a live camera, opened when the slide
+ *         at: cam                       # is reached; width, height, fps and
+ *         width: 1280                   # input_format must be ones the device
+ *         height: 720                   # offers, it is told and not probed
  *       - shader: plasma.frag           # a single-pass fragment shader,
  *         at: fx                        # hot-reloaded like the deck itself;
  *         resolution: [900, 600]        # multi-pass / SSBOs stay in C++
