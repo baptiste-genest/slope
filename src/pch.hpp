@@ -53,13 +53,15 @@
 
 #include <iostream>
 #include <fstream>
-#include <sys/types.h>
 #include <iostream>
 #include <signal.h>
+#ifndef _WIN32
+#include <sys/types.h>
 #include <unistd.h>
+#endif
 
 #include "polyscope/screenshot.h"
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(_WIN32)
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #endif

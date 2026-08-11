@@ -45,3 +45,6 @@ src/content/Options.cpp
 *.app
 
 CMakeLists.txt.user
+
+# ImGui window-layout state, written next to wherever a slope binary runs
+imgui.ini

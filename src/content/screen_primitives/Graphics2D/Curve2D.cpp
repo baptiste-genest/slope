@@ -1,5 +1,6 @@
 #include "Curve2D.h"
 #include "../Options.h"
+#include <fmt/core.h>
 
 slope::Figure &slope::Figure::PlotFunction(scalar x1, scalar x2, const scalar_function &f, int N)
 {
@@ -31,15 +32,19 @@ slope::Figure::FigurePtr slope::Figure::Add(Figure& F,vec2 rel_size)
 
 
     if (!io::file_exists(filename)){
-        std::ofstream buffer("/tmp/buffer.svg");
-        buffer << content;
-        if (rel_size(0) > 0){
-        std::string size = std::to_string(int(rel_size(0)*1920))+"x"+std::to_string(int(rel_size(1)*1080));
-        system(("convert -background none -size "+size+ " /tmp/buffer.svg " + filename).c_str());
+        // "/tmp" does not exist on Windows, and a bare "convert" there
+        // resolves to System32's unrelated FAT-to-NTFS converter
+        std::error_code ec;
+        path svg = std::filesystem::temp_directory_path(ec) / "slope_buffer.svg";
+        {
+            std::ofstream buffer(svg);
+            buffer << content;
         }
-        else {
-            system(("convert -background none -density 300 /tmp/buffer.svg " + filename).c_str());
-        }
+        std::string geometry = rel_size(0) > 0
+            ? "-size " + std::to_string(int(rel_size(0)*1920)) + "x" + std::to_string(int(rel_size(1)*1080))
+            : "-density 300";
+        runCommand(fmt::format("\"{}\" -background none {} \"{}\" \"{}\"",
+                               Options::PathToCONVERT, geometry, svg.string(), filename));
     }
     return Image::Add(filename.c_str());
 

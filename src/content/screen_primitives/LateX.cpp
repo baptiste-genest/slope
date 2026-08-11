@@ -4,6 +4,7 @@
 #include <string>
 #include <fmt/core.h>
 #include <cstring>
+#include <cstdlib>
 //#include <format>
 
 slope::LatexPtr slope::Latex::Add(const TexObject &tex,scalar scale,int width)
@@ -106,7 +107,7 @@ void slope::Latex::AddFileToPrefix(const path &p)
     buffer << t.rdbuf();
     context += buffer.str();
 
-    ContextPart part{true, p, {}};
+    ContextPart part{true, p.string(), {}};
     try {
         part.last_modified = std::filesystem::last_write_time(fp);
     } catch (const std::exception&) {}
@@ -209,7 +210,18 @@ void slope::Latex::HotReloadPrefixIfModified()
     RegenerateAll();
 }
 
-static std::string quote(const std::string& s) {return "\"" + s + "\"";}
+static std::string quote(const std::string& s) {
+    std::string t = s;
+#ifdef _WIN32
+    // Options::CachePath carries a trailing separator, and a backslash
+    // immediately before the closing quote is read as escaping that quote by
+    // the argv parser MSVC-built programs (pdflatex.exe, convert.exe) use.
+    // A directory argument doesn't need the separator, so drop it.
+    while (!t.empty() && (t.back() == '\\' || t.back() == '/'))
+        t.pop_back();
+#endif
+    return "\"" + t + "\"";
+}
 
 // a border fixed in pixels makes the on-screen size of the very same formula
 // depend on the density (43% spread between 300 and 1200 dpi) : keep it at a
@@ -328,21 +340,24 @@ void slope::GenerateLatex(const path &filename,
                                         quote(Options::LogPath)
                                         );
 
-    if (std::system(latex_cmd.c_str())) {
-        spdlog::error("[error while generating latex] cmd fail {}",latex_cmd);
+    if (int rc = runCommand(latex_cmd)) {
+        spdlog::error("[error while generating latex] cmd fail (exit {}) {}",rc,latex_cmd);
         std::cerr << Tail(Options::LogPath,20) << std::endl;
         throw std::runtime_error("Fail to generate latex");
     }
 
-    std::string convert_cmd = fmt::format("{} -density {} -quality 100 -trim -border {} -bordercolor none {} -colorspace sRGB {} >> {} 2>&1",
+    // settings (-density/-quality) before the input, operators (-trim/-border)
+    // after it : ImageMagick 6 tolerates operators placed before the input,
+    // ImageMagick 7's `magick` does not, and this order is byte-identical on 6
+    std::string convert_cmd = fmt::format("{} -density {} -quality 100 {} -trim -bordercolor none -border {} -colorspace sRGB {} >> {} 2>&1",
                                           quote(Options::PathToCONVERT),
                                           Options::PDFtoPNGDensity,
-                                          borderPx(),
                                           quote(pdf_file.string()),
+                                          borderPx(),
                                           quote(filename.string()),
                                           quote(Options::LogPath)
                                           );
-    if (std::system(convert_cmd.c_str())) {
+    if (runCommand(convert_cmd)) {
         spdlog::error("[error while converting to png] cmd fail {}",convert_cmd);
         throw std::runtime_error("could not convert pdf to png");
     }
@@ -376,14 +391,15 @@ static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& g
         f << doc;
     }
 
-    bool ok = std::system(fmt::format("{} -interaction=nonstopmode -halt-on-error -no-shell-escape -output-directory={} {} >> {} 2>&1",
-                                      quote(Options::PathToPDFLATEX),quote(Options::CachePath),
-                                      quote(job + ".tex"),quote(Options::LogPath)).c_str()) == 0;
+    bool ok = runCommand(fmt::format("{} -interaction=nonstopmode -halt-on-error -no-shell-escape -output-directory={} {} >> {} 2>&1",
+                                     quote(Options::PathToPDFLATEX),quote(Options::CachePath),
+                                     quote(job + ".tex"),quote(Options::LogPath))) == 0;
     if (ok)
-        ok = std::system(fmt::format("{} -density {} -quality 100 -trim -border {} -bordercolor none {} -colorspace sRGB -scene 0 {} >> {} 2>&1",
-                                     quote(Options::PathToCONVERT),Options::PDFtoPNGDensity,borderPx(),
-                                     quote(job + ".pdf"),quote(job + "-%d.png"),
-                                     quote(Options::LogPath)).c_str()) == 0;
+        ok = runCommand(fmt::format("{} -density {} -quality 100 {} -trim -bordercolor none -border {} -colorspace sRGB -scene 0 {} >> {} 2>&1",
+                                    quote(Options::PathToCONVERT),Options::PDFtoPNGDensity,
+                                    quote(job + ".pdf"),borderPx(),
+                                    quote(job + "-%d.png"),
+                                    quote(Options::LogPath))) == 0;
 
     auto heights = ReadBaselineHeights(job + ".log");
     for (auto ext : {".tex",".pdf",".aux",".log"})

@@ -15,8 +15,10 @@ slope::ColorType slope::PaletteHandler::GetColorFromLabel(std::string label)
 }
 
 void slope::PaletteHandler::WriteToLabel(std::string label, glm::vec4 color, bool override) {
-    std::string command = fmt::format("mkdir {} 2>/dev/null",slope::Options::ProjectViewsPath);
-    system(command.c_str());
+    // std::filesystem rather than shelling out to mkdir : "2>/dev/null" is
+    // not valid cmd.exe syntax, and this needs no shell at all
+    std::error_code ec;
+    std::filesystem::create_directories(slope::Options::ProjectViewsPath, ec);
     std::string filepath = slope::Options::ProjectViewsPath + label + ".color";
     if (!override && std::filesystem::exists(filepath)) {
         return;

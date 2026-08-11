@@ -20,15 +20,23 @@
 #include <thread>
 #include <vector>
 
+#ifndef _WIN32
 #include <cerrno>
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#endif
 
 namespace slope {
 
 size_t Video::MemoryBudget = 96u << 20;
+
+// video playback pipes raw frames out of ffmpeg via fork()/pipe()/execvp() to
+// get a killable PID (see spawn() below), none of which exist on Windows; a
+// real port needs CreateProcess + anonymous pipes, so for now the primitive
+// simply reports itself unavailable there, the same as when ffmpeg is missing
+#ifndef _WIN32
 
 namespace {
 
@@ -786,5 +794,46 @@ void Video::logStats(const TimeObject& t)
                  shown_, queue_depth_, uploaded_, dropped_, discarded_, starves_, seeks_,
                  draw_fps);
 }
+
+#else // _WIN32
+
+VideoInfo probeVideo(const std::string&) { return VideoInfo{}; }
+
+// stream_/warm_ never hold anything on Windows, so this only needs to exist
+// as a complete type for their shared_ptr members to be destructible
+struct Video::Stream {};
+
+VideoPtr Video::Add(const std::string& file, int decode_width, bool loop, bool autoplay)
+{
+    std::string path = formatPath(file);
+    spdlog::error("[video] {} : video playback is not yet implemented on Windows, "
+                  "the slide will show nothing", path);
+    return NewPrimitive<Video>(path, VideoInfo{}, 0, 0, loop, autoplay);
+}
+
+Video::Video(const std::string& path, const VideoInfo& info,
+             int w, int h, bool loop, bool autoplay)
+    : path_(path), info_(info), w_(w), h_(h), loop_(loop),
+      autoplay_(autoplay), playing_(autoplay)
+{}
+
+Video::~Video() {}
+
+void Video::draw(const TimeObject&, const StateInSlide&)      {}
+void Video::playIntro(const TimeObject&, const StateInSlide&) {}
+void Video::playOutro(const TimeObject&, const StateInSlide&) {}
+
+Primitive::Size Video::getSize() const { return Size::Zero(); }
+
+void Video::forceDisable() {}
+
+std::vector<std::string> Video::inputArgs(int64_t) const { return {}; }
+int64_t Video::wantedFrame(const TimeObject&)             { return 0; }
+size_t  Video::queueLimit(size_t) const                   { return 2; }
+
+std::vector<unsigned char> Video::framePixels() const     { return {}; }
+bool Video::saveFrame(const std::string&) const            { return false; }
+
+#endif // _WIN32
 
 }

@@ -282,9 +282,14 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
 
     ImPlot::CreateContext();
 
-    GLFWwindow* win = glfwGetCurrentContext();
-    glfwSetWindowUserPointer(win, this);
-    glfwSetWindowCloseCallback(win, onWindowClose);
+    // a headless backend (EGL, picked automatically when there is no
+    // display, e.g. --export on a CI runner) never initializes GLFW at all,
+    // so touching the window here would crash rather than just no-op
+    if (!polyscope::render::engine->isHeadless()) {
+        GLFWwindow* win = glfwGetCurrentContext();
+        glfwSetWindowUserPointer(win, this);
+        glfwSetWindowCloseCallback(win, onWindowClose);
+    }
 }
 
 std::string slope::Slideshow::getSlideTitle(int i)
@@ -334,10 +339,21 @@ void slope::Slideshow::initializeSlides()
 }
 
 
+namespace {
+std::string quote(const std::string& s) { return "\"" + s + "\""; }
+}
+
 void slope::Slideshow::exportPDF()
 {
     if (!initialized)
         initializeSlides();
+
+    // a hardcoded /tmp is a POSIX-only assumption ; the platform temp dir is
+    // the portable equivalent (%TEMP% on Windows, /tmp on Linux/macOS)
+    const std::filesystem::path tmp_dir = std::filesystem::temp_directory_path();
+    auto slidePng = [&](int i) {
+        return tmp_dir / ("slope_export_slide_" + std::to_string(i) + ".png");
+    };
 
     const TimeTypeSec settle_time = 10;
 
@@ -372,18 +388,18 @@ void slope::Slideshow::exportPDF()
                 s->enable();
         }
         slides[i].setCam();
-        polyscope::screenshot("/tmp/slide_" + std::to_string(i) + ".png", opts);
+        polyscope::screenshot(slidePng(i).string(), opts);
     }
 
     polyscope::state::userCallback = nullptr;
 
     const std::string out = Options::ProjectPath + Options::ProjectName + ".pdf";
-    std::string cmd = "convert";
+    std::string cmd = quote(Options::PathToCONVERT);
     for (int i = 0; i < (int)slides.size(); i++)
-        cmd += " /tmp/slide_" + std::to_string(i) + ".png";
-    cmd += " " + out;
+        cmd += " " + quote(slidePng(i).string());
+    cmd += " " + quote(out);
     spdlog::info("generating PDF: {}", out);
-    if (std::system(cmd.c_str()) != 0)
+    if (runCommand(cmd) != 0)
         spdlog::error("PDF generation failed — ImageMagick `convert` returned non-zero");
     else
         spdlog::info("PDF saved to {}", out);
@@ -518,7 +534,9 @@ void slope::Slideshow::addKeyboardInputs()
             static int screenshot_count = 0;
             constexpr int nb_zeros = 6;
             auto n = std::to_string(screenshot_count++);
-            path file =  "/tmp/screenshot_" + std::string(nb_zeros-n.size(),'0') + n + ".png";
+            std::error_code ec;
+            path file = std::filesystem::temp_directory_path(ec)
+                        / ("screenshot_" + std::string(nb_zeros-n.size(),'0') + n + ".png");
             slope::screenshot(file.string());
             spdlog::info("screenshot saved at {}", file.string());
         },false);
@@ -545,6 +563,7 @@ void slope::Slideshow::addKeyboardInputs()
     input_manager.addInput("center vertically dragged primitive","V",ImGuiKey_V,false);
     input_manager.addInput("save dragged positions to disk","Ctrl+S");
     input_manager.addInput("undo last move","Ctrl+Z");
+    input_manager.addInput("select/drag a primitive, click again on the same spot to cycle through overlapping ones","Ctrl+click");
     input_manager.addInput("toggle primitives in a group selection, hold left click to move them together","Ctrl+Shift+click");
 }
 

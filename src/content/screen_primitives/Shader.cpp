@@ -15,12 +15,45 @@
 #include <set>
 #include "../../extern/stb_image.h"
 
+#if !defined(__APPLE__) && !defined(_WIN32)
+#include <dlfcn.h>
+#endif
+
 namespace slope {
 
 // Minimal, self-contained GL loader : rather than depend on whether glad is on
 // the include path, we resolve the handful of entry points we need through
 // glfwGetProcAddress (GLFW is already initialised by polyscope by then).
 namespace {
+
+#if !defined(__APPLE__) && !defined(_WIN32)
+// polyscope's headless EGL backend (Linux only, auto-selected when there is
+// no display, e.g. --export on a CI runner) never initializes GLFW, so
+// glfwGetProcAddress can't resolve anything there. Fall back to the same
+// two-step its own glad-based loader uses in that case (see
+// gl_engine_egl.cpp): dlsym straight off libGL first, then eglGetProcAddress
+// for anything not directly exported. Both libraries are dlopen'd at
+// runtime rather than linked, so this adds no new build dependency.
+void* linuxHeadlessProcAddress(const char* name)
+{
+    static void* gl_handle = [] () -> void* {
+        void* h = dlopen("libGL.so.1", RTLD_LAZY | RTLD_GLOBAL);
+        if (!h) h = dlopen("libGL.so", RTLD_LAZY | RTLD_GLOBAL);
+        return h;
+    }();
+    static void* (*egl_get_proc_address)(const char*) = [] () -> void* (*)(const char*) {
+        void* h = dlopen("libEGL.so.1", RTLD_LAZY);
+        if (!h) h = dlopen("libEGL.so", RTLD_LAZY);
+        if (!h) return nullptr;
+        return reinterpret_cast<void* (*)(const char*)>(dlsym(h, "eglGetProcAddress"));
+    }();
+
+    if (gl_handle)
+        if (void* p = dlsym(gl_handle, name))
+            return p;
+    return egl_get_proc_address ? reinterpret_cast<void*>(egl_get_proc_address(name)) : nullptr;
+}
+#endif
 
 // GL types (identical redefinitions are harmless if a gl.h is already included)
 typedef unsigned int SLGLenum;
@@ -156,7 +189,12 @@ struct GL {
 template<class Fn>
 bool loadOne(Fn& slot, const char* name, bool required)
 {
-    slot = reinterpret_cast<Fn>(glfwGetProcAddress(name));
+#if !defined(__APPLE__) && !defined(_WIN32)
+    if (polyscope::render::engine && polyscope::render::engine->isHeadless())
+        slot = reinterpret_cast<Fn>(linuxHeadlessProcAddress(name));
+    else
+#endif
+        slot = reinterpret_cast<Fn>(glfwGetProcAddress(name));
     if (!slot && required)
         spdlog::error("[shader] could not resolve GL entry point {}", name);
     return slot != nullptr;

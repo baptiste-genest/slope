@@ -7,6 +7,7 @@ std::vector<slope::Image> slope::Image::images;
 #include "../../extern/stb_image.h"
 
 #include <spdlog/spdlog.h>
+#include <fmt/core.h>
 
 slope::Image::ImagePtr slope::Image::Add(std::string file,scalar scale)
 {
@@ -37,13 +38,15 @@ slope::Primitive::Size slope::Image::getScaledSize(const ImageData &data, scalar
 
 slope::ImageData slope::loadImage(path file)
 {
-    auto filename = file.c_str();
+    // path::c_str() is wchar_t* on Windows, not char* ; stbi_load and the
+    // error message below both need the portable, always-UTF-8 std::string
+    std::string filename = file.string();
     int w,h;
     // Load from file
-    unsigned char* image_data = stbi_load(filename, &w, &h, NULL, 4);
+    unsigned char* image_data = stbi_load(filename.c_str(), &w, &h, NULL, 4);
     if (image_data == NULL){
         spdlog::error("[image] couldn't load image {}", filename);
-        throw std::runtime_error("could not load image " + std::string(filename));
+        throw std::runtime_error("could not load image " + filename);
     }
 
     ImageData data;
@@ -242,14 +245,21 @@ slope::Primitive::Size slope::Gif::getSize() const {
 
 std::vector<slope::ImageData> slope::loadGif(path filename)
 {
-    auto H = std::to_string(std::hash<std::string>{}(filename));
+    auto H = std::to_string(std::hash<std::string>{}(filename.string()));
     std::vector<slope::ImageData> data;
     std::string folder = slope::Options::CachePath + H;
     if (!io::folder_exists(folder) || Options::ignore_cache){
         spdlog::info("Decomposing gif " + filename.string());
-        system(("rm -rf " + folder + " 2> /dev/null").data());
-        system(("mkdir " + folder).data());
-        system(("convert "+filename.string()+" -coalesce " + folder + "/gif_%05d.png").data());
+        // std::filesystem instead of rm/mkdir (neither behaves like this on
+        // Windows), and the configured ImageMagick rather than a bare
+        // "convert", which on Windows resolves to System32's unrelated
+        // FAT-to-NTFS converter
+        std::error_code ec;
+        std::filesystem::remove_all(folder, ec);
+        std::filesystem::create_directories(folder, ec);
+        runCommand(fmt::format("\"{}\" \"{}\" -coalesce \"{}\"",
+                               Options::PathToCONVERT, filename.string(),
+                               (path(folder) / "gif_%05d.png").string()));
     }
     auto images = io::list_directory(folder);
     for (auto& f : images){

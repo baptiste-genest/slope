@@ -4,6 +4,7 @@
 
 #ifdef __APPLE__
 #include <string>
+#include <spdlog/spdlog.h>
 #else
 #include "../pch.hpp"
 #endif //__APPLE__

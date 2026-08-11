@@ -2,6 +2,15 @@
 #define IMAGE_H
 
 #include "ScreenPrimitive.h"
+// this file uses GL_CLAMP_TO_EDGE (1.2+) : the Windows SDK's own gl.h is
+// stuck at 1.1, and GLFW falls back to it unless a modern header is already
+// included first (glad on Windows/Linux, the native framework on macOS,
+// same as Prompter.cpp/Shader.cpp)
+#ifdef __APPLE__
+#include <OpenGL/gl3.h>
+#else
+#include "glad/glad.h"
+#endif
 #include "GLFW/glfw3.h"
 #include "../../math/kernels.h"
 #include "../../math/geometry.h"

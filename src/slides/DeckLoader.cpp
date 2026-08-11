@@ -146,7 +146,7 @@ void DeckLoader::parse()
     if (!io::file_exists(source_path))
         throw std::runtime_error("did not find deck file " + source_path.string());
     try {
-        source = yamlToJson(YAML::LoadFile(source_path));
+        source = yamlToJson(YAML::LoadFile(source_path.string()));
     } catch (const YAML::Exception& e) {
         throw std::runtime_error("invalid yaml in deck file " + source_path.string()
                                  + " : " + e.what());

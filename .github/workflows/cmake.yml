@@ -1,14 +1,11 @@
-name: CI (linux/macOS)
+name: CI
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
-
-env:
-  # if needed
-  CONFIG_GLOBAL:
-  CONFIG_LINUX:
-  CONFIG_MAC:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -16,51 +13,83 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macOS-latest]
-        BUILD_TYPE: [Debug,Release]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        build_type: [Debug, Release]
 
     steps:
-     - uses: actions/checkout@v3
-       with:
-          fetch-depth: 10
+      - uses: actions/checkout@v4
 
-     - name: Install linux deps
-       if: matrix.os == 'ubuntu-latest'
-       run: |
-           sudo apt-get update
-           sudo apt-get install xorg-dev libglu1-mesa-dev libeigen3-dev texlive
+      - name: Install LaTeX (pdflatex)
+        uses: TeX-Live/setup-texlive-action@v4
+        with:
+          # scheme-basic plus every package TexPreamble() (src/content/screen_primitives/LateX.cpp) pulls in
+          packages: |
+            scheme-basic
+            preview
+            varwidth
+            amsmath
+            amsfonts
+            xcolor
+            url
+            aligned-overset
+            mathtools
+            ragged2e
+            booktabs
 
-     - name: Install macOS deps
-       if: matrix.os == 'macOS-latest'
-       run: |
-            brew install eigen
-            brew install --cask mactex-no-gui
-            eval "$(/usr/libexec/path_helper)"
+      - name: Install Linux deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xorg-dev libglu1-mesa-dev libgl1-mesa-dev libegl-dev libgl1-mesa-dri imagemagick
+          # some distros ship ImageMagick with PDF reading disabled by default
+          # (a Ghostscript CVE mitigation); GenerateLatex() converts a pdflatex
+          # output to png, so 'convert' needs it explicitly re-enabled
+          sudo sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
 
-     - name: Create Build Environment
-       run: cmake -E make_directory ${{runner.workspace}}/build
+      - name: Install macOS deps
+        if: runner.os == 'macOS'
+        # ghostscript is imagemagick's PDF delegate ; homebrew doesn't pull
+        # it in automatically, and without it `convert` can't rasterize the
+        # PDFs GenerateLatex() produces
+        run: brew install imagemagick ghostscript
 
-     - name: Configure CMake (linux)
-       if: matrix.os == 'ubuntu-latest'
-       shell: bash
-       working-directory: ${{runner.workspace}}/build
-       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{ matrix.BUILD_TYPE }} $CONFIG_GLOBAL $CONFIG_LINUX
+      - name: Install Windows deps
+        if: runner.os == 'Windows'
+        shell: bash
+        # ghostscript is imagemagick's PDF delegate on every platform, and
+        # isn't pulled in automatically (same as the macOS step above)
+        run: |
+          choco install imagemagick ghostscript -y
+          # some ImageMagick builds ship policy.xml with PDF reading disabled
+          # (a Ghostscript CVE mitigation), which would fail the pdf->png step
+          # exactly as it did on Linux ; relax it wherever it turns up
+          find "/c/Program Files" -name policy.xml -path '*ImageMagick*' 2>/dev/null | while read -r p; do
+            sed -i 's/rights="none" pattern="PDF"/rights="read|write" pattern="PDF"/' "$p" || true
+          done || true
 
-     - name: Configure CMake (macOS)
-       if: matrix.os == 'macOS-latest'
-       shell: bash
-       working-directory: ${{runner.workspace}}/build
-       run: cmake $GITHUB_WORKSPACE -DCMAKE_BUILD_TYPE=${{ matrix.BUILD_TYPE }}  $CONFIG_GLOBAL $CONFIG_MAC
+      - name: Cache CPM sources
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.workspace }}/cpm-cache
+          key: cpm-${{ runner.os }}-${{ hashFiles('cmake/*.cmake') }}
+          restore-keys: |
+            cpm-${{ runner.os }}-
 
-     - name: Build
-       working-directory: ${{runner.workspace}}/build
-       shell: bash
-       run: cmake --build . --config ${{ matrix.BUILD_TYPE }} --parallel 3
+      - name: Configure CMake
+        shell: bash
+        env:
+          CPM_SOURCE_CACHE: ${{ runner.workspace }}/cpm-cache
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBUILD_SLOPE_TESTS=ON
 
-     - name: Test
-       working-directory: ${{runner.workspace}}/build
-       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
-       shell: bash
-       run: |
-           echo ctest -C ${{ matrix.BUILD_TYPE }}  --output-on-failure
-           ctest -C $${{ matrix.BUILD_TYPE }}  --output-on-failure
+      - name: Build
+        shell: bash
+        env:
+          CPM_SOURCE_CACHE: ${{ runner.workspace }}/cpm-cache
+        # capped rather than left to the runner's core count: an unbounded
+        # -j on a Debug build of polyscope/Eigen-heavy translation units has
+        # been observed to exhaust a standard runner's RAM and get SIGTERM'd
+        run: cmake --build build --config ${{ matrix.build_type }} --parallel 2
+
+      - name: Test
+        shell: bash
+        run: ctest --test-dir build --build-config ${{ matrix.build_type }} --output-on-failure

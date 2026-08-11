@@ -5,6 +5,11 @@ void slope::screenshot(std::string file)
 {
   spdlog::error("not implemented yet for APPLE");
 }
+#elif defined(_WIN32)
+void slope::screenshot(std::string file)
+{
+  spdlog::error("not implemented yet for Windows");
+}
 #else
 
 // returns None if there is no focused window
