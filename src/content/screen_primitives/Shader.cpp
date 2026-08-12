@@ -239,7 +239,7 @@ GL& gl()
     L(DeleteBuffers,"glDeleteBuffers");
     // 4.3, like the SSBOs it is for : absent on an older context, and
     // clearBufferData() simply does nothing there
-    L(ClearBufferData,"glClearBufferData");
+    LO(ClearBufferData,"glClearBufferData");
     LO(MemoryBarrier,"glMemoryBarrier");   // GL 4.2 : absent on a 3.3/4.1 context
 #undef LO
 #undef L
