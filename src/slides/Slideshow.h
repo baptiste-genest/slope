@@ -52,10 +52,9 @@ public:
 
     bool helpWanted() const {return help_wanted;}
 
-    // rebuilds the slide structure at runtime : disables what is currently
-    // shown (plus the given stale primitives), clears the slides and re-runs
-    // the composer, then restores the playback position. Primitives
-    // themselves are untouched, so a composer reusing them keeps their state.
+    // rebuilds the slide structure at runtime. Disables what is shown and the
+    // given stale primitives, clears the slides, re-runs the composer and
+    // restores the playback position. The primitives themselves are untouched.
     void recompose(const std::function<void(SlideManager&)>& composer,
                    const std::set<PrimitivePtr>& stale = {});
 
@@ -71,9 +70,17 @@ private:
     HUD hud;
 
     void setInnerTime();
+    // How far the slide change has got, 0 to 1, the deck wide reading of what
+    // renderSlide hands each primitive. 1 whenever nothing is in transition.
+    parameter transitionProgress(TimeTypeSec t) const;
+    // records when the current slide was first reached and forgets the ones
+    // after it, so secondsSinceKeyframe restarts when the show is rewound
+    void noteSlideArrival();
+    std::map<int, TimeTypeSec> slide_times;
     void prompt();
     void handleTransition();
 
+    // called once per frame, so every primitive shares the same delta
     inline TimeObject getTimeObject() const {
         TimeObject T;
         T.from_begin = TimeFrom(from_begin);
@@ -82,6 +89,7 @@ private:
         T.delta_time = TimeFrom(last_frame);
         last_frame = Time::now();
         TimeObject::keyframes = &keyframes;
+        TimeObject::slide_times = &slide_times;
         return T;
     }
 
@@ -110,6 +118,7 @@ private:
     void handleGuizmos();
 
     bool inGizmoMode() const;
+
 
     void displayPopUps();
 

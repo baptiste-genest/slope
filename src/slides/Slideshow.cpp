@@ -6,7 +6,9 @@
 #include "content/color_tools.h"
 #include "content/polyscope_primitives/BackgroundColor.h"
 #include "content/Params.h"
+#include "content/Snippet.h"
 #include "ImGuizmo.h"
+#include <spdlog/spdlog.h>
 
 // X11 comes in through GLFW and defines None, which eats TransparencyMode::None
 #ifdef None
@@ -80,7 +82,11 @@ void slope::Slideshow::play() {
     auto t = TimeFrom(state.from_action);
     auto& CS = slides[state.current];
     setInnerTime();
+    noteSlideArrival();
     TimeObject T = getTimeObject();
+    TimeObject ST = T;
+    ST.transition_parameter = transitionProgress(t);
+    Snippet::setTime(ST);
 
     // Depth peeling costs a full scene pass per layer, and alpha only drops
     // during transitions. Dropping it here lets polyscope turn it back on by
@@ -108,6 +114,7 @@ void slope::Slideshow::play() {
     Latex::HotReloadPrefixIfModified();
     Params::HotReloadIfModified();
     Shader::HotReloadIfModified();
+    Snippet::HotReloadIfModified();
 
     if (onFrame)
         onFrame();
@@ -169,6 +176,23 @@ void slope::Slideshow::renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T)
             state.settle();
         }
     }
+}
+
+void slope::Slideshow::noteSlideArrival()
+{
+    slide_times.emplace(state.current, TimeFrom(from_begin));
+    // anything past the current slide has been left, so a second visit is a
+    // fresh arrival rather than the original one
+    slide_times.erase(slide_times.upper_bound(state.current), slide_times.end());
+}
+
+slope::parameter slope::Slideshow::transitionProgress(TimeTypeSec t) const
+{
+    if (state.backward || !state.locked)
+        return 1;
+    if (state.current > 0)
+        return t < 2*transitionTime ? std::min<parameter>(1, 0.5*t/transitionTime) : 1;
+    return t < transitionTime ? parameter(t/transitionTime) : 1;
 }
 
 void slope::Slideshow::setInnerTime()
@@ -319,8 +343,6 @@ void slope::Slideshow::run()
             play();
         };
         polyscope::show();
-        // the session is only ever saved through the quit-confirmation popup, so
-        // that closing the app never silently overwrites the previous run
     } else {
         exportPDF();
     }
@@ -361,7 +383,14 @@ void slope::Slideshow::exportPDF()
             s.first->settleInnerTime(settle_time);
         state.from_action = Time::now()
             - std::chrono::duration_cast<TimeStamp::duration>(DurationSec(settle_time));
+        noteSlideArrival();
+        // An export runs the whole show in milliseconds, so a keyframe reached
+        // two slides ago is only milliseconds old and an ease built on it would
+        // render mid flight. Back date every arrival, as from_action is.
+        for (auto& [slide, when] : slide_times)
+            when = TimeFrom(from_begin) - settle_time;
         TimeObject T = getTimeObject();
+        Snippet::setTime(T);
         auto& CS = slides[state.current];
         polyscope::options::transparencyMode = polyscope::TransparencyMode::None;
         for (auto& s : CS.getDepthSorted())
@@ -397,7 +426,7 @@ void slope::Slideshow::exportPDF()
     cmd += " " + quote(out);
     spdlog::info("generating PDF: {}", out);
     if (runCommand(cmd) != 0)
-        spdlog::error("PDF generation failed — ImageMagick `convert` returned non-zero");
+        spdlog::error("PDF generation failed, ImageMagick `convert` returned non-zero");
     else
         spdlog::info("PDF saved to {}", out);
 }
