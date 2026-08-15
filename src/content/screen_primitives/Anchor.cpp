@@ -1,10 +1,11 @@
 #include "Anchor.h"
+#include <spdlog/spdlog.h>
 
 namespace slope {
 
 AnchorPtr GlobalAnchor = AbsoluteAnchor::Add(vec2(0,0));
 
-void LabelAnchor::writeAtLabel(double x, double y,scalar s, bool overwrite) const
+void LabelAnchor::writeAtLabel(const AnchorState& s, bool overwrite) const
 {
     std::error_code ec;
     std::filesystem::create_directories(slope::Options::ProjectViewsPath, ec);
@@ -18,14 +19,14 @@ void LabelAnchor::writeAtLabel(double x, double y,scalar s, bool overwrite) cons
             spdlog::error("could not open file {}",filepath);
             throw std::runtime_error("could not open file");
         }
-        file << x << " " << y << " " << s << std::endl;
+        file << s.x << " " << s.y << " " << s.scale
+             << " " << s.angle << " " << s.alpha << std::endl;
     }
 }
 
 void LabelAnchor::reportLabelIssues()
 {
-    // anchors whose .pos had to be created : on a run where no new content was
-    // added, these are almost always a mistyped label name
+    // anchors whose .pos had to be created, almost always a mistyped label
     if (!created_labels.empty()) {
         std::string list;
         for (const auto& l : created_labels)
@@ -66,14 +67,14 @@ void LabelAnchor::reportLabelIssues()
     }
 }
 
-void LabelAnchor::writeToSession(double x, double y, scalar scale) const
+void LabelAnchor::writeToSession(const AnchorState& s) const
 {
-    writeToSessionAt(label, x, y, scale);
+    writeToSessionAt(label, s);
 }
 
-void LabelAnchor::writeToSessionAt(const std::string& label, double x, double y, scalar scale)
+void LabelAnchor::writeToSessionAt(const std::string& label, const AnchorState& s)
 {
-    session_cache[label] = {x, y, scale};
+    session_cache[label] = s;
     dirty_labels.insert(label);
 }
 
@@ -94,7 +95,8 @@ void LabelAnchor::saveAllDirty()
             unsaved.insert(lbl);
             continue;
         }
-        file << v[0] << " " << v[1] << " " << v[2] << std::endl;
+        file << v.x << " " << v.y << " " << v.scale
+             << " " << v.angle << " " << v.alpha << std::endl;
     }
     dirty_labels = std::move(unsaved);
     if (dirty_labels.empty())
@@ -108,41 +110,37 @@ bool LabelAnchor::hasDirty()
     return !dirty_labels.empty();
 }
 
-vec LabelAnchor::readFromLabel() const
+AnchorState LabelAnchor::readFromLabel() const
 {
     auto it = session_cache.find(label);
-    if (it != session_cache.end()) {
-        vec rslt;
-        rslt(0) = it->second[0];
-        rslt(1) = it->second[1];
-        rslt(2) = it->second[2];
-        return rslt;
-    }
+    if (it != session_cache.end())
+        return it->second;
 
     // this runs from getPos()/getScale(), i.e. several times per primitive per
-    // frame : whatever we resolve here must land in the cache, or every frame
-    // re-opens the file
-    vec rslt;
+    // frame, so whatever we resolve here must land in the cache
+    AnchorState rslt;
     std::ifstream file (slope::Options::ProjectViewsPath + label + ".pos");
-    if (!file.is_open() || !(file >> rslt(0) >> rslt(1))) {
+    if (!file.is_open() || !(file >> rslt.x >> rslt.y)) {
         // the file is normally created by the constructor ; if it went missing
         // or is truncated, fall back to the same defaults rather than killing
         // the presentation mid-render
         spdlog::error("could not read position of label '{}', using defaults", label);
         unreadable_labels.insert(label);
-        rslt(0) = 0.5;
-        rslt(1) = 0.5;
-        rslt(2) = 1;
-        session_cache[label] = {rslt(0), rslt(1), rslt(2)};
+        rslt = AnchorState{};
+        session_cache[label] = rslt;
         return rslt;
     }
 
-    // check if can read scale
-    if (!(file >> rslt(2))){
-        rslt(2) = 1;
-    }
+    // every trailing field is optional, so a .pos written before it existed
+    // keeps loading with that field at its default
+    if (!(file >> rslt.scale))
+        rslt.scale = 1;
+    if (!(file >> rslt.angle))
+        rslt.angle = 0;
+    if (!(file >> rslt.alpha))
+        rslt.alpha = 1;
 
-    session_cache[label] = {rslt(0), rslt(1), rslt(2)};
+    session_cache[label] = rslt;
     return rslt;
 }
 

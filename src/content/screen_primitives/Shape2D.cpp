@@ -24,8 +24,8 @@ static std::pair<ImVec2, ImVec2> strokePolylinePrefix(
         return {};
 
     if (t >= 1) {
-        // the closed flag adds the closing segment itself : a duplicated
-        // first point would degenerate the join at the starting corner
+        // the closed flag adds the closing segment, a duplicated first point
+        // would degenerate the join at the starting corner
         int n = px.size();
         if (closed && n > 2 && px.front().x == px.back().x
                             && px.front().y == px.back().y)
@@ -149,8 +149,8 @@ void Shape2D::draw(const TimeObject&, const StateInSlide& sis)
     auto px = toPixels(sis);
     if (style.filled && px.size() >= 3)
         ImGui::GetWindowDrawList()->AddConvexPolyFilled(
-            px.data(), px.size(), withAlpha(style.fill_color, sis.alpha));
-    strokePolylinePrefix(px, 1, withAlpha(style.color, sis.alpha),
+            px.data(), px.size(), withAlpha(style.fill_color, sis.getAlpha()));
+    strokePolylinePrefix(px, 1, withAlpha(style.color, sis.getAlpha()),
                          pixelThickness(style.thickness), closed);
 }
 
@@ -160,8 +160,8 @@ void Shape2D::playIntro(const TimeObject& t, const StateInSlide& sis)
     auto px = toPixels(sis);
     if (style.filled && u >= 1 && px.size() >= 3)
         ImGui::GetWindowDrawList()->AddConvexPolyFilled(
-            px.data(), px.size(), withAlpha(style.fill_color, sis.alpha));
-    strokePolylinePrefix(px, u, withAlpha(style.color, sis.alpha),
+            px.data(), px.size(), withAlpha(style.fill_color, sis.getAlpha()));
+    strokePolylinePrefix(px, u, withAlpha(style.color, sis.getAlpha()),
                          pixelThickness(style.thickness), false);
 }
 
@@ -248,17 +248,17 @@ vec2 Box2D::getSize() const
 
 void Box2D::draw(const TimeObject&, const StateInSlide& sis)
 {
-    drawBox(1, sis.alpha);
+    drawBox(1, sis.getAlpha());
 }
 
 void Box2D::playIntro(const TimeObject& t, const StateInSlide& sis)
 {
-    drawBox(t.transition_parameter, sis.alpha);
+    drawBox(t.transition_parameter, sis.getAlpha());
 }
 
 void Box2D::playOutro(const TimeObject&, const StateInSlide& sis)
 {
-    drawBox(1, sis.alpha);
+    drawBox(1, sis.getAlpha());
 }
 
 // ---------------------------------------------------------------- Arrow2D
@@ -384,17 +384,17 @@ vec2 Arrow2D::getSize() const
 
 void Arrow2D::draw(const TimeObject&, const StateInSlide& sis)
 {
-    drawArrow(1, sis.alpha);
+    drawArrow(1, sis.getAlpha());
 }
 
 void Arrow2D::playIntro(const TimeObject& t, const StateInSlide& sis)
 {
-    drawArrow(t.transition_parameter, sis.alpha);
+    drawArrow(t.transition_parameter, sis.getAlpha());
 }
 
 void Arrow2D::playOutro(const TimeObject&, const StateInSlide& sis)
 {
-    drawArrow(1, sis.alpha);
+    drawArrow(1, sis.getAlpha());
 }
 
 }

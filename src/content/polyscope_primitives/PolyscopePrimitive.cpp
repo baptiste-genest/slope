@@ -25,17 +25,17 @@ slope::PrimitiveInSlide slope::PolyscopePrimitive::at(scalar alpha) {
 }
 
 void slope::PolyscopePrimitive::draw(const TimeObject &t, const StateInSlide &sis) {
-    polyscope_ptr->setTransparency(sis.alpha);
+    polyscope_ptr->setTransparency(sis.getAlpha());
     polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
 }
 
 void slope::PolyscopePrimitive::playIntro(const TimeObject &t, const StateInSlide &sis) {
-    polyscope_ptr->setTransparency(sis.alpha);
+    polyscope_ptr->setTransparency(sis.getAlpha());
     polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
 }
 
 void slope::PolyscopePrimitive::playOutro(const TimeObject &t, const StateInSlide &sis) {
-    polyscope_ptr->setTransparency(sis.alpha);
+    polyscope_ptr->setTransparency(sis.getAlpha());
     polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
 }
 

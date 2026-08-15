@@ -22,16 +22,14 @@ void Text::display(const StateInSlide &sis) const
     ImGui::SetWindowFontScale(kFontScale);
 
     // CalcTextSize reports the unscaled size, so the centring offset has to use
-    // the same factor the text is actually drawn at. It used to use 2 against a
-    // scale of 1.5, which shifted every string left by a quarter of its width —
-    // invisible on a short label, obvious on a sentence.
+    // the factor the text is actually drawn at
     auto size = ImGui::CalcTextSize(content.c_str());
     size.x *= kFontScale;
     size.y *= kFontScale;
 
     ImGuiStyle* style = &ImGui::GetStyle();
     auto old = style->Colors[ImGuiCol_Text];
-    style->Colors[ImGuiCol_Text] = RGBA(ImVec4(0,0, 0, sis.alpha));
+    style->Colors[ImGuiCol_Text] = RGBA(ImVec4(0,0, 0, sis.getAlpha()));
     auto S = ImGui::GetWindowSize();
 
     auto P = sis.getAbsolutePosition();
@@ -66,8 +64,7 @@ void Text::playOutro(const TimeObject&, const StateInSlide &sis)
 
 Primitive::Size Text::getSize() const
 {
-    // must agree with display() : this is what the drag editor's hit box and
-    // any relative placement are computed from
+    // must agree with display(), the hit box and relative placement use it
     auto size = ImGui::CalcTextSize(content.c_str());
     return Size(size.x * kFontScale, size.y * kFontScale);
 }

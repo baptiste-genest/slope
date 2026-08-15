@@ -47,7 +47,7 @@ void slope::Plot::display(const TimeObject &t, const StateInSlide &sis)
     ImGui::SetNextWindowPos(ap);
     ImGui::SetNextWindowSize(ImVec2(500,300));
 
-    ImGui::GetStyle().Alpha = sis.alpha;
+    ImGui::GetStyle().Alpha = sis.getAlpha();
     ImPlot::GetStyle().MinorAlpha = 0;
 
     ImGui::Begin(("test" + std::to_string(id)).c_str(),0,flags);

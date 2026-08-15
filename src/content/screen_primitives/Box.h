@@ -41,13 +41,13 @@ protected:
     vec2 size;
 
     virtual void draw(const TimeObject &time, const StateInSlide &sis) override {
-        drawBox(sis.getPosition(),size,color,roundness,sis.alpha);
+        drawBox(sis.getPosition(),size,color,roundness,sis.getAlpha());
     }
     virtual void playIntro(const TimeObject &t, const StateInSlide &sis) override {
-        drawBox(sis.getPosition(),size,color,roundness,sis.alpha);
+        drawBox(sis.getPosition(),size,color,roundness,sis.getAlpha());
     }
     virtual void playOutro(const TimeObject &t, const StateInSlide &sis) override {
-        drawBox(sis.getPosition(),size,color,roundness,sis.alpha);
+        drawBox(sis.getPosition(),size,color,roundness,sis.getAlpha());
     }
 
     // ScreenPrimitive interface
@@ -110,15 +110,15 @@ public:
 protected:
     virtual void draw(const TimeObject &time, const StateInSlide &sis) override {
         auto E = ComputeEnglobing(primitivesInside);
-        drawBox(E.pos,E.bbox,color,roundness,sis.alpha);
+        drawBox(E.pos,E.bbox,color,roundness,sis.getAlpha());
     }
     virtual void playIntro(const TimeObject &t, const StateInSlide &sis) override {
         auto E = ComputeEnglobing(primitivesInside);
-        drawBox(E.pos,E.bbox,color,roundness,sis.alpha);
+        drawBox(E.pos,E.bbox,color,roundness,sis.getAlpha());
     }
     virtual void playOutro(const TimeObject &t, const StateInSlide &sis) override {
         auto E = ComputeEnglobing(primitivesInside);
-        drawBox(E.pos,E.bbox,color,roundness,sis.alpha);
+        drawBox(E.pos,E.bbox,color,roundness,sis.getAlpha());
     }
 };
 

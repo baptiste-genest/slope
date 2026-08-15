@@ -1,5 +1,6 @@
 #include "SlideManager.h"
 #include "spdlog/spdlog.h"
+#include <spdlog/spdlog.h>
 
 slope::SlideManager::TransitionSets slope::SlideManager::computeTransitionsBetween(const Slide &A, const Slide &B)
 {
@@ -212,9 +213,8 @@ slope::SlideManager &slope::operator<<(SlideManager &SM, SlideManager::new_frame
 slope::SlideManager &slope::operator<<(SlideManager &SM, const Replace &R) {
     PrimitivePtr target = R.ptr_other ? R.ptr_other : SM.getLastScreenPrimitive();
     // Slide is a std::map, so indexing it with a primitive that is not on the
-    // current slide would default-insert a blank StateInSlide : the replacement
-    // would silently land at the origin instead of where the target was, and
-    // the slide would gain a phantom entry. Say so instead.
+    // current slide would default-insert a blank StateInSlide, landing the
+    // replacement at the origin and leaving a phantom entry. Say so instead.
     auto& slide = SM.getLastSlide();
     auto it = slide.find(target);
     if (it == slide.end()) {
@@ -266,9 +266,11 @@ slope::StateInSlide slope::transition(parameter t, const StateInSlide &sa, const
 
     t = smoothstep(t);
 
+    // St carries no label, so both ends must be resolved before blending or the
+    // edited placement would drop out for the length of the transition
     St.setOffset(lerp(sa.getPosition(),sb.getPosition(),t));
-    St.alpha = std::lerp(sa.alpha,sb.alpha,t);
-    St.angle = std::lerp(sa.angle,sb.angle,t);
+    St.alpha = std::lerp(sa.getAlpha(),sb.getAlpha(),t);
+    St.angle = std::lerp(sa.getAngle(),sb.getAngle(),t);
     St.LocalToWorld = Transform::Interpolate(sa.getLocalToWorld(),sb.getLocalToWorld(),t);
     St.scale = std::lerp(sa.getScale(),sb.getScale(),t);
     return St;

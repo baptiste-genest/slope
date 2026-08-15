@@ -76,6 +76,20 @@ struct StateInSlide {
         return scale;
     }
 
+    // rotations add up where scales multiply
+    scalar getAngle() const {
+        if (anchor->isPersistent())
+            return anchor->getAngle() + angle;
+        return angle;
+    }
+
+    // at("label",0.5) already means half opacity, so the edited value scales it
+    scalar getAlpha() const {
+        if (anchor->isPersistent())
+            return anchor->getAlpha() * alpha;
+        return alpha;
+    }
+
     ImVec2 getAbsolutePosition() const {
         vec2 P = getPosition();
         auto W = ImGui::GetWindowSize();

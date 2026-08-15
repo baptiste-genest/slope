@@ -6,15 +6,15 @@
 namespace slope {
 
 /*
- * Live 2D vector graphics, drawn every frame through ImGui's draw list :
- * resolution independent, animatable (updaters can move control points),
+ * Live 2D vector graphics, drawn every frame through ImGui's draw list, so
+ * resolution independent and animatable (updaters can move control points),
  * with a draw-on intro (the stroke grows along its arc length).
  *
  * Static shapes (Line, Polyline, Bezier, Circle, Rect) store their geometry
  * as offsets around their anchor, so they are placed, dragged and
  * transitioned like any other screen primitive.
  *
- * Arrow2D is a connector : its endpoints are resolved every frame, either
+ * Arrow2D is a connector whose endpoints are resolved every frame, either
  * fixed positions, persistent labels, or other screen primitives (attached
  * at their bounding box boundary), so arrows follow drag edits and moving
  * targets.
@@ -63,9 +63,8 @@ protected:
 class Box2D;
 using Box2DPtr = std::shared_ptr<Box2D>;
 
-// a rectangle englobing its targets : the union of their bounding boxes
-// (plus padding) is recomputed every frame, so the box follows drag edits
-// and moving content
+// a rectangle englobing its targets, the union of their bounding boxes plus
+// padding, recomputed every frame so it follows drag edits
 class Box2D : public ScreenPrimitive
 {
 public:
@@ -92,8 +91,7 @@ public:
     }
 
     // replaces the englobed primitives; like any primitive, the box is
-    // drawn at its insertion rank in the slide : add it before its targets
-    // to frame them, after to cover them
+    // drawn at its insertion rank, so add it before its targets to frame them
     void setTargets(const std::vector<ScreenPrimitivePtr>& t);
 
     vec2 getSize() const override;
@@ -117,7 +115,7 @@ class Arrow2D : public ScreenPrimitive
 {
 public:
     ShapeStyle style;
-    scalar bend = 0;        // curvature : offset of the control point,
+    scalar bend = 0;        // curvature, offset of the control point,
                             // as a fraction of the endpoint distance
     scalar head = 0.015;    // arrowhead size, relative units
     scalar margin = 0.01;   // gap kept between an endpoint and its target

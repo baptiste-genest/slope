@@ -9,26 +9,21 @@ class DragEditor {
     PrimitivePtr selected_primitive = nullptr;
     double x_offset = 0;
     double y_offset = 0;
-    double original_alpha = 0;
     TimeStamp time_at_pick;
 
-    // group selection mode : ctrl+shift+click toggles members in and out
-    // without moving them; holding left click then translates all their
-    // labels by the mouse delta, preserving relative spacing
+    // ctrl+shift+click toggles members in and out, holding left click then
+    // translates all their labels by the mouse delta
     struct Member {
         PrimitivePtr prim;
-        scalar original_alpha;
     };
     std::vector<Member> group;
     bool group_dragging = false;
     double drag_last_x = 0, drag_last_y = 0, drag_travel = 0;
 
-    // rectangle (marquee) selection : ctrl+shift+drag draws a box; on
-    // release every primitive whose position falls inside it joins the
-    // group. A ctrl+shift press that is released without travelling stays
-    // a plain toggle-click instead.
+    // ctrl+shift+drag draws a box, and on release every primitive inside it
+    // joins the group. Released without travelling it stays a toggle-click.
     bool marquee_pending = false;   // ctrl+shift pressed, not yet a drag
-    bool marquee_active = false;    // travelled far enough : it is a marquee
+    bool marquee_active = false;    // travelled far enough to be a marquee
     double marquee_start_x = 0, marquee_start_y = 0;
     PrimitivePtr marquee_press_hit = nullptr;
 
@@ -39,13 +34,12 @@ class DragEditor {
     double last_pick_x = -1e9, last_pick_y = -1e9;
     size_t pick_cycle_index = 0;
 
-    // undo history : positions are written to the session on every frame of a
-    // drag, so without this a mis-drag followed by Ctrl+S is unrecoverable.
-    // One entry holds the state of every label an edit was about to touch,
-    // captured before the first write.
+    // undo history. A drag writes to the session every frame, so without this
+    // a mis-drag followed by Ctrl+S is unrecoverable. One entry holds every
+    // label the edit was about to touch, captured before the first write.
     struct LabelState {
         std::string label;
-        double x, y, scale;
+        AnchorState state;
     };
     using UndoEntry = std::vector<LabelState>;
     static constexpr size_t max_undo = 100;
@@ -57,8 +51,11 @@ class DragEditor {
     void captureUndo(const std::vector<PrimitivePtr>& prims, Slide& cs);
     void commitUndo();
 
-    // topmost-first : reverse depth order, so the primitive actually drawn
-    // on top of the stack at (x,y) comes first
+    // outlines a primitive with its own oriented bounding box
+    void drawSelectionBox(const PrimitivePtr& prim, const StateInSlide& sis,
+                          const ImVec2& S, float cx, float cy, float pulse) const;
+
+    // reverse depth order, so the primitive drawn on top at (x,y) comes first
     std::vector<PrimitivePtr> getPrimitivesUnderMouse(Slide& s, scalar x, scalar y) const;
     // picks at (x,y), advancing through the stack on repeated same-spot clicks
     PrimitivePtr pickWithCycling(Slide& s, scalar x, scalar y);

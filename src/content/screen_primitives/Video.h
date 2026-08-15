@@ -97,6 +97,7 @@ public:
     void playIntro(const TimeObject& t, const StateInSlide& sis) override;
     void playOutro(const TimeObject& t, const StateInSlide& sis) override;
     Size getSize() const override;
+    bool canRotate() const override {return true;}
 
 protected:
     // the decoder lives exactly as long as the primitive is on screen

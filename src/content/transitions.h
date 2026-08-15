@@ -28,9 +28,8 @@ struct TransitionAnimator {
 TransitionAnimator FadeInFadeOut();
 TransitionAnimator SlideInSlideOut();
 
-// leaves the StateInSlide alone : no fade, no offset. For a primitive whose
-// entrance is animated by something else (a knob driving a radius, a field
-// growing) and which would otherwise play both animations at once.
+// leaves the StateInSlide alone, no fade and no offset, for a primitive whose
+// entrance is animated by something else
 TransitionAnimator NoTransition();
 
 }

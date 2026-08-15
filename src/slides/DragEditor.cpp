@@ -1,12 +1,13 @@
 #include "DragEditor.h"
 #include "../content/screen_primitives/Anchor.h"
+#include <spdlog/spdlog.h>
 
 std::vector<slope::PrimitivePtr> slope::DragEditor::getPrimitivesUnderMouse(Slide& s, scalar x, scalar y) const
 {
     auto S = ImGui::GetWindowSize();
     std::vector<PrimitivePtr> hits;
     auto sorted = s.getDepthSorted(); // back-to-front draw order
-    for (auto it = sorted.rbegin(); it != sorted.rend(); ++it) { // front-to-back : topmost first
+    for (auto it = sorted.rbegin(); it != sorted.rend(); ++it) { // front to back
         auto& [ptr, sis] = *it;
         if (!ptr->isScreenSpace())
             continue;
@@ -34,9 +35,8 @@ slope::PrimitivePtr slope::DragEditor::pickWithCycling(Slide& s, scalar x, scala
                   && !pick_stack.empty();
 
     if (same_spot) {
-        // keep the stack captured at the first click of the sequence : the
-        // primitive picked last is sitting under the cursor and would
-        // otherwise dominate every subsequent hit test
+        // keep the stack captured at the first click, the one picked last sits
+        // under the cursor and would dominate every later hit test
         pick_cycle_index = (pick_cycle_index + 1) % pick_stack.size();
     } else {
         pick_stack = getPrimitivesUnderMouse(s, x, y);
@@ -63,8 +63,7 @@ void slope::DragEditor::captureUndo(const std::vector<PrimitivePtr>& prims, Slid
         auto lab = std::dynamic_pointer_cast<LabelAnchor>(it->second.anchor);
         if (lab == nullptr)
             continue;
-        auto v = lab->readFromLabel();
-        pending_undo.push_back({lab->getLabel(), v(0), v(1), v(2)});
+        pending_undo.push_back({lab->getLabel(), lab->readFromLabel()});
     }
 }
 
@@ -97,7 +96,7 @@ bool slope::DragEditor::undo(Slide& cs, WindowManager& wm)
         return false;
     }
     for (const auto& s : undo_stack.back())
-        LabelAnchor::writeToSessionAt(s.label, s.x, s.y, s.scale);
+        LabelAnchor::writeToSessionAt(s.label, s.state);
     undo_stack.pop_back();
     spdlog::info("undo ({} left)", undo_stack.size());
     return true;
@@ -115,19 +114,13 @@ void slope::DragEditor::selectPrimitive(Slide& cs, WindowManager& wm, const Prim
     selected_primitive = prim;
     x_offset       = lab->getPos()(0) - x;
     y_offset       = lab->getPos()(1) - y;
-    original_alpha = it->second.alpha;
     time_at_pick   = Time::now();
     if (!wm.isOpen(WindowType::DragAndDrop))
         wm.Toggle(WindowType::DragAndDrop);
 }
 
-void slope::DragEditor::releasePrimitive(Slide& cs)
+void slope::DragEditor::releasePrimitive(Slide& /*cs*/)
 {
-    if (selected_primitive == nullptr)
-        return;
-    auto it = cs.find(selected_primitive);
-    if (it != cs.end())
-        it->second.alpha = original_alpha;
     selected_primitive = nullptr;
 }
 
@@ -136,9 +129,6 @@ void slope::DragEditor::toggleMember(Slide& cs, WindowManager& wm, const Primiti
     auto member = std::find_if(group.begin(), group.end(),
                                [&](const Member& m) { return m.prim == prim; });
     if (member != group.end()) {
-        auto it = cs.find(prim);
-        if (it != cs.end())
-            it->second.alpha = member->original_alpha;
         group.erase(member);
         if (group.empty())
             clearGroup(cs, wm);
@@ -154,20 +144,49 @@ void slope::DragEditor::toggleMember(Slide& cs, WindowManager& wm, const Primiti
         wm.Toggle(WindowType::DragAndDrop);
         time_at_pick = Time::now();
     }
-    group.push_back({prim, it->second.alpha});
+    group.push_back({prim});
 }
 
-void slope::DragEditor::clearGroup(Slide& cs, WindowManager& wm)
+void slope::DragEditor::clearGroup(Slide& /*cs*/, WindowManager& wm)
 {
-    for (const auto& m : group) {
-        auto it = cs.find(m.prim);
-        if (it != cs.end())
-            it->second.alpha = m.original_alpha;
-    }
     group.clear();
     group_dragging = false;
     if (wm.isOpen(WindowType::DragAndDrop))
         wm.Toggle(WindowType::DragAndDrop);
+}
+
+void slope::DragEditor::drawSelectionBox(const PrimitivePtr& prim, const StateInSlide& sis,
+                                         const ImVec2& S, float cx, float cy, float pulse) const
+{
+    auto sp = std::static_pointer_cast<ScreenPrimitive>(prim);
+    // pixels, like the hit test, a relative size is taken against the
+    // configured resolution and drifts once the window is not that size
+    auto size = sp->getSize() * sis.getScale();
+    float hw = float(size(0)) * 0.5f;
+    float hh = float(size(1)) * 0.5f;
+
+    constexpr float pad = 4.f;
+    hw += pad;
+    hh += pad;
+
+    // the box follows the primitive's own rotation, so a turned image stays
+    // outlined by its edges rather than by a larger upright rectangle
+    const float a = float(sis.getAngle());
+    const float ca = std::cos(a), sa = std::sin(a);
+    const float px = cx * S.x, py = cy * S.y;
+    ImVec2 corner[4];
+    const float ox[4] = {-hw, hw, hw, -hw};
+    const float oy[4] = {-hh, -hh, hh, hh};
+    for (int i = 0; i < 4; ++i)
+        corner[i] = ImVec2(px + ox[i]*ca - oy[i]*sa,
+                           py + ox[i]*sa + oy[i]*ca);
+
+    auto* dl = ImGui::GetWindowDrawList();
+    const ImU32 col = IM_COL32(80, 180, 255, int(120 + 110*pulse));
+    dl->AddPolyline(corner, 4, col, ImDrawFlags_Closed, 2.0f);
+
+    // a dot on the first corner shows which way up the primitive is
+    dl->AddCircleFilled(corner[0], 3.0f, col);
 }
 
 void slope::DragEditor::handleMarquee(Slide& cs, WindowManager& wm)
@@ -180,8 +199,8 @@ void slope::DragEditor::handleMarquee(Slide& cs, WindowManager& wm)
     double x = double(io.MousePos.x) / S.x;
     double y = double(io.MousePos.y) / S.y;
 
-    // a ctrl+shift press only becomes a marquee once it has travelled :
-    // a press released in place stays a plain toggle-click
+    // only a press that travels becomes a marquee, one released in place
+    // stays a plain toggle-click
     constexpr double marquee_thr = 0.01;
     if (!marquee_active
         && (std::abs(x - marquee_start_x) > marquee_thr || std::abs(y - marquee_start_y) > marquee_thr))
@@ -200,7 +219,7 @@ void slope::DragEditor::handleMarquee(Slide& cs, WindowManager& wm)
     if (!io.MouseReleased[0])
         return;
 
-    if (!marquee_active) { // never travelled : behave like the old toggle-click
+    if (!marquee_active) { // never travelled, so behave like a toggle-click
         if (marquee_press_hit != nullptr)
             toggleMember(cs, wm, marquee_press_hit);
         else
@@ -225,7 +244,7 @@ void slope::DragEditor::handleMarquee(Slide& cs, WindowManager& wm)
             bool already = std::any_of(group.begin(), group.end(),
                                        [&](const Member& m) { return m.prim == pptr; });
             if (!already)
-                group.push_back({pptr, sis.alpha});
+                group.push_back({pptr});
         }
         if (was_empty && !group.empty()) {
             wm.Toggle(WindowType::DragAndDrop);
@@ -244,19 +263,22 @@ void slope::DragEditor::handleGroup(Slide& cs, bool ctrl, bool shift, WindowMana
     ImGui::SetNextFrameWantCaptureMouse(true);
     ImGui::SetNextFrameWantCaptureKeyboard(false);
 
-    // pulse the members so the selection is visible
-    scalar pulse = (std::cos(TimeFrom(time_at_pick) * 5) + 1) * 0.8 + 0.2;
+    auto S = ImGui::GetWindowSize();
+
+    // outline the members so the selection is visible
+    float pulse = float((std::cos(TimeFrom(time_at_pick) * 5) + 1) * 0.5);
     for (const auto& m : group) {
         auto it = cs.find(m.prim);
-        if (it != cs.end())
-            it->second.alpha = pulse;
+        if (it == cs.end())
+            continue;
+        auto p = it->second.getPosition();
+        drawSelectionBox(m.prim, it->second, S, float(p(0)), float(p(1)), pulse);
     }
 
-    auto S = ImGui::GetWindowSize();
     double x = double(io.MousePos.x) / S.x;
     double y = double(io.MousePos.y) / S.y;
 
-    if (ctrl && shift) { // still selecting : clicks must not start a drag
+    if (ctrl && shift) { // still selecting, clicks must not start a drag
         group_dragging = false;
         return;
     }
@@ -320,8 +342,8 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
         auto x = double(io.MousePos.x) / S.x;
         auto y = double(io.MousePos.y) / S.y;
         auto hits = getPrimitivesUnderMouse(cs, x, y);
-        // defer the decision to the release : travelling makes it a marquee,
-        // staying put makes it a toggle-click on whatever was under the cursor
+        // decided on release, travelling makes it a marquee and staying put a
+        // toggle-click on whatever was under the cursor
         marquee_pending   = true;
         marquee_active    = false;
         marquee_start_x   = x;
@@ -376,12 +398,22 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
     }
 
     constexpr scalar zoom = 1.1;
-    if (io.MouseWheel != 0.0f)
+    constexpr scalar angle_step = M_PI/72;  // 2.5 degrees
+    constexpr scalar alpha_step = 0.05;
+    if (io.MouseWheel != 0.0f) {
         commitUndo();
-    if (io.MouseWheel > 0.0f)
-        lab->writeScaleAtLabel(lab->getScale() * zoom, true);
-    else if (io.MouseWheel < 0.0f)
-        lab->writeScaleAtLabel(lab->getScale() / zoom, true);
+        int dir = io.MouseWheel > 0.0f ? 1 : -1;
+        if (ctrl) {
+            if (std::static_pointer_cast<ScreenPrimitive>(selected_primitive)->canRotate())
+                lab->writeAngleAtLabel(lab->getAngle() + dir*angle_step);
+            else
+                spdlog::warn("[editor] this primitive cannot be rotated");
+        }
+        else if (shift)
+            lab->writeAlphaAtLabel(std::clamp<scalar>(lab->getAlpha() + dir*alpha_step, 0, 1));
+        else
+            lab->writeScaleAtLabel(dir > 0 ? lab->getScale()*zoom : lab->getScale()/zoom, true);
+    }
 
     if (horizontal) { x_offset = 0.5 - x; x = 0.5; }
     if (vertical)   { y_offset = 0.5 - y; y = 0.5; }
@@ -431,11 +463,13 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
     // only an actual displacement is worth an undo entry
     if (!pending_undo.empty()) {
         constexpr double move_eps = 1e-6;
-        if (std::abs(cx - pending_undo.front().x) > move_eps
-         || std::abs(cy - pending_undo.front().y) > move_eps)
+        if (std::abs(cx - pending_undo.front().state.x) > move_eps
+         || std::abs(cy - pending_undo.front().state.y) > move_eps)
             commitUndo();
     }
 
     lab->writePosAtLabel(cx, cy, true);
-    pis.alpha = (std::cos(TimeFrom(time_at_pick) * 5) + 1) * 0.8 + 0.2;
+
+    float pulse = float((std::cos(TimeFrom(time_at_pick) * 5) + 1) * 0.5);
+    drawSelectionBox(selected_primitive, pis, S, cx, cy, pulse);
 }

@@ -55,11 +55,14 @@ public:
 
     virtual vec2 getSize() const = 0;
 
+    // only texture-backed primitives go through ImageRotated, the others would
+    // silently ignore an angle, so the editor refuses to rotate them
+    virtual bool canRotate() const {return false;}
+
     Size getRelativeSize() const;
 
-    // bounding box in relative [0,1]² coords : centered on the anchor by
-    // default, overridden by primitives whose geometry does not follow
-    // their anchor (arrows, boxes)
+    // bounding box in relative [0,1]² coords, centered on the anchor unless a
+    // primitive's geometry does not follow it (arrows, boxes)
     virtual void getBoundingBox(vec2& lo, vec2& hi) const;
 
 };

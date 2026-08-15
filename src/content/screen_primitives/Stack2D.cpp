@@ -70,7 +70,7 @@ vec2 Stack2D::childPosition(const ScreenPrimitive* child) const
         }
         y += s(1) + spacing;
     }
-    return c; // not a child : degrade to the block center
+    return c; // not a child, degrade to the block center
 }
 
 vec2 Stack2D::getSize() const

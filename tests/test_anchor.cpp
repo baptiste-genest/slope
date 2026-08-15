@@ -38,6 +38,9 @@ int main()
     CHECK(nearlyEqual(a->getPos().y(), 0.5));
     CHECK(nearlyEqual(a->getScale(), 1.0));
 
+    CHECK(nearlyEqual(a->getAngle(), 0.0));
+    CHECK(nearlyEqual(a->getAlpha(), 1.0));
+
     // an existing .pos is loaded as is, the default is only for a missing file
     {
         fs::path existing = tmp / "existing_label.pos";
@@ -46,10 +49,23 @@ int main()
         CHECK(nearlyEqual(b->getPos().x(), 0.1));
         CHECK(nearlyEqual(b->getPos().y(), 0.2));
         CHECK(nearlyEqual(b->getScale(), 3.0));
+        // a .pos written before angle and alpha existed keeps loading
+        CHECK(nearlyEqual(b->getAngle(), 0.0));
+        CHECK(nearlyEqual(b->getAlpha(), 1.0));
+    }
+
+    // the five-field form round-trips
+    {
+        std::ofstream(tmp / "full_label.pos") << "0.3 0.4 2 1.5 0.25\n";
+        auto d = slope::LabelAnchor::Add("full_label");
+        CHECK(nearlyEqual(d->getPos().x(), 0.3));
+        CHECK(nearlyEqual(d->getScale(), 2.0));
+        CHECK(nearlyEqual(d->getAngle(), 1.5));
+        CHECK(nearlyEqual(d->getAlpha(), 0.25));
     }
 
     // the editor writes to the session cache, saveAllDirty() persists it
-    slope::LabelAnchor::writeToSessionAt("my_label", 0.25, 0.75, 2.0);
+    slope::LabelAnchor::writeToSessionAt("my_label", {0.25, 0.75, 2.0, 0.5, 0.4});
     CHECK(slope::LabelAnchor::hasDirty());
     {
         std::ifstream f(posfile);
@@ -61,11 +77,13 @@ int main()
     CHECK(!slope::LabelAnchor::hasDirty());
     {
         std::ifstream f(posfile);
-        double x, y, s;
-        CHECK(bool(f >> x >> y >> s));
+        double x, y, s, ang, al;
+        CHECK(bool(f >> x >> y >> s >> ang >> al));
         CHECK(nearlyEqual(x, 0.25));
         CHECK(nearlyEqual(y, 0.75));
         CHECK(nearlyEqual(s, 2.0));
+        CHECK(nearlyEqual(ang, 0.5));
+        CHECK(nearlyEqual(al, 0.4));
     }
 
     // a corrupt .pos falls back to defaults instead of throwing

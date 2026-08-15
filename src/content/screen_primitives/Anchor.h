@@ -11,6 +11,14 @@ namespace slope {
 class Anchor;
 using AnchorPtr = std::shared_ptr<Anchor>;
 
+// everything the editor can change about a labeled primitive and persist to
+// its .pos file
+struct AnchorState {
+    double x = 0.5, y = 0.5;
+    scalar scale = 1;
+    scalar angle = 0;   // radians
+    scalar alpha = 1;
+};
 
 class Anchor
 {
@@ -22,6 +30,10 @@ public:
     virtual vec2 getPos() const = 0;
 
     virtual scalar getScale() const {return 1;}
+
+    virtual scalar getAngle() const {return 0;}
+
+    virtual scalar getAlpha() const {return 1;}
 };
 
 class AbsoluteAnchor;
@@ -53,7 +65,7 @@ class LabelAnchor : public Anchor
 protected:
     std::string label = "";
 
-    inline static std::unordered_map<std::string, std::array<double, 3>> session_cache;
+    inline static std::unordered_map<std::string, AnchorState> session_cache;
     inline static std::set<std::string> dirty_labels;
 
     // bookkeeping for the startup report, see reportLabelIssues()
@@ -67,7 +79,7 @@ public:
 
     LabelAnchor(std::string l) : label(l) {
         label_usage[label]++;
-        writeAtLabel(0.5,0.5,1,false);
+        writeAtLabel(AnchorState{},false);
     }
 
     const std::string& getLabel() const { return label; }
@@ -81,7 +93,8 @@ public:
     }
 
     virtual vec2 getPos() const override {
-        return GlobalAnchor->getPos() + readFromLabel().head(2);
+        AnchorState s = readFromLabel();
+        return GlobalAnchor->getPos() + vec2(s.x,s.y);
     }
 
     virtual void updatePos(const vec2& p) override {
@@ -89,26 +102,47 @@ public:
     }
 
     virtual scalar getScale() const override {
-        return readFromLabel()(2);
+        return readFromLabel().scale;
     }
 
-    void writeAtLabel(double x, double y,scalar scale, bool overwrite) const;
+    virtual scalar getAngle() const override {
+        return readFromLabel().angle;
+    }
 
-    void writeToSession(double x, double y, scalar scale) const;
-    // same, without needing an anchor instance : used by the editor's undo,
-    // where building a LabelAnchor would register a spurious label use
-    static void writeToSessionAt(const std::string& label, double x, double y, scalar scale);
+    virtual scalar getAlpha() const override {
+        return readFromLabel().alpha;
+    }
+
+    void writeAtLabel(const AnchorState& s, bool overwrite) const;
+
+    void writeToSession(const AnchorState& s) const;
+    // same without an anchor instance, for the editor's undo, where building a
+    // LabelAnchor would register a spurious label use
+    static void writeToSessionAt(const std::string& label, const AnchorState& s);
     static void saveAllDirty();
     static bool hasDirty();
 
     void writePosAtLabel(scalar x, scalar y, bool /*overwrite*/) const {
-        writeToSession(x, y, readFromLabel()(2));
+        AnchorState s = readFromLabel();
+        s.x = x; s.y = y;
+        writeToSession(s);
     }
-    void writeScaleAtLabel(scalar s, bool /*overwrite*/) const {
-        vec p = readFromLabel();
-        writeToSession(p(0), p(1), s);
+    void writeScaleAtLabel(scalar v, bool /*overwrite*/) const {
+        AnchorState s = readFromLabel();
+        s.scale = v;
+        writeToSession(s);
     }
-    vec readFromLabel() const;
+    void writeAngleAtLabel(scalar v) const {
+        AnchorState s = readFromLabel();
+        s.angle = v;
+        writeToSession(s);
+    }
+    void writeAlphaAtLabel(scalar v) const {
+        AnchorState s = readFromLabel();
+        s.alpha = v;
+        writeToSession(s);
+    }
+    AnchorState readFromLabel() const;
 };
 
 vec2 WorldToScreen(const vec& p);

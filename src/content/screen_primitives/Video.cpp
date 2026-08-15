@@ -754,7 +754,7 @@ void Video::drawPlayOverlay(const StateInSlide& sis) const
 
     const ImVec2 c((pmin.x + pmax.x) * 0.5f, (pmin.y + pmax.y) * 0.5f);
     const float  r = std::min(pmax.x - pmin.x, pmax.y - pmin.y) * 0.12f;
-    const float  a = float(sis.alpha);
+    const float  a = float(sis.getAlpha());
 
     auto* dl = ImGui::GetWindowDrawList();
     dl->AddCircleFilled(c, r, IM_COL32(0, 0, 0, int(120 * a)), 48);

@@ -46,9 +46,9 @@ protected:
 
     std::map<std::string, Primitives> groups;
 
-    // named time marks : a keyframe labels the frame it is declared in, so
-    // updaters can branch on t.afterKeyframe("label") instead of counting
-    // relative frame numbers (which breaks whenever steps are reordered)
+    // a keyframe labels the frame it is declared in, so updaters branch on
+    // t.afterKeyframe("label") rather than on frame numbers, which reordering
+    // steps would break
     std::map<std::string, int> keyframes;
 
 
@@ -86,10 +86,9 @@ public:
 
     void removeFromCurrentSlide(const PrimitiveGroup& G);
 
-    // tag-based groups : primitives declare membership, and group operations
-    // map over the members present in the current slide. a group has no
-    // position of its own : each member's placement stays authoritative
-    // (and drag-editable)
+    // primitives declare membership and group operations map over the members
+    // present in the current slide. A group has no position of its own, each
+    // member's placement stays authoritative and drag-editable
     void addToGroup(const std::string& tag, PrimitivePtr ptr);
     bool hasGroup(const std::string& tag) const;
     void removeGroup(const std::string& tag);

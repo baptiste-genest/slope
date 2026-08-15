@@ -9,14 +9,13 @@ class Stack2D;
 using Stack2DPtr = std::shared_ptr<Stack2D>;
 
 /*
- * Vertical layout : children are placed below one another with uniform
+ * Vertical layout. Children are placed below one another with uniform
  * spacing, the whole block centered on a single handle anchor. The layout
  * is recomputed every frame, so it follows drag edits of the handle and
  * size changes of the children (hot-reloaded latex...).
  *
- * The layout is computed from all registered children, visible or not :
- * a child appearing at a later step fades in at its final position, and
- * earlier children never move.
+ * The layout is computed from all registered children, visible or not, so a
+ * child appearing later fades in at its final position and the others hold.
  *
  * The stack draws nothing itself; it is a screen primitive so that arrows
  * and englobing boxes can target the whole block, and so that (with a
@@ -45,7 +44,7 @@ public:
     vec2 getSize() const override;
     void getBoundingBox(vec2& lo, vec2& hi) const override;
 
-    // invisible : the stack only computes layout
+    // invisible, the stack only computes layout
     void draw(const TimeObject&, const StateInSlide&) override {}
     void playIntro(const TimeObject&, const StateInSlide&) override {}
     void playOutro(const TimeObject&, const StateInSlide&) override {}
