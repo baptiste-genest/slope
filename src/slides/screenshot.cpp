@@ -1,7 +1,5 @@
 #include "screenshot.h"
 #include <spdlog/spdlog.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
 
 #ifdef __APPLE__
 void slope::screenshot(std::string file)
@@ -14,6 +12,8 @@ void slope::screenshot(std::string file)
   spdlog::error("not implemented yet for Windows");
 }
 #else
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 
 // returns None if there is no focused window
 Window get_focus_window(Display* d){
