@@ -1,3 +1,4 @@
+#include "../content/Snippet.h"
 #include "DeckLoader.h"
 #include "Slideshow.h"
 #include "../content/screen_primitives/LateX.h"
@@ -10,6 +11,7 @@
 #include "../content/polyscope_primitives/Mesh.h"
 #include "spdlog/spdlog.h"
 #include "yaml-cpp/yaml.h"
+#include <spdlog/spdlog.h>
 
 namespace slope {
 
@@ -81,6 +83,19 @@ void DeckLoader::loadLatexResources()
         Latex::AddFileToPrefix(f);
     if (auto f = pick("latex", "latex.json"); f != "")
         LatexLoader::Init(f);
+
+    // "snippets:" is one file or a list of them. Loading is idempotent, so a
+    // deck rebuild does not stack duplicates.
+    if (source.is_object() && source.contains("snippets")) {
+        const json& sn = source["snippets"];
+        if (sn.is_string())
+            Snippet::load(sn.get<std::string>());
+        else if (sn.is_array())
+            for (const auto& f : sn)
+                Snippet::load(f.get<std::string>());
+        else
+            throw std::runtime_error("\"snippets\" must be a file name or a list of them");
+    }
 }
 
 void DeckLoader::init(const std::string& project_name, path deck_file, int argc, char** argv)
@@ -113,6 +128,11 @@ void DeckLoader::run()
 void DeckLoader::registerObject(const std::string& name, const ObjectFactory& factory)
 {
     object_registry[name] = factory;
+}
+
+void DeckLoader::registerPlacer(const std::string& name, const std::function<vec2()>& placer)
+{
+    placer_registry[name] = placer;
 }
 
 void DeckLoader::registerObject(const std::string& name, const PrimitiveInSlide& pis)
@@ -229,6 +249,128 @@ PrimitivePtr DeckLoader::resolve(const std::string& name) const
     return it->second;
 }
 
+// "view" is the half-height, a number or a snippet name. Without one a shader
+// has no world space and nothing can follow a point of it.
+void DeckLoader::declareShaderView(const ShaderPtr& shader, const json& item)
+{
+    if (!item.contains("view"))
+        return;
+    const json& v = item["view"];
+
+    auto halfOf = [](const json& h) -> std::function<scalar()> {
+        if (h.is_number()) {
+            scalar x = h.get<scalar>();
+            if (!(x > 0))
+                throw std::runtime_error("\"view\" half-height must be greater than zero");
+            return [x] { return x; };
+        }
+        if (h.is_string()) { std::string n = h; return [n] { return Snippet::get(n).num(); }; }
+        throw std::runtime_error("\"view\" half-height must be a number or a snippet name");
+    };
+    auto centerOf = [](const json& c) -> std::function<vec2()> {
+        if (c.is_array() && c.size() == 2) {
+            vec2 p(c[0].get<scalar>(), c[1].get<scalar>());
+            return [p] { return p; };
+        }
+        if (c.is_string()) { std::string n = c; return [n] { return Snippet::get(n).v2(); }; }
+        throw std::runtime_error("\"view\" center must be [x, y] or a snippet name");
+    };
+    std::function<vec2()> origin = [] { return vec2::Zero(); };
+
+    if (v.is_object()) {
+        if (!v.contains("half"))
+            throw std::runtime_error("\"view\" needs a \"half\" : half the height it "
+                                     "shows, in world units");
+        shader->bindView(v.contains("center") ? centerOf(v["center"]) : origin,
+                         halfOf(v["half"]));
+        return;
+    }
+    shader->bindView(origin, halfOf(v));
+}
+
+// A 3 component value is a world position in the scene. A 2 component one is a
+// screen position, unless an "<item>." prefix names a shader, and then it is a
+// point of that shader's world space. Nothing is ever inferred.
+std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec)
+{
+    // a registered placer is already a screen position
+    auto reg = placer_registry.find(spec);
+    if (reg != placer_registry.end())
+        return reg->second;
+
+    // "<item>.<name>" only when the prefix really names an item, so a
+    // parameter with a dot in its name is still read whole
+    std::string id, var = spec;
+    if (auto dot = spec.rfind('.'); dot != std::string::npos
+        && named.count(spec.substr(0, dot))) {
+        id  = spec.substr(0, dot);
+        var = spec.substr(dot + 1);
+    }
+
+    ShaderPtr sh;
+    if (!id.empty()) {
+        sh = std::dynamic_pointer_cast<Shader>(resolve(id));
+        if (!sh)
+            throw std::runtime_error("\"follow: " + spec + "\" : item \"" + id + "\" is not a "
+                                     "shader, so it has no world space to read \"" + var
+                                     + "\" in");
+        if (!sh->hasView())
+            throw std::runtime_error("\"follow: " + spec + "\" : shader \"" + id
+                                     + "\" has no \"view:\", so it has no world points");
+    }
+
+    // A parameter has a known width, so everything wrong can be said right now.
+    // A snippet variable only reveals its width when it is read.
+    if (int n = Params::components(var); n > 0) {
+        if (n != 2 && n != 3)
+            throw std::runtime_error("\"follow: " + spec + "\" : parameter \"" + var + "\" has "
+                                     + std::to_string(n) + " components, and a point to follow "
+                                     "needs 2 (screen, or a shader's world space) or 3 (the "
+                                     "3D scene)");
+        if (n == 3) {
+            if (sh)
+                throw std::runtime_error("\"follow: " + spec + "\" : \"" + var + "\" is a 3D "
+                                         "point, always in the scene's world space; drop the \""
+                                         + id + ".\"");
+            return [var] {
+                scalar p[4] = {0, 0, 0, 0};
+                Params::read(var, p);
+                return WorldToScreen(vec(p[0], p[1], p[2]));
+            };
+        }
+        std::function<vec2()> p2 = [var] {
+            scalar p[4] = {0, 0, 0, 0};
+            Params::read(var, p);
+            return vec2(p[0], p[1]);
+        };
+        return sh ? sh->tracker(p2) : p2;
+    }
+
+    auto said = std::make_shared<bool>(false);
+    return [var, spec, sh, said]() -> vec2 {
+        // before the first frame nothing has been evaluated, so say nothing
+        if (!Snippet::ready())
+            return vec2(0.5, 0.5);
+        auto v = Snippet::get(var);
+        if (v.n == 3) {
+            if (sh && !*said) {
+                *said = true;
+                spdlog::error("\"follow: {}\" : \"{}\" is a 3D point, always in the scene's "
+                              "world space, not a shader's", spec, var);
+            }
+            return WorldToScreen(v.v3());
+        }
+        if (v.n == 2)
+            return sh ? sh->worldToScreen(v.v2()) : v.v2();
+        if (!*said) {
+            *said = true;
+            spdlog::error("\"follow: {}\" : no snippet variable, parameter or registered "
+                          "placer called \"{}\"", spec, var);
+        }
+        return vec2(0.5, 0.5);
+    };
+}
+
 ScreenPrimitivePtr DeckLoader::resolveScreen(const std::string& name) const
 {
     auto sp = std::dynamic_pointer_cast<ScreenPrimitive>(resolve(name));
@@ -242,13 +384,20 @@ void DeckLoader::build(SlideManager& show)
     if (!source.contains("slides") || !source["slides"].is_array())
         throw std::runtime_error("deck file must contain a top-level \"slides\" array");
     for (const auto& [key, val] : source.items())
-        if (key != "slides" && key != "commands" && key != "latex")
+        if (key != "slides" && key != "commands" && key != "latex" && key != "snippets")
             spdlog::warn("deck: ignored top-level key \"{}\"", key);
 
     used_primitives.clear();
     named.clear();
     show.clearGroups();
     show.clearKeyframes();
+
+    // drop what an "object:" item no longer declares, and only that, the rest
+    // of that shader's binds belong to its C++ owner
+    for (auto& [object, declared] : object_uniforms)
+        for (const auto& name : declared.second)
+            declared.first->unset(name);
+    object_uniforms.clear();
 
     bool first = true;
     for (const auto& frame : source["slides"]) {
@@ -266,6 +415,7 @@ void DeckLoader::build(SlideManager& show)
         if (!first)
             show << (same_title ? newFrameSameTitle : newFrame);
         first = false;
+        step_primitives.clear();
         buildFrame(show, *items);
     }
     if (show.getNumberSlides() == 0)
@@ -277,6 +427,8 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
     for (const auto& item : items) {
         if (item.is_string() && item == "step") {
             show << inNextFrame;
+            // the next step inherits these items, re-placing one there moves it
+            step_primitives.clear();
             continue;
         }
         if (!item.is_object())
@@ -285,8 +437,7 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
             throw std::runtime_error("\"step:\" subtrees were replaced by the flat "
                                      "\"- step\" marker : items after it belong to the next step");
         if (item.contains("group")) {
-            // membership is declared per item : every primitive the item
-            // adds (a box subtree included) joins the tagged group
+            // every primitive the item adds, box subtree included, joins the group
             auto before = used_primitives;
             addItem(show, item);
             for (const auto& p : used_primitives)
@@ -298,9 +449,8 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
     }
 }
 
-// anchor labels double as .pos filenames, so a title is named after its text :
-// every title used to be called "title", silently sharing one anchor, hence one
-// position and one scale
+// anchor labels double as .pos filenames, so a title is named after its text,
+// otherwise every title shares one anchor, one position and one scale
 static std::string titleLabel(const std::string& txt)
 {
     std::string slug;
@@ -346,8 +496,17 @@ static vec parseVec3(const json& v)
     return vec(v[0].get<scalar>(), v[1].get<scalar>(), v[2].get<scalar>());
 }
 
-// one uniform : "glsl" is the name the shader sees, "pname" the parameter it is
-// bound to. The two differ only for an array element, "controls[3]".
+// yaml takes [0.5] as happily as [x, y], and reading past the end of a json
+// array is undefined rather than an error
+static vec2 readVec2(const json& v, const std::string& what)
+{
+    if (!v.is_array() || v.size() != 2)
+        throw std::runtime_error("\"" + what + "\" must be [x, y]");
+    return vec2(v[0].get<scalar>(), v[1].get<scalar>());
+}
+
+// "glsl" is the name the shader sees, "pname" the parameter it is bound to.
+// The two differ only for an array element, "controls[3]".
 static void declareUniform(const ShaderPtr& shader, const std::string& glsl,
                            const std::string& pname, const std::string& type,
                            const json& def, scalar mn, scalar mx)
@@ -405,16 +564,17 @@ static int arrayCount(const std::string& name, const std::string& type)
     return n;
 }
 
-// "uniforms:" on a shader item. Each entry becomes a persistent, runtime
-// tunable Params entry (Tuner panel, saved to views/params.json) bound to the
-// shader uniform of the same name and re-read every frame — so the value a
-// shader reacts to is dragged live and survives the session, with no C++.
+// "uniforms:" on a shader item, or on an "object:" naming a shader. Each entry
+// becomes a persistent, runtime tunable Params entry (Tuner panel, saved to
+// views/params.json) bound to the shader uniform of the same name and re-read
+// every frame, so the value a shader reacts to is dragged live and survives
+// the session, with no C++.
 //
 //   uniforms:
 //     sun:      dir                                 # a type name, zero valued
-//     tint:     {type: color, default: "#ffcc88"}   # long form : a default
+//     tint:     {type: color, default: "#ffcc88"}   # long form, with a default
 //     speed:    {type: float, default: 1.0, min: 0, max: 5}  # bounds -> slider
-//     controls: vec3[8]                             # an array : one parameter
+//     controls: vec3[8]                             # an array, one parameter
 //                                                   # per element, controls[i]
 //
 // An array's "default" is a list of one value per element. Quote the type in a
@@ -422,25 +582,65 @@ static int arrayCount(const std::string& name, const std::string& type)
 //
 // The parameter is named "<item>/<uniform>", which is also how the Tuner panel
 // groups it. A uniform the compiled program does not declare is ignored, like
-// every other Shader::bind : editing the .frag live never breaks the deck.
-void DeckLoader::declareShaderUniforms(const ShaderPtr& shader, const json& item,
-                                       const std::string& ref)
+// every other Shader::bind, so editing the .frag live never breaks the deck.
+//
+// Returns the names it declared. `clear` drops the shader's whole user set
+// first, which only suits a shader the deck created and owns.
+std::vector<std::string> DeckLoader::declareShaderUniforms(const ShaderPtr& shader,
+                                                           const json& item,
+                                                           const std::string& ref, bool clear)
 {
-    // the shader is cached across rebuilds : re-declaring the whole set is
-    // what makes a uniform deleted from the manifest actually disappear
-    shader->clearUniforms();
+    std::vector<std::string> declared;
+    // the shader is cached across rebuilds, so a dropped uniform needs this
+    if (clear)
+        shader->clearUniforms();
     if (!item.contains("uniforms"))
-        return;
+        return declared;
     const json& us = item["uniforms"];
-    if (!us.is_object())
-        throw std::runtime_error("\"uniforms\" must be a map of "
+
+    // Two spellings. A list lets a name that needs no type stand on its own,
+    // and a map is the older "name: type" form; entries may be mixed.
+    std::vector<std::pair<std::string, json>> entries;
+    if (us.is_array()) {
+        for (const auto& e : us) {
+            if (e.is_string())
+                entries.emplace_back(e.get<std::string>(), json());
+            else if (e.is_object())
+                for (const auto& [k, v] : e.items())
+                    entries.emplace_back(k, v);
+            else if (e.is_boolean() || e.is_number())
+                // yaml reads y, n, on, off, yes and no as booleans, and "1e5"
+                // and friends as numbers, so such a name arrives already coerced
+                throw std::runtime_error("a \"uniforms\" name was read as " + e.dump()
+                                         + " : yaml treats y, n, on, off, yes and no as "
+                                         "booleans, so quote it, - \"y\"");
+            else
+                throw std::runtime_error("a \"uniforms\" entry is a bare name, or "
+                                         "\"name: <type>\"");
+        }
+    }
+    else if (us.is_object()) {
+        for (const auto& [k, v] : us.items())
+            entries.emplace_back(k, v);
+    }
+    else
+        throw std::runtime_error("\"uniforms\" must be a list of names, or a map of "
                                  "name: type (or name: {type, default, min, max})");
 
-    for (const auto& [name, spec] : us.items()) {
+    for (const auto& [name, spec] : entries) {
         if (!validGLSLName(name)) {
             spdlog::warn("deck: \"{}\" is not a usable GLSL uniform name, ignored", name);
             continue;
         }
+        // No type, so the name must already exist, as a parameter declared
+        // earlier or as a snippet variable. One namespace, so either works, and
+        // a name that resolves to nothing says so once
+        if (spec.is_null()) {
+            shader->bind(name);
+            declared.push_back(name);
+            continue;
+        }
+
         json def;
         std::string type;
         scalar mn = 0, mx = 0;
@@ -463,6 +663,7 @@ void DeckLoader::declareShaderUniforms(const ShaderPtr& shader, const json& item
         int count = arrayCount(name, type);
         if (count == 0) {
             declareUniform(shader, name, ref + "/" + name, type, def, mn, mx);
+            declared.push_back(name);
             continue;
         }
         if (!def.is_null() && (!def.is_array() || int(def.size()) != count))
@@ -474,8 +675,32 @@ void DeckLoader::declareShaderUniforms(const ShaderPtr& shader, const json& item
             std::string idx = "[" + std::to_string(i) + "]";
             declareUniform(shader, name + idx, ref + "/" + name + idx, base,
                            def.is_null() ? json() : def[i], mn, mx);
+            declared.push_back(name + idx);
         }
     }
+    return declared;
+}
+
+// "uniforms:" and "textures:" on an "object:" item. A shader registered from
+// C++ takes the same declarative inputs as a "shader:" item, with parameters
+// named after the object rather than after the item's id.
+//
+// Its C++ owner binds uniforms of its own, so a reload drops only what the deck
+// declared last time (in build()). retainTextures() is already that careful.
+void DeckLoader::declareObjectShaderInputs(const ShaderPtr& shader, const std::string& object,
+                                           const json& item)
+{
+    if (!item.contains("uniforms") && !item.contains("textures"))
+        return;
+    // one shader however many slides show it, so two declarations would fight
+    if (object_uniforms.count(object)) {
+        spdlog::warn("deck: object \"{}\" declares \"uniforms\" or \"textures\" on more than "
+                     "one item ; only the first declaration is used", object);
+        return;
+    }
+    object_uniforms[object] = {shader, declareShaderUniforms(shader, item, object, false)};
+    if (item.contains("textures"))
+        declareShaderTextures(shader, item);
 }
 
 // "textures:" on a shader item. Each entry binds an image file to the sampler
@@ -488,9 +713,8 @@ void DeckLoader::declareShaderUniforms(const ShaderPtr& shader, const json& item
 //     noise: noise.png
 //     grad:  {file: gradient.png, filter: nearest, wrap: repeat}
 //
-// Only image files : a texture fed by another shader's output, or by a
-// previous frame, needs a streaming order the manifest cannot express, and
-// stays on the C++ side.
+// Only image files. A texture fed by another pass needs a streaming order the
+// manifest cannot express, and stays on the C++ side.
 void DeckLoader::declareShaderTextures(const ShaderPtr& shader, const json& item)
 {
     std::vector<std::string> declared;
@@ -542,7 +766,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
 {
     PrimitivePtr prim;
     std::string name;
-    ShaderPtr shader;   // set by the shader branch : its uniforms come last,
+    ShaderPtr shader;   // set by the shader branch, its uniforms come last,
                         // once the item's reference name is known
     // the id is part of the cache key, so two items with the same content
     // but different ids are distinct primitives (shown simultaneously)
@@ -628,8 +852,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
     }
     else if (item.contains("shader")) {
         // a single-pass fragment shader, its uniforms declared right here.
-        // Multi-pass, channels and SSBOs stay on the C++ side : they need an
-        // ordering and inputs a manifest cannot express.
+        // Multi-pass, channels and SSBOs stay on the C++ side.
         std::string file = item["shader"];
         int w = 0, h = 0;
         if (item.contains("resolution")) {
@@ -639,8 +862,8 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
             w = r[0].get<int>();
             h = r[1].get<int>();
         }
-        // the resolution is part of the key : the same .frag shown at two sizes
-        // is two primitives, and a hot reload reuses the GL resources of each
+        // the resolution is part of the key, one .frag at two sizes is two
+        // primitives and a hot reload reuses the GL resources of each
         prim = cached(id + "shader:" + file + ":" + std::to_string(w) + "x" + std::to_string(h),
                       [&]() -> PrimitivePtr { return Shader::FromFile(file, w, h); });
         name = std::filesystem::path(file).stem().string();
@@ -658,6 +881,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
     if (shader) {
         declareShaderUniforms(shader, item, name);
         declareShaderTextures(shader, item);
+        declareShaderView(shader, item);
     }
     auto sp = std::static_pointer_cast<ScreenPrimitive>(prim);
     if (name != "")
@@ -674,6 +898,7 @@ void DeckLoader::buildStackChildren(SlideManager& show, const Stack2DPtr& stack,
     for (const auto& item : items) {
         if (item.is_string() && item == "step") {
             show << inNextFrame;
+            step_primitives.clear();
             continue;
         }
         if (!item.is_object())
@@ -681,7 +906,7 @@ void DeckLoader::buildStackChildren(SlideManager& show, const Stack2DPtr& stack,
         if (item.contains("step"))
             throw std::runtime_error("\"step:\" subtrees were replaced by the flat "
                                      "\"- step\" marker : items after it belong to the next step");
-        if (item.contains("at")) { // explicit placement : escapes the layout
+        if (item.contains("at")) { // explicit placement escapes the layout
             addItem(show, item);
             continue;
         }
@@ -695,13 +920,12 @@ void DeckLoader::buildStackChildren(SlideManager& show, const Stack2DPtr& stack,
     }
 }
 
-// handle anchor of a stack item : "at" as [x,y] gives a fixed handle,
-// as a string a drag-editable label (falling back to the id)
+// handle anchor of a stack item. "at" as [x,y] is a fixed handle, as a string
+// a drag-editable label, falling back to the id
 AnchorPtr DeckLoader::makeHandleAnchor(const json& item)
 {
     if (item.contains("at") && item["at"].is_array())
-        return AbsoluteAnchor::Add(vec2(item["at"][0].get<scalar>(),
-                                        item["at"][1].get<scalar>()));
+        return AbsoluteAnchor::Add(readVec2(item["at"], "at"));
     if (item.contains("at"))
         return LabelAnchor::Add(item["at"].get<std::string>());
     return LabelAnchor::Add(item.value("id", "stack"));
@@ -719,13 +943,22 @@ static void applyStateOptions(StateInSlide& sis, const json& item)
         sis.scale = item["zoom"].get<scalar>();
 }
 
-// applies the placement fields of a screen item :
-// at (label, [x,y] or named position) or below/above/right_of/left_of
+// applies the placement fields of a screen item, at (label, [x,y] or a named
+// position) or below/above/right_of/left_of
 void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                                  const json& item, const std::string& default_label,
                                  bool keep_placement)
 {
     scalar alpha = item.value("alpha", 1.);
+
+    // Two items of the same content are one cached primitive, and a slide holds
+    // each once, so the second placement would move the first rather than show a
+    // copy. A "set", or an item repeated after a "- step", re-places on purpose.
+    if (!keep_placement && !step_primitives.insert(prim).second)
+        spdlog::warn("deck: \"{}\" is placed twice on the same step. Both are the same "
+                     "primitive, so the second placement moves the first rather than adding "
+                     "a copy. Give them different \"id:\" to show both",
+                     default_label.empty() ? item.dump() : default_label);
 
     struct { const char* key; placeX X; placeY Y; } relatives[] = {
         {"below",    placeX::SAME_X,    placeY::REL_BOTTOM},
@@ -737,7 +970,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         if (!item.contains(rel.key))
             continue;
         scalar padding = item.value("padding", 0.01);
-        ScreenPrimitivePtr other = nullptr; // null : relative to last inserted
+        ScreenPrimitivePtr other = nullptr; // null is relative to last inserted
         if (item[rel.key].is_string())
             other = resolveScreen(item[rel.key]);
         show << PlaceRelative(prim, other, rel.X, rel.Y, padding, padding);
@@ -750,8 +983,22 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
     }
 
     ScreenPrimitiveInSlide pis;
-    if (item.contains("at") && item["at"].is_array())
-        pis = prim->at(vec2(item["at"][0].get<scalar>(), item["at"][1].get<scalar>()), alpha);
+    if (item.contains("follow")) {
+        if (item.contains("at"))
+            throw std::runtime_error("a \"follow:\" item has no \"at:\" (it rides a moving "
+                                     "point) : use \"offset: [x, y]\" to shift it from that "
+                                     "point");
+        pis = prim->at(resolveFollow(item["follow"].get<std::string>()));
+        pis.second.alpha = alpha;
+        if (item.contains("offset")) {
+            const json& o = item["offset"];
+            if (!o.is_array() || o.size() != 2)
+                throw std::runtime_error("\"offset\" must be [x, y]");
+            pis.second.setOffset(vec2(o[0].get<scalar>(), o[1].get<scalar>()));
+        }
+    }
+    else if (item.contains("at") && item["at"].is_array())
+        pis = prim->at(readVec2(item["at"], "at"), alpha);
     else if (item.contains("at")) {
         std::string at = item["at"];
         if (at == "TOP") pis = prim->at(TOP, alpha);
@@ -782,9 +1029,12 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
 
 static RGBA parseColor(const json& c)
 {
-    if (c.is_array())
+    if (c.is_array()) {
+        if (c.size() < 3 || c.size() > 4)
+            throw std::runtime_error("color must be [r,g,b] or [r,g,b,a]");
         return RGBA((float)c[0], (float)c[1], (float)c[2],
                     c.size() > 3 ? (float)c[3] : 1.f);
+    }
     std::string s = c;
     if (s.size() < 7 || s[0] != '#')
         throw std::runtime_error("color must be [r,g,b(,a)] or \"#rrggbb\"");
@@ -797,7 +1047,7 @@ static RGBA parseColor(const json& c)
 static void warnUnknownKeys(const json& item)
 {
     static const std::set<std::string> placement =
-        {"id","at","alpha","rot","zoom",
+        {"id","at","follow","offset","alpha","rot","zoom",
          "below","above","right_of","left_of","padding","group"};
     auto with = [](std::set<std::string> s, std::initializer_list<std::string> more) {
         s.insert(more); return s;
@@ -811,8 +1061,9 @@ static void warnUnknownKeys(const json& item)
         {"gif",     with(placement, {"scale","fps","loop"})},
         {"video",   with(placement, {"scale","decode_width","loop","autoplay","speed","stats"})},
         {"webcam",  with(placement, {"scale","width","height","fps","input_format","stats"})},
-        {"shader",  with(placement, {"resolution","uniforms","textures"})},
-        {"object",  {"id","at","alpha","rot","zoom","group"}},
+        {"shader",  with(placement, {"resolution","uniforms","textures","view"})},
+        {"object",  {"id","at","follow","offset","alpha","rot","zoom","view","group",
+                     "uniforms","textures"}},
         {"mesh",    {"id","at","alpha","smooth","normalize","group"}},
         {"arrow",   {"id","alpha","group"}},
         {"box",     {"id","alpha","padding","padx","pady","thickness","color","fill_color","filled","group"}},
@@ -872,9 +1123,8 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         auto old = resolveScreen(replaced);
         auto [prim, name] = makeScreenPrimitive(item["with"]);
         show << Replace(prim, old);
-        // the name now refers to the replacement : without this a second
-        // "replace: <name>" (or a later "set:") would still resolve to the
-        // primitive that has just been taken off the slide
+        // the name now refers to the replacement, or a second "replace" would
+        // resolve to the primitive just taken off the slide
         named[replaced] = prim;
         used_primitives.insert(prim);
     }
@@ -883,6 +1133,10 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         if (group_registry.count(name) && !instantiated_groups.count(name))
             instantiated_groups[name] = group_registry[name]();
         if (instantiated_groups.count(name)) {
+            if (item.contains("uniforms") || item.contains("textures") || item.contains("view"))
+                throw std::runtime_error("\"object: " + name + "\" is a group of primitives, so "
+                                         "it has no \"uniforms\", \"textures\" or \"view\" of "
+                                         "its own : those belong to a single shader");
             const auto& G = instantiated_groups[name];
             show << G;
             for (const auto& [ptr, sis] : G.buffer)
@@ -897,6 +1151,17 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         }
         auto pis = instantiated_objects[name];
         named[item.value("id", name)] = pis.first;
+        // a shader registered from C++ still takes its world space, its
+        // uniforms and its textures from here
+        auto sh = std::dynamic_pointer_cast<Shader>(pis.first);
+        if (!sh && (item.contains("uniforms") || item.contains("textures")
+                    || item.contains("view")))
+            throw std::runtime_error("\"object: " + name + "\" is not a shader, so it takes no "
+                                     "\"uniforms\", \"textures\" or \"view\"");
+        if (sh) {
+            declareShaderView(sh, item);
+            declareObjectShaderInputs(sh, name, item);
+        }
         if (pis.first->isScreenSpace()) {
             placeScreenItem(show, std::static_pointer_cast<ScreenPrimitive>(pis.first), item, name);
             return;
@@ -942,7 +1207,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         auto endpoint = [&](const json& v) -> Arrow2D::Endpoint {
             if (v.is_array()) {
                 Arrow2D::Endpoint e;
-                e.fixed = vec2(v[0].get<scalar>(), v[1].get<scalar>());
+                e.fixed = readVec2(v, "arrow endpoint");
                 return e;
             }
             std::string s = v;
@@ -960,14 +1225,11 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             cached("arrow:" + item.dump(), [&]() -> PrimitivePtr {
                 return Arrow2D::Add(endpoint(spec["from"]), endpoint(spec["to"]));
             }));
-        // referenced primitives may have been recreated : re-resolve on
-        // every build, and re-apply the (hot-editable) style
+        // endpoints may have been recreated, so re-resolve and restyle here
         prim->from = endpoint(spec["from"]);
         prim->to = endpoint(spec["to"]);
         auto offset = [&](const char* key) {
-            return spec.contains(key)
-                ? vec2(spec[key][0].get<scalar>(), spec[key][1].get<scalar>())
-                : vec2(0, 0);
+            return spec.contains(key) ? readVec2(spec[key], key) : vec2(0, 0);
         };
         prim->from.offset = offset("from_offset");
         prim->to.offset = offset("to_offset");
@@ -991,8 +1253,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         auto prim = std::static_pointer_cast<Box2D>(
             cached("box:" + item.dump(), [&]() -> PrimitivePtr { return Box2D::Add(); }));
 
-        // inserted before its content : the box stays behind what it
-        // englobes, but covers items added before it in the manifest
+        // inserted before its content, so it stays behind what it englobes
         StateInSlide sis;
         sis.alpha = item.value("alpha", 1.);
         show.addToLastSlide({prim, sis});
@@ -1003,8 +1264,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         auto before = used_primitives;
         buildFrame(show, item["box"]);
 
-        // englobed primitives may have been recreated : re-resolve on
-        // every build, and re-apply the (hot-editable) style
+        // targets may have been recreated, so re-resolve and restyle here
         std::vector<ScreenPrimitivePtr> targets;
         for (const auto& p : used_primitives)
             if (!before.count(p))

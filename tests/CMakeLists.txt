@@ -20,3 +20,7 @@ set_tests_properties(export_pipeline PROPERTIES SKIP_RETURN_CODE 125)
 add_executable(test_snippet test_snippet.cpp)
 target_link_libraries(test_snippet PRIVATE slope)
 add_test(NAME lua_snippets COMMAND test_snippet)
+
+add_executable(test_deck_shader test_deck_shader.cpp)
+target_link_libraries(test_deck_shader PRIVATE slope)
+add_test(NAME deck_shader_inputs COMMAND test_deck_shader)
