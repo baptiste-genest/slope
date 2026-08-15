@@ -38,7 +38,7 @@ vec2 plotPointAt(float xmin, float xmax, float ycenter) {
 }
 
 // distance from p to the graph y = f(x), to first order. Dividing by the slope
-// term is what keeps a steep curve from drawing thicker than a flat one : the
+// term is what keeps a steep curve from drawing thicker than a flat one, the
 // vertical gap |y - f(x)| overestimates the true distance by exactly that.
 float graphDist(float y, float fx, float dfx) {
     return abs(y - fx) / sqrt(1.0 + dfx * dfx);
@@ -55,13 +55,13 @@ float curveMask(vec2 p, float fx, float dfx, float width_px, float upp) {
 }
 
 // a filled disc marker of screen radius `r_px` pixels, antialiased over one
-// pixel : scatter data, since curveMask only draws lines.
+// pixel, scatter data, since curveMask only draws lines.
 float pointMask(vec2 p, vec2 center, float r_px, float upp) {
     return 1.0 - smoothstep(-upp, upp, length(p - center) - r_px * upp);
 }
 
 // slope of f at p.x by central differences, for when you have no derivative.
-// One pixel is the right step : smaller is noise, larger is a visible corner.
+// One pixel is the right step, smaller is noise, larger is a visible corner.
 #define PLOT_SLOPE(f, x, upp) (((f)((x) + (upp)) - (f)((x) - (upp))) / (2.0 * (upp)))
 
 // ── grid & axes ──────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ float gridMask(vec2 p, float spacing, float upp) {
     return stroke(min(g.x, g.y), 0.0, 1.2 * upp);
 }
 
-// a coarse grid over a fine one, the fine one fainter : reads as a real plot
+// a coarse grid over a fine one, the fine one fainter, reads as a real plot
 // rather than graph paper
 float gridMaskMinor(vec2 p, float spacing, int subdivisions, float upp) {
     return gridMask(p, spacing / float(max(subdivisions, 1)), upp);
@@ -82,7 +82,7 @@ float axesMask(vec2 p, float upp) {
     return stroke(min(abs(p.x), abs(p.y)), 0.0, 1.4 * upp);
 }
 
-// 1 on the tick marks along the x axis : short strokes of `len_px` pixels
+// 1 on the tick marks along the x axis, short strokes of `len_px` pixels
 float xTickMask(vec2 p, float spacing, float len_px, float upp) {
     float x = abs(p.x - spacing * round(p.x / spacing));
     float on_tick = stroke(x, 0.0, 1.2 * upp);
@@ -97,7 +97,7 @@ float yTickMask(vec2 p, float spacing, float len_px, float upp) {
 }
 
 // ── regions ──────────────────────────────────────────────────────────────────
-// 1 below the graph : for shading the area under a curve
+// 1 below the graph, for shading the area under a curve
 float underCurve(vec2 p, float fx, float upp) {
     return smoothstep(upp, -upp, p.y - fx);
 }

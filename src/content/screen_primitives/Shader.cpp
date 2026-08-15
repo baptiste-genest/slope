@@ -1,4 +1,5 @@
 #include "Shader.h"
+#include "../Snippet.h"   // bind(name), one namespace with Params
 #include "GLFW/glfw3.h"
 #include "polyscope/view.h"
 #include "polyscope/polyscope.h"
@@ -17,13 +18,12 @@
 
 #if !defined(__APPLE__) && !defined(_WIN32)
 #include <dlfcn.h>
+#include "extern/stb_image.h"
 #endif
 
 namespace slope {
 
-// Minimal, self-contained GL loader : rather than depend on whether glad is on
-// the include path, we resolve the handful of entry points we need through
-// glfwGetProcAddress (GLFW is already initialised by polyscope by then).
+// minimal GL loader, through glfwGetProcAddress rather than depending on glad
 namespace {
 
 #if !defined(__APPLE__) && !defined(_WIN32)
@@ -202,9 +202,7 @@ GL& gl()
         return g;
     tried = true;
     bool ok = true;
-    // L  : required, its absence disables the whole primitive
-    // LO : optional (a feature newer than the guaranteed 3.3 baseline), guarded
-    //      at every call site so the rest of the primitive keeps working
+    // L is required, LO is optional and guarded at every call site
 #define L(fn, name)  ok &= loadOne(g.fn, name, true)
 #define LO(fn, name) loadOne(g.fn, name, false)
     L(CreateShader,"glCreateShader"); L(ShaderSource,"glShaderSource");
@@ -237,10 +235,9 @@ GL& gl()
     L(BufferData,"glBufferData"); L(BufferSubData,"glBufferSubData");
     L(BindBufferBase,"glBindBufferBase"); L(GetBufferSubData,"glGetBufferSubData");
     L(DeleteBuffers,"glDeleteBuffers");
-    // 4.3, like the SSBOs it is for : absent on an older context, and
-    // clearBufferData() simply does nothing there
+    // 4.3 like the SSBOs it serves, absent on an older context
     LO(ClearBufferData,"glClearBufferData");
-    LO(MemoryBarrier,"glMemoryBarrier");   // GL 4.2 : absent on a 3.3/4.1 context
+    LO(MemoryBarrier,"glMemoryBarrier");   // GL 4.2, absent on 3.3 and 4.1
 #undef LO
 #undef L
     g.ok = ok;
@@ -308,38 +305,48 @@ uniform vec4  iMouse;        // xy = cursor (px, y up); zw = last click, z<0 whe
 uniform vec2  iMouseNorm;    // cursor in 0..1 across the rect, y up
 uniform float iHovered;      // 1.0 while the cursor is over the rect, else 0.0
 uniform vec4  iDate;         // year, month(1-12), day(1-31), seconds since midnight
-uniform sampler2D iChannel0; // texture inputs : image, another shader, or
+// the shader's own world space, declared from C++ with setView/bindView.
+// Defaults to (0,0) and 1, which makes iWorld() the y-normalised uv.
+uniform vec2  iViewCenter;   // world point at the middle of the rect
+uniform float iViewHalf;     // half of the rect's height, in world units
+uniform sampler2D iChannel0; // texture inputs, image, another shader, or
 uniform sampler2D iChannel1; //   this shader's previous frame (feedback).
 uniform sampler2D iChannel2; //   sample with texture(iChannelN, uv).
 uniform sampler2D iChannel3;
 uniform vec3  iChannelResolution[4]; // (width, height, 1) of each channel
 layout(location = 0) out vec4 fragColor;  // output 0 (MRT: add location=1,2,...)
-// the TimeObject's keyframe queries, same names, taking a keyframe #define
+// the TimeObject's keyframe queries, same names, taking a KF_<name> constant
 bool afterKeyframe (int kf) { return absolute_frame_number >= kf; }
 bool beforeKeyframe(int kf) { return absolute_frame_number <  kf; }
 bool atKeyframe    (int kf) { return absolute_frame_number == kf; }
 int  slidesSinceKeyframe(int kf) { return absolute_frame_number - kf; }
+// This fragment in world coordinates, and the world size of one pixel. The
+// only definition of the mapping. Shader::worldToScreen inverts exactly this,
+// so a label placed at a world point cannot drift from what is drawn.
+vec2  iWorld() { return iViewCenter + 2.0*(gl_FragCoord.xy - 0.5*iResolution)/iResolution.y * iViewHalf; }
+float iPixel() { return 2.0*iViewHalf/iResolution.y; }
+// this pixel across the rect, 0 to 1 with y up, and the same centred on the
+// middle and normalised by height, so x carries the aspect and a distance from
+// the centre means the same in both directions
+vec2 iUV()  { return gl_FragCoord.xy / iResolution; }
+vec2 iUVc() { return 2.0*(gl_FragCoord.xy - 0.5*iResolution)/iResolution.y; }
 )glsl";
 
-// Keyframes are name -> slide index, emitted as a #define so a shader can say
-// afterKeyframe(reveal) instead of a hardcoded slide number. Names that are
-// not valid GLSL identifiers, or that would shadow a prelude name, are
-// skipped (warned once) rather than breaking every shader's compile.
+// Keyframes are name -> slide index, published to every shader as KF_<name>
+// so it can say afterKeyframe(KF_reveal) instead of a hardcoded slide number.
+//
+// A prefixed constant rather than a bare #define, which used to substitute
+// itself into any identifier of the same name.
+//
+// Names that are not valid GLSL identifiers are skipped, warned once, rather
+// than breaking every shader's compile.
 bool usableKeyframeName(const std::string& n)
 {
-    static const std::set<std::string> taken = {
-        "iResolution","iAspect","iTime","iTimeDelta","iFrame","iFrameRate",
-        "iMouse","iMouseNorm","iHovered","iDate","iChannelResolution",
-        "iChannel0","iChannel1","iChannel2","iChannel3","fragColor","main",
-        "from_begin","from_action","inner_time","delta_time",
-        "absolute_frame_number","relative_frame_number","transition_parameter",
-        "afterKeyframe","beforeKeyframe","atKeyframe","slidesSinceKeyframe",
-    };
-    if (n.empty() || taken.count(n)) return false;
+    if (n.empty()) return false;
     if (!std::isalpha((unsigned char)n[0]) && n[0] != '_') return false;
     for (char c : n)
         if (!std::isalnum((unsigned char)c) && c != '_') return false;
-    return n.compare(0, 3, "gl_") != 0;
+    return true;
 }
 
 std::string keyframeDefines()
@@ -355,7 +362,7 @@ std::string keyframeDefines()
                              "identifier and is not exposed to shaders", name);
             continue;
         }
-        out += "#define " + name + " " + std::to_string(slide) + "\n";
+        out += "const int KF_" + name + " = " + std::to_string(slide) + ";\n";
     }
     return out;
 }
@@ -363,7 +370,7 @@ std::string keyframeDefines()
 // source string 0 is the shader's own file; #include'd files get 1, 2, ...
 const char* kLineReset = "#line 1 0\n";
 
-// #include "other.frag" (or <other.frag>) : plain textual inclusion, resolved
+// #include "other.frag" or <other.frag>, plain textual inclusion, resolved
 // against the including file then the project data path. Each included file
 // gets its own source-string index, tracked via "#line n idx" so diagnostics
 // point at the right line; "#pragma once" is honoured and stripped.
@@ -398,7 +405,7 @@ std::vector<std::string> splitLines(const std::string& src)
     return lines;
 }
 
-// the file an #include resolves to, or "" : <file> is the shader stdlib,
+// the file an #include resolves to, or "". <file> is the shader stdlib,
 // "file" is the deck's own, falling back to the stdlib.
 std::string resolveInclude(const std::string& target, const path& dir, bool bank_only)
 {
@@ -523,9 +530,8 @@ IncludeExpansion expandIncludes(const std::string& src, const path& dir,
     return X;
 }
 
-// true if the source has a genuine "#version" directive : the first token,
-// ignoring blanks/comments, on some line is "#version" — so a comment merely
-// mentioning the word does not fool us into dropping the prelude.
+// true if the source has a genuine "#version" directive, first token on a
+// line, so a comment mentioning the word does not drop the prelude.
 bool hasVersionDirective(const std::string& src)
 {
     const size_t n = src.size();
@@ -541,8 +547,7 @@ bool hasVersionDirective(const std::string& src)
             continue;
         }
         if (c == '/' && i + 1 < n) {
-            // comments do not consume "freshness" : the spec lets a real
-            // directive be preceded by them (/* header */ #version 330)
+            // the spec lets comments precede a real directive
             if (src[i+1] == '/') { in_line  = true; ++i; continue; }
             if (src[i+1] == '*') { in_block = true; ++i; continue; }
         }
@@ -624,7 +629,7 @@ ShaderPtr Shader::Add(const std::string& fragment_source, int w, int h)
 ShaderPtr Shader::FromFile(const path& file, int w, int h)
 {
     auto s = NewPrimitive<Shader>();
-    s->source_file = formatPath(file);
+    s->source_path = file;
     s->from_file = true;
     s->reloadFromFile();
     all_shaders.push_back(s.get());
@@ -635,14 +640,29 @@ ShaderPtr Shader::FromFile(const path& file, int w, int h)
 
 void Shader::reloadFromFile()
 {
+    // resolved per call, a shader built before deck init has no project path yet
+    source_file = formatPath(source_path);
     std::ifstream f(source_file);
     if (!f.is_open()) {
-        spdlog::error("[shader] could not open {}", source_file.string());
+        // retried by HotReloadIfModified, so a project path set after this
+        // shader was built (or a file written later) still comes up
+        load_failed = true;
+        // before the deck is initialised the path cannot be resolved yet, so
+        // that first miss is expected, stay quiet until then
+        if (!load_error_reported && !Options::ProjectDataPath.empty()) {
+            spdlog::error("[shader] could not open {}", source_file.string());
+            load_error_reported = true;
+        }
         fragment_src = "void main(){ fragColor = vec4(1,0,1,1); }"; // loud magenta
     } else {
         std::stringstream buf;
         buf << f.rdbuf();
         fragment_src = buf.str();
+        load_failed = false;
+        if (load_error_reported) {   // we complained, so say it is back
+            spdlog::info("[shader] loaded {}", source_file.string());
+            load_error_reported = false;
+        }
     }
     needs_recompile = true;
     std::error_code ec;
@@ -653,8 +673,7 @@ void Shader::reloadFromFile()
 
 Shader::~Shader()
 {
-    // GL objects are intentionally not freed here : a Shader can outlive the GL
-    // context (static teardown ordering), and the driver reclaims them then.
+    // not freed here, a Shader can outlive the context and the driver reclaims
     auto ia = std::find(all_shaders.begin(), all_shaders.end(), this);
     if (ia != all_shaders.end())
         all_shaders.erase(ia);
@@ -744,31 +763,71 @@ void Shader::setResolution(int w, int h)
 
 // ── uniforms ────────────────────────────────────────────────────────────────
 void Shader::set(const std::string& n, float v)
-{ uniforms[n] = [v](int l){ gl().Uniform1f(l, v); }; }
+{ uniforms[n] = [v](int l, const TimeObject&){ gl().Uniform1f(l, v); }; }
 void Shader::set(const std::string& n, int v)
-{ uniforms[n] = [v](int l){ gl().Uniform1i(l, v); }; }
+{ uniforms[n] = [v](int l, const TimeObject&){ gl().Uniform1i(l, v); }; }
 void Shader::set(const std::string& n, const vec2& v)
-{ float a=float(v(0)),b=float(v(1)); uniforms[n]=[a,b](int l){ gl().Uniform2f(l,a,b); }; }
+{ float a=float(v(0)),b=float(v(1)); uniforms[n]=[a,b](int l, const TimeObject&){ gl().Uniform2f(l,a,b); }; }
 void Shader::set(const std::string& n, const vec& v)
-{ float a=float(v(0)),b=float(v(1)),c=float(v(2)); uniforms[n]=[a,b,c](int l){ gl().Uniform3f(l,a,b,c); }; }
+{ float a=float(v(0)),b=float(v(1)),c=float(v(2)); uniforms[n]=[a,b,c](int l, const TimeObject&){ gl().Uniform3f(l,a,b,c); }; }
 void Shader::set(const std::string& n, const RGBA& v)
-{ ImVec4 c=v.Value; uniforms[n]=[c](int l){ gl().Uniform4f(l,c.x,c.y,c.z,c.w); }; }
+{ ImVec4 c=v.Value; uniforms[n]=[c](int l, const TimeObject&){ gl().Uniform4f(l,c.x,c.y,c.z,c.w); }; }
 
-void Shader::bindF(const std::string& n, std::function<float()> f)
-{ uniforms[n] = [f](int l){ gl().Uniform1f(l, f()); }; }
+void Shader::bindF(const std::string& n, std::function<float(const TimeObject&)> f)
+{ uniforms[n] = [f](int l, const TimeObject& t){ gl().Uniform1f(l, f(t)); }; }
+void Shader::bindDynamic(const std::string& n, std::function<int(scalar*)> f)
+{
+    uniforms[n] = [f](int loc, const TimeObject&) {
+        scalar v[4] = {0, 0, 0, 0};
+        auto& g = gl();
+        switch (f(v)) {
+        case 1: g.Uniform1f(loc, float(v[0])); break;
+        case 2: g.Uniform2f(loc, float(v[0]), float(v[1])); break;
+        case 3: g.Uniform3f(loc, float(v[0]), float(v[1]), float(v[2])); break;
+        case 4: g.Uniform4f(loc, float(v[0]), float(v[1]), float(v[2]), float(v[3])); break;
+        default: break;
+        }
+    };
+}
+
+void Shader::bind(const std::string& name)
+{
+    // said once, and only after the first frame, nothing is published before it
+    auto said = std::make_shared<bool>(false);
+    std::string where = source_file.empty() ? std::string("shader")
+                                            : source_file.filename().string();
+    bindDynamic(name, [name, where, said](scalar* v) {
+        auto val = Snippet::get(name);
+        if (!val.valid() && Snippet::ready() && !*said) {
+            *said = true;
+            spdlog::error("[shader] {} : uniform \"{}\" has no snippet variable or parameter "
+                          "of that name, nothing is uploaded", where, name);
+        }
+        for (int i = 0; i < val.n; i++) v[i] = val.v[i];
+        return val.n;
+    });
+}
+
+void Shader::bind(std::initializer_list<const char*> names)
+{
+    for (const char* n : names)
+        bind(std::string(n));
+}
+
 void Shader::bindInt(const std::string& n, std::function<int()> f)
-{ uniforms[n] = [f](int l){ gl().Uniform1i(l, f()); }; }
-void Shader::bindV2(const std::string& n, std::function<vec2()> f)
-{ uniforms[n] = [f](int l){ auto v=f(); gl().Uniform2f(l, float(v(0)), float(v(1))); }; }
-void Shader::bindV3(const std::string& n, std::function<vec()> f)
-{ uniforms[n] = [f](int l){ auto v=f(); gl().Uniform3f(l, float(v(0)), float(v(1)), float(v(2))); }; }
-void Shader::bindV4(const std::string& n, std::function<RGBA()> f)
-{ uniforms[n] = [f](int l){ ImVec4 c=f().Value; gl().Uniform4f(l, c.x, c.y, c.z, c.w); }; }
+{ uniforms[n] = [f](int l, const TimeObject&){ gl().Uniform1i(l, f()); }; }
+void Shader::bindInt(const std::string& n, std::function<int(const TimeObject&)> f)
+{ uniforms[n] = [f](int l, const TimeObject& t){ gl().Uniform1i(l, f(t)); }; }
+void Shader::bindV2(const std::string& n, std::function<vec2(const TimeObject&)> f)
+{ uniforms[n] = [f](int l, const TimeObject& t){ auto v=f(t); gl().Uniform2f(l, float(v(0)), float(v(1))); }; }
+void Shader::bindV3(const std::string& n, std::function<vec(const TimeObject&)> f)
+{ uniforms[n] = [f](int l, const TimeObject& t){ auto v=f(t); gl().Uniform3f(l, float(v(0)), float(v(1)), float(v(2))); }; }
+void Shader::bindV4(const std::string& n, std::function<RGBA(const TimeObject&)> f)
+{ uniforms[n] = [f](int l, const TimeObject& t){ ImVec4 c=f(t).Value; gl().Uniform4f(l, c.x, c.y, c.z, c.w); }; }
 
 // ── textures & buffers ──────────────────────────────────────────────────────
 // the four ShaderToy channels are textures under a reserved name. Out of range
-// gives "", which every entry point below ignores — the numbered API used to
-// return silently, and still does.
+// gives "", which every entry point below ignores.
 std::string Shader::ChannelName(int i)
 {
     if (i < 0 || i >= kChannels)
@@ -776,8 +835,7 @@ std::string Shader::ChannelName(int i)
     return "iChannel" + std::to_string(i);
 }
 
-// every rebind goes through here : an Image texture owns its GL object, and
-// overwriting the entry without freeing it would leak it
+// every rebind goes through here, overwriting an owned entry would leak it
 void Shader::releaseTexture(const std::string& name)
 {
     auto it = textures.find(name);
@@ -808,8 +866,7 @@ void Shader::setTexture(const std::string& name, const path& image_file, Filter 
     if (name.empty()) return;
     const std::string file = formatPath(image_file);
 
-    // already holding exactly this : keep the GL texture rather than decoding
-    // the file again (a deck hot reload re-declares its whole set every save)
+    // already holding exactly this, keep it rather than decoding the file again
     auto it = textures.find(name);
     if (it != textures.end() && it->second.kind == Texture::Kind::Image &&
         it->second.image_tex && it->second.comps == 0 &&
@@ -836,8 +893,7 @@ void Shader::setTexture(const std::string& name, const path& image_file, Filter 
 void Shader::setTexture(const std::string& name, const ShaderPtr& src, int attachment)
 {
     if (name.empty() || !src) return;
-    // a shader pointed at itself would read and write the same texture in one
-    // pass : that is exactly what the ping-pong path is for
+    // reading and writing one texture in a pass is what ping-pong is for
     if (src.get() == this) {
         setTextureSelf(name, attachment);
         return;
@@ -876,8 +932,7 @@ void Shader::retainTextures(const std::vector<std::string>& names)
 {
     std::vector<std::string> drop;
     for (auto& [name, t] : textures)
-        // file-backed only : a CPU data texture, or one fed by another pass,
-        // was set from code this never saw and is none of its business
+        // file-backed only, the others were set from code this never saw
         if (t.kind == Texture::Kind::Image && !t.file.empty() &&
             std::find(names.begin(), names.end(), name) == names.end())
             drop.push_back(name);
@@ -925,7 +980,7 @@ void Shader::setTargets(int n)
     gl_ready = false; // rebuild the FBO(s) with the new attachment count
 }
 
-// ── CPU → GPU : data textures ────────────────────────────────────────────────
+// ── data textures, CPU to GPU ───────────────────────────────────────────────
 void Shader::setTexture(const std::string& name, const float* data, int w, int h,
                         int comps, Filter f, Wrap wrapMode)
 {
@@ -976,7 +1031,7 @@ void Shader::setTexture(const std::string& name, const float* data, int w, int h
     g.BindTexture(SL_TEXTURE_2D, SLGLuint(prev_tex));
 }
 
-// ── GPU → CPU : readback ─────────────────────────────────────────────────────
+// ── readback, GPU to CPU ────────────────────────────────────────────────────
 bool Shader::readback(std::vector<float>& out, int attachment) const
 {
     auto& g = gl();
@@ -1073,9 +1128,7 @@ void Shader::clearBufferData(int binding, unsigned int value)
     if (!g.ok || !g.ClearBufferData || it == ssbos.end() ||
         !it->second || !it->second->id)
         return;
-    // R32UI over the whole range : the buffer's own contents are irrelevant,
-    // only the fill pattern is, and every accumulator this is meant for is a
-    // 32-bit word
+    // R32UI over the whole range, every accumulator this serves is a 32-bit word
     g.BindBuffer(SL_SHADER_STORAGE_BUFFER, it->second->id);
     g.ClearBufferData(SL_SHADER_STORAGE_BUFFER, SLGLint(SL_R32UI),
                       SL_RED_INTEGER, SL_UNSIGNED_INT, &value);
@@ -1121,9 +1174,7 @@ void Shader::ensureResources()
     if (!vao)
         g.GenVertexArrays(1, &vao);
 
-    // the viewport is part of what we stomp below (clearing each target) : the
-    // caller captures GL state *after* this runs, so it must be restored here or
-    // polyscope's own viewport is lost on every frame that (re)creates resources
+    // the caller captures GL state after this runs, so restore the viewport here
     SLGLint prev_fbo = 0, prev_tex = 0, prev_vp[4] = {0,0,0,0};
     SLGLfloat prev_clear[4] = {0,0,0,0};
     g.GetIntegerv(SL_FRAMEBUFFER_BINDING, &prev_fbo);
@@ -1162,7 +1213,7 @@ void Shader::ensureResources()
                 g.TexParameteri(SL_TEXTURE_2D, SL_TEXTURE_WRAP_T, SLGLint(self_wrap));
                 g.FramebufferTexture2D(SL_FRAMEBUFFER, SL_COLOR_ATTACHMENT0 + a,
                                        SL_TEXTURE_2D, T.tex[a], 0);
-            } else if (T.tex[a]) {           // shrinking : drop stale attachments
+            } else if (T.tex[a]) {           // shrinking, drop stale attachments
                 g.DeleteTextures(1, &T.tex[a]);
                 T.tex[a] = 0;
                 g.FramebufferTexture2D(SL_FRAMEBUFFER, SL_COLOR_ATTACHMENT0 + a,
@@ -1205,9 +1256,8 @@ void Shader::recompile()
     include_deps = std::move(X.deps);
     source_units = std::move(X.units);
 
-    // Using the depth API is the declaration : scanning the shader's own text
-    // (not the expanded source) means a call hidden inside your own included
-    // helper is missed, and has to call useSceneDepth() from C++ instead.
+    // scanning the shader's own text misses a call inside an included helper,
+    // which then needs useSceneDepth() from C++
     useSceneDepth(referencesSceneDepth(fragment_src));
 
     // a source with its own #version is complete; otherwise prepend the
@@ -1222,7 +1272,7 @@ void Shader::recompile()
            + kLineReset + X.source);
 
     // an SSBO shader on a context that cannot offer 430 would fail to compile
-    // with a confusing "unexpected buffer" error : name the real cause first
+    // name the real cause before the confusing "unexpected buffer" error
     if (!complete && std::string(versionLine()).find("430") == std::string::npos &&
         fragment_src.find("std430") != std::string::npos)
         spdlog::error("[shader] this shader uses SSBOs (std430) but the GL context "
@@ -1272,8 +1322,7 @@ void Shader::recompile()
 }
 
 // resolve every built-in name once, here, rather than once per frame. Only
-// called after a link succeeds : a failed recompile keeps the previous
-// program, and must keep its locations with it.
+// called after a link succeeds, a failed recompile keeps the previous locations
 void Shader::cacheUniformLocations()
 {
     auto& g = gl();
@@ -1305,6 +1354,8 @@ void Shader::cacheUniformLocations()
     uloc.iCamFov     = L("iCamFov");
     uloc.iScreenRect = L("iScreenRect");
     uloc.iWindowSize = L("iWindowSize");
+    uloc.iViewCenter = L("iViewCenter");
+    uloc.iViewHalf   = L("iViewHalf");
 
     uloc.iSceneDepth      = L("iSceneDepth");
     uloc.iSceneDepthValid = L("iSceneDepthValid");
@@ -1352,8 +1403,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     g.GetIntegerv(SL_TEXTURE_BINDING_2D, &prev_tex);
     g.GetIntegerv(SL_VIEWPORT, prev_vp);
 
-    // ping-pong : read the current output, write the other target. A plain
-    // (non-feedback) shader always reads/writes target 0.
+    // ping-pong, read the current output and write the other target
     const int read  = cur;
     const int write = feedback ? (1 - cur) : 0;
 
@@ -1361,7 +1411,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     g.Viewport(0, 0, res_x, res_y);
     g.Disable(SL_DEPTH_TEST);
     // This runs inside ImGui's pass, which leaves blending and a clip
-    // rectangle switched on. Both are wrong for an offscreen pass : the
+    // rectangle switched on. Both are wrong for an offscreen pass, the
     // scissor would crop the target to whatever ImGui was drawing, and
     // blending would mix each fragment with what the target already held
     // instead of replacing it. That is invisible while fragColor.a is 1, and
@@ -1384,8 +1434,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     if (int l = U.iFrame; l >= 0) g.Uniform1i(l, frames_rendered);
     if (int l = U.iFrameRate; l >= 0) g.Uniform1f(l, ImGui::GetIO().Framerate);
 
-    // the TimeObject, field for field. What it calls a "frame" is a slide,
-    // which is why iFrame is separate : it counts renders of this shader.
+    // the TimeObject, field for field. Its "frame" is a slide, iFrame is not
     if (int l = U.from_begin; l >= 0) g.Uniform1f(l, float(t.from_begin));
     if (int l = U.from_action; l >= 0) g.Uniform1f(l, float(t.from_action));
     if (int l = U.inner_time; l >= 0) g.Uniform1f(l, float(t.inner_time));
@@ -1393,6 +1442,22 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     if (int l = U.absolute_frame_number; l >= 0) g.Uniform1i(l, t.absolute_frame_number);
     if (int l = U.relative_frame_number; l >= 0) g.Uniform1i(l, t.relative_frame_number);
     if (int l = U.transition_parameter; l >= 0) g.Uniform1f(l, float(t.transition_parameter));
+
+    // Latched rather than re-read by worldToScreen, since a label must land on
+    // the view that was drawn even though the anchor resolves on another call.
+    drawn_view_center = view_center ? view_center() : vec2::Zero();
+    drawn_view_half   = view_half   ? view_half()   : scalar(1);
+    // a half-height of zero collapses every world point onto the centre, which
+    // is a flat picture and stacked labels rather than anything readable
+    if (view_half && !(std::abs(drawn_view_half) > 1e-12) && !bad_view_reported) {
+        bad_view_reported = true;
+        spdlog::error("shader \"{}\" has a view half-height of {}, so its world space "
+                      "is degenerate; nothing declared it, or its name is misspelt",
+                      source_path.string(), drawn_view_half);
+    }
+    if (int l = U.iViewCenter; l >= 0)
+        g.Uniform2f(l, float(drawn_view_center(0)), float(drawn_view_center(1)));
+    if (int l = U.iViewHalf; l >= 0) g.Uniform1f(l, float(drawn_view_half));
 
     // cursor mapped into the shader rect, in rect pixels with y up (ShaderToy).
     // Deferred renders run from an ImGui draw callback with an empty window
@@ -1408,8 +1473,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     const float mx = u * res_x;            // rect pixels, y up
     const float my = (1.f - v) * res_y;
 
-    // click tracking : latch the position on the press frame, keep it while held.
-    // sign of iMouse.z encodes the pressed state, ShaderToy-style.
+    // latch the position on the press frame, sign of iMouse.z holds the state
     const bool down = hovered && ImGui::IsMouseDown(0);
     if (down && !mouse_was_down) { last_click_x = mx; last_click_y = my; }
     mouse_was_down = down;
@@ -1466,16 +1530,14 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
             }
         }
         // the unit it goes on depends on how many textures are bound, which is
-        // only known below : remembered here, bound after them
+        // only known below, remembered here and bound after them
         scene_depth_tex = dtex;
         if (U.iSceneDepth >= 0 && dtex) {
-            // current for a deferred (visible) shader, which runs after the
-            // scene pass; a hidden shader can't defer, so its depth is last
-            // frame's — keep requesting a redraw so that copy never goes stale
+            // a hidden shader cannot defer, so its depth is last frame's and
+            // the redraw keeps that copy fresh
             polyscope::requestRedraw();
         }
-        // "valid" means usable, not merely present : mid-peel the texture is
-        // bound but holds the last peeled layer, worse than useless to trust
+        // usable, not merely present, mid-peel it holds the last peeled layer
         const bool depth_usable =
             dtex && (polyscope::options::transparencyMode != polyscope::TransparencyMode::Pretty
                      || polyscope::options::transparencyRenderPasses <= 1);
@@ -1510,8 +1572,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
             c.size_loc    = g.GetUniformLocation(program, (name + "_size").c_str());
             c.loc_program = program;
         }
-        // a name the program does not declare costs nothing : no unit, no
-        // upload. Editing a .frag to drop a sampler must never break anything.
+        // an undeclared name costs nothing, dropping a sampler never breaks
         if (c.sampler_loc < 0 && c.legacy_channel < 0)
             continue;
         if (unit >= unit_budget) {
@@ -1559,21 +1620,19 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     }
     g.ActiveTexture(SL_TEXTURE0); // leave unit 0 active, as most code expects
 
-    // storage buffers : bound to their explicit std430 binding points
+    // storage buffers, bound to their explicit std430 binding points
     for (auto& [binding, sb] : ssbos)
         if (sb && sb->id)
             g.BindBufferBase(SL_SHADER_STORAGE_BUFFER, SLGLuint(binding), sb->id);
 
-    // user uniforms : unknown names resolve to -1 and are skipped, so editing
-    // the shader to add/remove a uniform never throws. Names arrive at
-    // runtime, so these are resolved on first use and cached (including -1s).
+    // unknown names resolve to -1 and are skipped, resolved on first use
     for (auto& [name, setter] : uniforms) {
         auto it = user_uniform_loc.find(name);
         if (it == user_uniform_loc.end())
             it = user_uniform_loc.emplace(
                 name, g.GetUniformLocation(program, name.c_str())).first;
         if (it->second >= 0)
-            setter(it->second);
+            setter(it->second, t);
     }
 
     g.ClearColor(0.f, 0.f, 0.f, 0.f);
@@ -1592,9 +1651,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     cur = write;
     ++frames_rendered;
 
-    // restore. Every unit we handed out is cleared explicitly : only unit 0's
-    // binding was saved, so anything left on the others would leak into later
-    // draws.
+    // restore. Only unit 0 was saved, so clear every unit we handed out
     if (bound_scene_depth) {
         g.ActiveTexture(SL_TEXTURE0 + scene_depth_unit);
         g.BindTexture(SL_TEXTURE_2D, 0);
@@ -1611,8 +1668,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     g.BindFramebuffer(SL_FRAMEBUFFER, SLGLuint(prev_fbo));
     g.Viewport(prev_vp[0], prev_vp[1], prev_vp[2], prev_vp[3]);
     g.ClearColor(prev_clear[0], prev_clear[1], prev_clear[2], prev_clear[3]);
-    // depth test is restored to what it was, not unconditionally enabled : the
-    // slide is drawn inside an ImGui pass, which usually runs with it off
+    // restored to what it was, the ImGui pass this runs in usually has it off
     if (prev_depth) g.Enable(SL_DEPTH_TEST);
     else            g.Disable(SL_DEPTH_TEST);
     if (prev_blend) g.Enable(SL_BLEND);
@@ -1629,11 +1685,90 @@ void Shader::screenRect(const StateInSlide& sis, ImVec2& pmin, ImVec2& pmax) con
     const auto P = sis.getAbsolutePosition();
     pmin = ImVec2(P.x - size.x*0.5f, P.y - size.y*0.5f);
     pmax = ImVec2(pmin.x + size.x, pmin.y + size.y);
+
+    // recorded here rather than at the blit, since this is the one place the
+    // rect is defined, so what tracking inverts is what is drawn
+    const auto W = ImGui::GetWindowSize();
+    if (W.x > 0 && W.y > 0) {
+        drawn_rect_min = vec2(pmin.x/W.x, pmin.y/W.y);
+        drawn_rect_max = vec2(pmax.x/W.x, pmax.y/W.y);
+        rect_recorded = true;
+    }
+}
+
+// ── world space ─────────────────────────────────────────────────────────────
+
+void Shader::setView(const vec2& center, scalar half_height)
+{
+    view_center = [center]{ return center; };
+    view_half   = [half_height]{ return half_height; };
+}
+
+void Shader::bindView(std::function<vec2()> center, std::function<scalar()> half_height)
+{
+    view_center = center;
+    view_half   = half_height;
+}
+
+vec2 Shader::worldToScreen(const vec2& w) const
+{
+    vec2 lo = drawn_rect_min, hi = drawn_rect_max;
+    if (!rect_recorded) {
+        // never drawn, so assume where a centered placement would put it
+        const vec2 s = getRelativeSize();
+        lo = vec2(0.5 - s(0)*0.5, 0.5 - s(1)*0.5);
+        hi = lo + s;
+    }
+    const vec2 mid = (lo + hi)*0.5;
+    if (std::abs(drawn_view_half) < 1e-12)
+        return mid;
+
+    // exactly iWorld() inverted, y-normalised, so x carries the aspect
+    const scalar aspect = scalar(res_x) / std::max(res_y, 1);
+    const vec2 n = (w - drawn_view_center) / drawn_view_half;
+    const scalar u = 0.5 + n(0)*0.5/aspect;
+    const scalar v = 0.5 + n(1)*0.5;                    // y up, like gl_FragCoord
+    return vec2(lo(0) + u*(hi(0) - lo(0)),
+                lo(1) + (1 - v)*(hi(1) - lo(1)));       // y down, like anchors
+}
+
+vec2 Shader::screenToWorld(const vec2& s) const
+{
+    vec2 lo = drawn_rect_min, hi = drawn_rect_max;
+    if (!rect_recorded) {
+        const vec2 sz = getRelativeSize();
+        lo = vec2(0.5 - sz(0)*0.5, 0.5 - sz(1)*0.5);
+        hi = lo + sz;
+    }
+    const scalar dx = hi(0) - lo(0), dy = hi(1) - lo(1);
+    if (std::abs(dx) < 1e-12 || std::abs(dy) < 1e-12)
+        return drawn_view_center;
+
+    const scalar aspect = scalar(res_x) / std::max(res_y, 1);
+    const scalar u = (s(0) - lo(0))/dx;
+    const scalar v = 1 - (s(1) - lo(1))/dy;
+    return drawn_view_center + vec2((u - 0.5)*2*aspect, (v - 0.5)*2) * drawn_view_half;
+}
+
+std::function<vec2()> Shader::tracker(std::function<vec2()> world, vec2 offset)
+{
+    // weak, so a tracked shader that goes away leaves the follower harmless
+    std::weak_ptr<Shader> self = std::static_pointer_cast<Shader>(ScreenPrimitive::get(pid));
+    return [self, world, offset]() -> vec2 {
+        auto s = self.lock();
+        if (!s || !world) return vec2(0.5, 0.5);
+        return s->worldToScreen(world()) + offset;
+    };
+}
+
+std::function<vec2()> Shader::tracker(const vec2& world, const vec2& offset)
+{
+    return tracker(std::function<vec2()>([world]{ return world; }), offset);
 }
 
 void Shader::display(const StateInSlide& sis, float global_alpha)
 {
-    // hidden passes only feed other shaders : they render but never blit
+    // a hidden pass only feeds other shaders, it renders but never blits
     if (hidden || !compiled || !buf[cur].tex[0])
         return;
     ImVec2 pmin, pmax;
@@ -1641,17 +1776,14 @@ void Shader::display(const StateInSlide& sis, float global_alpha)
     const ImVec2 size(pmax.x - pmin.x, pmax.y - pmin.y);
 
     const ImU32 col = ImColor(1.f, 1.f, 1.f, global_alpha);
-    // V flipped (0,1)->(1,0) : the FBO texture is bottom-left origin, ImGui is
-    // top-left, so this puts the ShaderToy image upright on screen
+    // V flipped, the FBO texture is bottom-left origin and ImGui is top-left
     ImGui::GetWindowDrawList()->AddImage((ImTextureID)(intptr_t)buf[cur].tex[0],
                                          pmin, pmax, ImVec2(0, 1), ImVec2(1, 0), col);
 }
 
 vec2 Shader::getSize() const
 {
-    // at the screen-size default, res_x/res_y already are the window's
-    // resolution : show it 1:1, rather than through the 1920x1080-relative
-    // scale below (which would double-apply it)
+    // at the screen-size default res_x/res_y are the window, so show it 1:1
     if (!explicit_resolution)
         return vec2(res_x, res_y);
 
@@ -1665,9 +1797,8 @@ vec2 Shader::getSize() const
     return vec2(sx * res_x, sy * res_y);
 }
 
-// Deferred rendering, so a shader can see *this* frame's scene depth : ImGui
-// only records draw commands here, executing them later at ImGuiRender(),
-// which runs after polyscope's scene pass. Only shaders using scene depth
+// Deferred so a shader can see this frame's scene depth. ImGui only records
+// draw commands here and executes them at ImGuiRender(), after the scene pass. Only shaders using scene depth
 // defer this way; everything else renders inline.
 void Shader::ImGuiRenderCallback(const ImDrawList*, const ImDrawCmd* cmd)
 {
@@ -1680,8 +1811,7 @@ void Shader::ImGuiRenderCallback(const ImDrawList*, const ImDrawCmd* cmd)
 }
 
 // Render one recorded placement. A queue, not a single slot, because every
-// placement is recorded before any callback runs : with one slot a second
-// placement would overwrite the first's state.
+// placement is recorded before any callback runs, one slot per placement
 void Shader::runNextPendingRender()
 {
     if (pending_next >= pending.size())
@@ -1707,8 +1837,7 @@ void Shader::runNextPendingRender()
 
 void Shader::reportRenderError(const std::string& what)
 {
-    // once per shader : this would otherwise fire every frame for the rest of
-    // the talk, and drown the log that explains the cause
+    // once per shader, this would otherwise fire every frame of the talk
     if (render_error_reported)
         return;
     render_error_reported = true;
@@ -1719,11 +1848,15 @@ void Shader::reportRenderError(const std::string& what)
 
 void Shader::drawWith(const TimeObject& t, const StateInSlide& sis, float alpha)
 {
+    // a shader built before the deck was initialised could not resolve its
+    // path yet; the first draw is always after init, so try again here
+    if (from_file && load_failed)
+        reloadFromFile();
+
     const bool defer = wants_scene_depth && !hidden;
 
     if (defer) {
-        // one record list per frame : anything left over from a frame whose
-        // callbacks never ran must not be carried forward
+        // one record list per frame, a frame whose callbacks never ran is dropped
         const int now = ImGui::GetFrameCount();
         if (now != record_frame) {
             pending.clear();
@@ -1753,17 +1886,17 @@ void Shader::drawWith(const TimeObject& t, const StateInSlide& sis, float alpha)
 
 void Shader::draw(const TimeObject& t, const StateInSlide& sis)
 {
-    drawWith(t, sis, float(sis.alpha));
+    drawWith(t, sis, float(sis.getAlpha()));
 }
 
 void Shader::playIntro(const TimeObject& t, const StateInSlide& sis)
 {
-    drawWith(t, sis, float(sis.alpha));
+    drawWith(t, sis, float(sis.getAlpha()));
 }
 
 void Shader::playOutro(const TimeObject& t, const StateInSlide& sis)
 {
-    drawWith(t, sis, float(sis.alpha));
+    drawWith(t, sis, float(sis.getAlpha()));
 }
 
 void Shader::HotReloadIfModified()
@@ -1774,7 +1907,7 @@ void Shader::HotReloadIfModified()
     last_refresh = Time::now();
 
     // a deck hot reload can move any keyframe's slide index, and those are
-    // baked into every program as #defines, so a change invalidates all of
+    // baked into every program as constants, so a change invalidates all of
     // them, not just the file-backed ones
     {
         static std::string last_defines;
@@ -1792,6 +1925,10 @@ void Shader::HotReloadIfModified()
 
     for (auto* s : all_shaders) {
         std::error_code ec;
+        if (s->from_file && s->load_failed) {
+            s->reloadFromFile();    // re-resolves the path, now that the deck is up
+            continue;
+        }
         if (s->from_file) {
             auto t = std::filesystem::last_write_time(s->source_file, ec);
             if (!ec && t != s->last_modified) {
@@ -1800,8 +1937,7 @@ void Shader::HotReloadIfModified()
                 continue;   // the re-expansion will refresh its includes
             }
         }
-        // a shared header changed : the shader's own file is untouched, but
-        // the program built from it is stale
+        // a shared header changed, the file is untouched but the program is stale
         for (const auto& [file, stamp] : s->include_deps) {
             auto t = std::filesystem::last_write_time(file, ec);
             if (ec || t == stamp)

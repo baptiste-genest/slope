@@ -1,7 +1,7 @@
 #pragma once
 // ─────────────────────────────────────────────────────────────────────────────
 // Building a primary ray for the current pixel. Independent of what you then
-// trace against — an SDF, a height field, an implicit surface — so it does not
+// trace against, an SDF, a height field, an implicit surface, so it does not
 // drag in <raymarch.glsl> and its sceneSDF requirement.
 //
 //   #include <camera.glsl>
@@ -13,14 +13,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ray through this pixel for a camera at `ro` looking at `target`.
-// `lens` is the distance to the image plane : larger is a longer lens, i.e. a
+// `lens` is the distance to the image plane, larger is a longer lens, i.e. a
 // narrower field of view and less perspective distortion.
 void lookAtRay(vec3 ro, vec3 target, float lens, out vec3 rd) {
     vec3 fw = normalize(target - ro);
     vec3 rt = normalize(cross(vec3(0.0, 1.0, 0.0), fw));
     vec3 up = cross(fw, rt);
     // divide by y so the vertical field of view is fixed and the horizontal one
-    // widens with the rectangle : the picture does not squash when it is resized
+    // widens with the rectangle, the picture does not squash when it is resized
     vec2 uv = (gl_FragCoord.xy - 0.5 * iResolution) / iResolution.y;
     rd = normalize(uv.x * rt + uv.y * up + lens * fw);
 }
@@ -36,7 +36,7 @@ void orbitRayAt(vec2 orbit, float radius, vec3 target, out vec3 ro, out vec3 rd)
 }
 
 // driven by the cursor while it is over the rectangle, and by a default 3/4
-// view otherwise — so an export still looks composed
+// view otherwise, so an export still looks composed
 void orbitRayTarget(float radius, vec3 target, out vec3 ro, out vec3 rd) {
     vec2 orbit = (iHovered > 0.5) ? iMouseNorm : vec2(0.55, 0.62);
     orbitRayAt(orbit, radius, target, ro, rd);
@@ -48,7 +48,7 @@ void orbitRay(out vec3 ro, out vec3 rd) {
 
 // ── polyscope's camera ───────────────────────────────────────────────────────
 // The ray polyscope itself would trace through this fragment, so a shader scene
-// lands in the same world as the 3D scene behind it : an object the shader
+// lands in the same world as the 3D scene behind it, an object the shader
 // draws at world position X covers the polyscope geometry at X, and it stays
 // registered while the user orbits.
 //
@@ -65,19 +65,19 @@ void orbitRay(out vec3 ro, out vec3 rd) {
 // end up on (iScreenRect), then unprojected with polyscope's matrices.
 
 // ── the screen, shared with slope ────────────────────────────────────────────
-// What polyscopeRay is to the 3D scene, screenPoint is to the window : the
+// What polyscopeRay is to the 3D scene, screenPoint is to the window, the
 // referential a shader shares with everything outside it, whatever rectangle
 // it is drawn into. slope's 2D parameters live in exactly this space, so a
 // handle dragged in the panel is at screenPoint() == the parameter's value.
 
-// this fragment in screen coordinates : 0..1 across the window, y up
+// this fragment in screen coordinates. 0..1 across the window, y up
 vec2 screenPoint() {
     vec2 f  = gl_FragCoord.xy / iResolution;                 // 0..1 in the target, y up
     vec2 px = iScreenRect.xy + vec2(f.x, 1.0 - f.y) * iScreenRect.zw;  // window px, y down
     return vec2(px.x / iWindowSize.x, 1.0 - px.y / iWindowSize.y);
 }
 
-// the way back : a screen coordinate as this shader's own uv (0..1, y up),
+// the way back, a screen coordinate as this shader's own uv (0..1, y up),
 // outside 0..1 when it falls off the rectangle
 vec2 screenToLocal(vec2 s) {
     vec2 px = vec2(s.x * iWindowSize.x, (1.0 - s.y) * iWindowSize.y);
@@ -86,7 +86,7 @@ vec2 screenToLocal(vec2 s) {
 }
 
 // the window's aspect, to keep a picture square on screen rather than in the
-// rectangle : iAspect is the rectangle's own
+// rectangle, iAspect is the rectangle's own
 float screenAspect() { return iWindowSize.x / iWindowSize.y; }
 
 // this fragment's position in normalised device coordinates, as polyscope sees it
@@ -118,7 +118,7 @@ float polyscopeDepth(vec3 world_pos) {
 // front", so a shader written against these degrades to drawing over the 3D
 // scene rather than to hiding itself.
 //
-// Depth is current-frame : the shader defers past polyscope's scene pass to
+// Depth is current-frame, the shader defers past polyscope's scene pass to
 // read it. useSceneDepth() also pins the renderer to one peel pass, since
 // depth peeling otherwise clears the scene buffer every pass and leaves nothing.
 
@@ -133,8 +133,8 @@ float sceneDepthHere() {
     // edge; say "empty" instead
     if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0))))
         return 1.0;
-    // textureLod, not texture : implicit LOD is chosen from derivatives, which
-    // are undefined in non-uniform control flow — and this is called from inside
+    // textureLod, not texture, implicit LOD is chosen from derivatives, which
+    // are undefined in non-uniform control flow, and this is called from inside
     // raymarching loops, where neighbouring lanes have already exited. That
     // produced garbage in whole 8x8 blocks (an AMD wavefront). A screen-space
     // buffer has exactly one meaningful level anyway.
@@ -142,7 +142,7 @@ float sceneDepthHere() {
 }
 
 // true when a world point would be visible in front of polyscope's geometry.
-// This is the whole point of the depth buffer : without it a shader always
+// This is the whole point of the depth buffer, without it a shader always
 // draws over the 3D scene, however far behind it actually is.
 bool visibleOverScene(vec3 world_pos) {
     return polyscopeDepth(world_pos) <= sceneDepthHere();
@@ -168,7 +168,7 @@ float sceneClearance(vec3 world_pos) {
     return -(iView * vec4(world_pos, 1.0)).z - sceneEyeDistance();
 }
 
-// soft occlusion : 0 fully visible, 1 fully hidden, easing over `fade` world
+// soft occlusion. 0 fully visible, 1 fully hidden, easing over `fade` world
 // units so the seam where a shader surface enters a mesh is not a hard jaggy
 // edge.  col = mix(col, behind, sceneOcclusion(p, 0.02));
 float sceneOcclusion(vec3 world_pos, float fade) {

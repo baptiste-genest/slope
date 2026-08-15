@@ -4,13 +4,13 @@
 //
 // The prelude already hands the shader its TimeObject (from_action, from_begin,
 // absolute_frame_number, transition_parameter, ...) and turns every keyframe the
-// deck declared into a #define. This is the sugar on top : the staging patterns
-// that otherwise get rewritten in every shader.
+// deck declared into a KF_<name> constant. This is the sugar on top, the
+// staging patterns that otherwise get rewritten in every shader.
 //
 //   #include <slide.glsl>
 //
-//   vec3 col = mix(before, after, fadeInAt(reveal, 0.5));
-//   int  s   = stageAfter(build, 3);       // 0,1,2,3 over the slides after it
+//   vec3 col = mix(before, after, fadeInAt(KF_reveal, 0.5));
+//   int  s   = stageAfter(KF_build, 3);       // 0,1,2,3 over the slides after it
 //   col *= slideAlpha();                   // honour the deck's own transition
 //
 // Needs the built-in prelude, so it does not apply to a shader that brings its
@@ -48,7 +48,7 @@ float fadeInAtSmooth(int kf, float seconds) {
     return afterKeyframe(kf) ? fadeInSmooth(seconds) : 0.0;
 }
 
-// 0 before the keyframe, 1 from it on : a hard switch
+// 0 before the keyframe, 1 from it on, a hard switch
 float onceAt(int kf) { return afterKeyframe(kf) ? 1.0 : 0.0; }
 
 // 1 only while the deck sits between two keyframes
@@ -56,13 +56,13 @@ float betweenKeyframes(int from_kf, int to_kf) {
     return (afterKeyframe(from_kf) && beforeKeyframe(to_kf)) ? 1.0 : 0.0;
 }
 
-// which of `count` stages we are in, counting from a keyframe : 0 before it and
+// which of `count` stages we are in, counting from a keyframe. 0 before it and
 // on it, then 1, 2, ... clamped. The staged-reveal idiom in one call.
 int stageAfter(int kf, int count) {
     return clamp(slidesSinceKeyframe(kf), 0, count);
 }
 
-// a continuous version : stage index blended by how far into the slide we are,
+// a continuous version, stage index blended by how far into the slide we are,
 // so a staged quantity moves rather than jumps
 float stageAfterSmooth(int kf, int count, float seconds) {
     float s = float(clamp(slidesSinceKeyframe(kf), 0, count));

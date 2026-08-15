@@ -1,6 +1,6 @@
 #pragma once
 // ─────────────────────────────────────────────────────────────────────────────
-// Hash-based noise. Everything here is a pure function of its input : no
+// Hash-based noise. Everything here is a pure function of its input, no
 // textures, no seeds, and the same point always gives the same value, which is
 // what makes it safe under the ping-pong feedback passes.
 //
@@ -55,7 +55,7 @@ float valueNoise(vec3 p) {
 }
 
 // ── gradient (Perlin-style) noise, in -1..1 ──────────────────────────────────
-// random *gradients* rather than random values : zero at every lattice point,
+// random *gradients* rather than random values, zero at every lattice point,
 // which removes the blobbiness of value noise
 float gradientNoise(vec2 p) {
     vec2 i = floor(p), f = fract(p);
@@ -69,7 +69,7 @@ float gradientNoise(vec2 p) {
 }
 
 // ── fractal sums ─────────────────────────────────────────────────────────────
-// octaves at doubling frequency and halving amplitude : the 1/f spectrum that
+// octaves at doubling frequency and halving amplitude, the 1/f spectrum that
 // natural detail tends to have
 float fbm(vec2 p, int octaves) {
     float sum = 0.0, amp = 0.5, norm = 0.0;
@@ -93,7 +93,7 @@ float fbm(vec3 p, int octaves) {
     return sum / max(norm, 1e-8);
 }
 
-// absolute value of signed noise per octave : creases instead of blobs
+// absolute value of signed noise per octave, creases instead of blobs
 float ridgedFbm(vec2 p, int octaves) {
     float sum = 0.0, amp = 0.5, norm = 0.0;
     for (int i = 0; i < octaves; ++i) {
@@ -105,7 +105,7 @@ float ridgedFbm(vec2 p, int octaves) {
     return sum / max(norm, 1e-8);
 }
 
-// warp the domain by more noise : turns bland fbm into something that looks
+// warp the domain by more noise, turns bland fbm into something that looks
 // like it flows
 float domainWarp(vec2 p, int octaves, float strength) {
     vec2 q = vec2(fbm(p, octaves), fbm(p + vec2(5.2, 1.3), octaves));
@@ -114,7 +114,7 @@ float domainWarp(vec2 p, int octaves, float strength) {
 
 // ── cellular (Worley) ────────────────────────────────────────────────────────
 // distance to the nearest of one random point per cell. Returns
-// (nearest, second nearest) : their difference outlines the cell borders.
+// (nearest, second nearest), their difference outlines the cell borders.
 vec2 worley(vec2 p) {
     vec2 i = floor(p), f = fract(p);
     float d1 = 8.0, d2 = 8.0;
@@ -130,7 +130,7 @@ vec2 worley(vec2 p) {
 
 // ── divergence-free 2D flow ──────────────────────────────────────────────────
 // the perpendicular gradient of a scalar field is divergence-free by
-// construction, so this never pools or sources : what you want to advect with
+// construction, so this never pools or sources, what you want to advect with
 vec2 curlNoise(vec2 p, float eps) {
     float n1 = fbm(p + vec2(0.0, eps), 4);
     float n2 = fbm(p - vec2(0.0, eps), 4);

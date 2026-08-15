@@ -1,6 +1,6 @@
 #pragma once
 // ─────────────────────────────────────────────────────────────────────────────
-// Signed distance fields : negative inside, zero on the surface, positive
+// Signed distance fields, negative inside, zero on the surface, positive
 // outside, and (for these) equal to the true Euclidean distance, which is what
 // lets sphere tracing and constant-width outlines work.
 //
@@ -48,7 +48,7 @@ float sdTriangle(vec2 p, vec2 p0, vec2 p1, vec2 p2) {
     return -sqrt(d.x) * sign(d.y);
 }
 
-// a ring wedge : `sc` is (sin, cos) of the half-aperture, `ra`/`rb` the ring's
+// a ring wedge. `sc` is (sin, cos) of the half-aperture, `ra`/`rb` the ring's
 // mid-radius and thickness. sc = vec2(sin(a), cos(a)) for a half-angle `a`.
 float sdArc(vec2 p, vec2 sc, float ra, float rb) {
     p.x = abs(p.x);
@@ -114,7 +114,7 @@ float sdCappedCone(vec3 p, vec3 a, vec3 b, float ra, float rb) {
                         cbx * cbx + cby * cby * baba));
 }
 
-// like sdCapsule but tapered between two different radii : the organic,
+// like sdCapsule but tapered between two different radii, the organic,
 // smoothly-tipped look that a capped cone's flat ends lack
 float sdRoundCone(vec3 p, vec3 a, vec3 b, float r1, float r2) {
     vec3 ba = b - a;
@@ -137,7 +137,7 @@ float sdRoundCone(vec3 p, vec3 a, vec3 b, float r1, float r2) {
     return (sqrt(x2 * a2 * il2) + y * rr) * il2 - r1;
 }
 
-// bound, not exact (fine for marching, tight near the surface) : `r` is the
+// bound, not exact (fine for marching, tight near the surface). `r` is the
 // three semi-axes, so a sphere is r = vec3(radius)
 float sdEllipsoid(vec3 p, vec3 r) {
     float k0 = length(p / r);
@@ -150,7 +150,7 @@ float opUnion    (float a, float b) { return min(a, b); }
 float opIntersect(float a, float b) { return max(a, b); }
 float opSubtract (float a, float b) { return max(-a, b); }   // b minus a
 
-// union with a fillet of radius ~k. The workhorse : this is what makes two
+// union with a fillet of radius ~k. The workhorse, this is what makes two
 // spheres read as one organic blob instead of two spheres.
 float opSmoothUnion(float a, float b, float k) {
     k *= 4.0;
@@ -180,7 +180,7 @@ float opRound(float d, float r) { return d - r; }
 vec3 opRepeat(vec3 p, vec3 c) { return mod(p + 0.5 * c, c) - 0.5 * c; }
 vec2 opRepeat2(vec2 p, vec2 c) { return mod(p + 0.5 * c, c) - 0.5 * c; }
 
-// mirror across x = 0 : model half a symmetric object, get both halves
+// mirror across x = 0, model half a symmetric object, get both halves
 vec3 opMirrorX(vec3 p) { return vec3(abs(p.x), p.yz); }
 
 vec3 opRotateY(vec3 p, float a) {

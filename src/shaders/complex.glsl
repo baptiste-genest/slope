@@ -1,6 +1,6 @@
 #pragma once
 // ─────────────────────────────────────────────────────────────────────────────
-// Complex arithmetic on vec2 (x = real, y = imaginary), and domain colouring —
+// Complex arithmetic on vec2 (x = real, y = imaginary), and domain colouring,
 // the standard way to show a whole complex function on one picture.
 //
 //   #include <complex.glsl>
@@ -10,7 +10,7 @@
 //   fragColor = vec4(domainColor(w), 1.0);
 //
 // NB this header includes <colormap.glsl> for hsv2rgb, so everything in that
-// one (viridis, turbo, remap, ...) is in scope here too — defining your own
+// one (viridis, turbo, remap, ...) is in scope here too, defining your own
 // function by one of those names is a redefinition even if you never asked
 // for the colour maps.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ float carg(vec2 a) { return atan(a.y, a.x); }
 float cabs(vec2 a) { return length(a); }
 
 vec2 cexp(vec2 a) { return exp(a.x) * vec2(cos(a.y), sin(a.y)); }
-// principal branch : the imaginary part jumps by 2*pi across the negative real
+// principal branch, the imaginary part jumps by 2*pi across the negative real
 // axis, and that discontinuity is real, not an artefact
 vec2 clog(vec2 a) { return vec2(log(max(cabs(a), 1e-20)), carg(a)); }
 
@@ -68,7 +68,7 @@ vec3 domainColor(vec2 w) {
     return hsv2rgb(vec3(hue, sat, val));
 }
 
-// with the argument contours drawn too : the grid you actually measure angles
+// with the argument contours drawn too, the grid you actually measure angles
 // on, `spokes` lines per turn
 vec3 domainColorGrid(vec2 w, int spokes) {
     vec3 col = domainColor(w);

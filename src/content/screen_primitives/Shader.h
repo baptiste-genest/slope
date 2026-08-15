@@ -4,11 +4,12 @@
 #include "ScreenPrimitive.h"
 #include <filesystem>
 #include <functional>
+#include "extern/json.hpp"
 
 namespace slope {
 
 /*
- * A screen-space fragment shader, ShaderToy-style : a full-screen triangle is
+ * A screen-space fragment shader, ShaderToy style. A full-screen triangle is
  * drawn through the fragment source into an offscreen texture, then blitted
  * into the slide like an Image. Independent of polyscope's GL loader (entry
  * points are resolved through glfwGetProcAddress).
@@ -64,10 +65,11 @@ namespace slope {
  *
  *   fx->set("radius", 0.3f);                              // fixed value
  *   fx->bind("radius", [&]{ return slider_value; });       // re-read every frame
+ *   fx->bind("fade", [](const TimeObject& t){ return t.from_action; });
  *
  * set/bind accept float, int, vec2, vec (vec3) and RGBA (vec4). Unknown names
  * are silently ignored, so this never throws while you are editing live.
- * bind() uploads every scalar as a float : an "uniform int" wants bindInt().
+ * bind() uploads every scalar as a float, an "uniform int" wants bindInt().
  *
  * From a deck manifest, "uniforms:" on a shader item declares them instead,
  * each backed by a persistent Params entry (Tuner panel, params.json) :
@@ -95,14 +97,14 @@ namespace slope {
  *
  *   auto view = Shader::FromFile("colorize.frag");
  *   view->setTexture("field", sim);     // = the simulation's output
- *   show << sim << view->at("screen");  // sim first : it feeds view
+ *   show << sim << view->at("screen");  // sim first, it feeds view
  *
  * This feedback loop is what lets an iterative simulation run entirely on the
  * GPU here. How many textures can be bound at once is the driver's texture
  * unit count (>= 16, usually 32), less one kept for the scene depth buffer.
  *
  * setChannel/setChannelSelf/setData are the same thing under the reserved
- * names "iChannel0".."iChannel3", which the prelude declares : that is all the
+ * names "iChannel0".."iChannel3", which the prelude declares. That is all the
  * ShaderToy compatibility is, and a channel can do nothing a texture cannot.
  *
  * ── Sharing the 3D scene ────────────────────────────────────────────────────
@@ -135,7 +137,7 @@ public:
     // size). iResolution reports this. Defaults to the window's resolution.
     void setResolution(int w, int h);
 
-    // ── the easy part : uniforms ────────────────────────────────────────────
+    // ── uniforms ────────────────────────────────────────────────────────────
     // fixed values
     void set(const std::string& name, float v);
     void set(const std::string& name, double v) { set(name, float(v)); }
@@ -145,19 +147,51 @@ public:
     void set(const std::string& name, const RGBA& v);
     // live values, re-read every frame. The callable's return type (float/
     // double/int, vec2, vec, RGBA) selects how it is uploaded.
+    //
+    // The callable may also take the primitive's TimeObject, so a uniform can
+    // follow the talk without capturing any outside state :
+    //   fx->bind("fade", [](const TimeObject& t){ return t.from_action; });
     template<class F>
     void bind(const std::string& name, F f) {
-        using R = std::decay_t<std::invoke_result_t<F&>>;
-        if constexpr (std::is_same_v<R, vec2>)      bindV2(name, [f]{ return f(); });
-        else if constexpr (std::is_same_v<R, vec>)  bindV3(name, [f]{ return f(); });
-        else if constexpr (std::is_same_v<R, RGBA>) bindV4(name, [f]{ return f(); });
-        else                                        bindF (name, [f]{ return float(f()); });
+        if constexpr (std::is_invocable_v<F&, const TimeObject&>) {
+            using R = std::decay_t<std::invoke_result_t<F&, const TimeObject&>>;
+            if constexpr (std::is_same_v<R, vec2>)      bindV2(name, [f](const TimeObject& t){ return f(t); });
+            else if constexpr (std::is_same_v<R, vec>)  bindV3(name, [f](const TimeObject& t){ return f(t); });
+            else if constexpr (std::is_same_v<R, RGBA>) bindV4(name, [f](const TimeObject& t){ return f(t); });
+            else                                        bindF (name, [f](const TimeObject& t){ return float(f(t)); });
+        } else {
+            using R = std::decay_t<std::invoke_result_t<F&>>;
+            if constexpr (std::is_same_v<R, vec2>)      bindV2(name, [f](const TimeObject&){ return f(); });
+            else if constexpr (std::is_same_v<R, vec>)  bindV3(name, [f](const TimeObject&){ return f(); });
+            else if constexpr (std::is_same_v<R, RGBA>) bindV4(name, [f](const TimeObject&){ return f(); });
+            else                                        bindF (name, [f](const TimeObject&){ return float(f()); });
+        }
     }
-    // int / bool uniforms : bind() uploads everything scalar as a float, which
+    // int and bool uniforms. bind() uploads everything scalar as a float, which
     // an "uniform int" rejects, so integers go through their own entry point
     //   uniform int steps;   fx->bindInt("steps", [=]{ return int(n); });
     void bindInt(const std::string& name, std::function<int()> f);
+    void bindInt(const std::string& name, std::function<int(const TimeObject&)> f);
+    // A uniform whose width is only known when it is read, which is what a
+    // snippet variable is. The callable fills up to four components and returns
+    // how many, and the matching glUniform is used. 0 uploads nothing.
+    void bindDynamic(const std::string& name, std::function<int(scalar*)> f);
+    // The same, fed by the snippet variable or parameter of that name, which is
+    // what a deck's bare "uniforms: - reveal" entry does. For a shader the deck
+    // did not create, one with an updater say.
+    //
+    //   fx->bind("reveal");                              // uniform <- "reveal"
+    //   fx->bind({"show_field", "show_basin"});          // several at once
+    //
+    // The width follows the value, 1 to 4 components, so the same call serves a
+    // float and a vec3 ; an "uniform int" still wants bindInt(). A name that
+    // resolves to nothing uploads nothing, and says so once.
+    void bind(const std::string& name);
+    void bind(std::initializer_list<const char*> names);
     void unset(const std::string& name) { uniforms.erase(name); }
+    // whether a value is currently attached to that name, which a declarative
+    // owner checks before dropping a bind it may not own
+    bool isBound(const std::string& name) const { return uniforms.count(name) > 0; }
     // drops every user uniform (set/bind); the built-ins are unaffected. What
     // a declarative owner (the deck loader) uses to re-declare its whole set
     // on a hot reload, so a uniform deleted from the manifest really goes away.
@@ -168,7 +202,7 @@ public:
     // source from here :
     //
     //   uniform sampler2D noise;        // in the .frag
-    //   uniform vec2      noise_size;   // optional : its size in pixels
+    //   uniform vec2      noise_size;   // optional, its size in pixels
     //
     //   fx->setTexture("noise", "noise.png");
     //
@@ -186,15 +220,15 @@ public:
                     Filter f = Filter::Linear, Wrap w = Wrap::Clamp);
     // another shader's current output (must be streamed before this one)
     void setTexture(const std::string& name, const ShaderPtr& src, int attachment = 0);
-    // this shader's previous frame : double-buffering (ping-pong), the
+    // this shader's previous frame, double-buffered (ping-pong), the
     // backbone of iterative GPU work
     void setTextureSelf(const std::string& name, int attachment = 0);
     void clearTexture(const std::string& name);
     void clearTextures();
-    // drop every *file-backed* texture whose name is not listed : what a
+    // drop every *file-backed* texture whose name is not listed, which a
     // declarative owner (the deck loader) uses so a texture removed from the
     // manifest really goes away, while the ones still declared keep their GL
-    // objects. Data textures and inter-pass ones are left alone : they were
+    // objects. Data textures and inter-pass ones are left alone, they were
     // set from code such an owner never saw.
     void retainTextures(const std::vector<std::string>& names);
 
@@ -203,8 +237,7 @@ public:
     //   uniform sampler2D iChannel0;
     //   uniform vec3      iChannelResolution[4]; // (w, h, 1) per channel
     // so a shader written for ShaderToy runs here unchanged. These are exactly
-    // the calls above under the reserved names "iChannel0".."iChannel3" —
-    // there is nothing a channel can do that a named texture cannot.
+    // the calls above under the reserved names "iChannel0".."iChannel3".
     static std::string ChannelName(int i);
     void setChannel(int i, const path& image_file,
                     Filter f = Filter::Linear, Wrap w = Wrap::Clamp)
@@ -215,14 +248,14 @@ public:
     { setTextureSelf(ChannelName(i), attachment); }
     void clearChannel(int i) { clearTexture(ChannelName(i)); }
 
-    // RGBA32F targets instead of 8-bit : for values that must survive many
+    // RGBA32F targets instead of 8-bit, for values that must survive many
     // feedback iterations without banding (accumulation, physics)
     void setFloatBuffer(bool on = true);
     // sampling of THIS shader's own target(s). Simulations usually want
     // Nearest + Repeat.
     void setFilter(Filter f);
     void setWrap(Wrap w);
-    // compute-only pass : keeps updating but is never blitted onto the slide
+    // compute-only pass, it keeps updating but is never blitted onto the slide
     void setHidden(bool on = true);
 
     // ── the 3D scene's depth buffer ─────────────────────────────────────────
@@ -235,10 +268,38 @@ public:
     //   float t = raymarch(ro, rd);
     //   if (!visibleOverScene(ro + t*rd)) discard;   // a mesh is in front
     //
-    // Not free : pins polyscope's depth peeling to one pass while any shader
+    // Not free, it pins polyscope's depth peeling to one pass while any shader
     // wants it. Depth is current-frame for a visible shader (rendering defers
     // past the scene pass); a hidden (compute-only) shader reads last frame's.
     void useSceneDepth(bool on = true);
+
+    // ── the shader's own world space ────────────────────────────────────────
+    // What region of the plane the shader draws. The .frag reads it back as
+    // iWorld(), and screen primitives can be placed at a world point, so a
+    // label rides a feature only the shader knows how to find.
+    //
+    //   fx->setView({0, 0}, 3.2);          // 3.2 world units above the middle
+    //   show << eq->at(fx->tracker(vec2(1, 0)));   // sits on the point z = 1
+    //
+    // bindView lets the view move like any uniform, and the label follows.
+    // Horizontal extent is half_height times the render aspect, so widening
+    // the window shows more rather than stretching.
+    void setView(const vec2& center, scalar half_height);
+    void bindView(std::function<vec2()> center, std::function<scalar()> half_height);
+    bool hasView() const { return bool(view_half); }
+
+    // World to window position, relative [0,1]^2 with y down, the space anchors
+    // live in. Uses the view and rect the shader was last drawn with, so a
+    // tracked label agrees with the pixels under it. Before the first draw,
+    // the rect it would occupy centered in the window.
+    vec2 worldToScreen(const vec2& w) const;
+    vec2 screenToWorld(const vec2& s) const;
+
+    // a placer for ScreenPrimitive::at(), so a primitive tracks a world point.
+    // `offset` is added afterwards, in screen units, to clear the point itself.
+    //   show << label->at(fx->tracker([]{ return Snippet::get("z1").v2(); }))
+    std::function<vec2()> tracker(const vec2& world, const vec2& offset = vec2::Zero());
+    std::function<vec2()> tracker(std::function<vec2()> world, vec2 offset = vec2::Zero());
 
     // ── multiple render targets (MRT) ───────────────────────────────────────
     // Emit several outputs from one pass. fragColor (location 0) is already
@@ -249,7 +310,7 @@ public:
     void setTargets(int n);
     int  targets() const { return num_targets; }
 
-    // ── CPU → GPU : upload arbitrary data as a texture ──────────────────────
+    // ── upload arbitrary data as a texture ──────────────────────────────────
     // Binds a CPU array as a float texture. `comps` is components per texel
     // (1..4 -> R/RG/RGB/RGBA). Call again to refresh; the GL texture is reused
     // in place when the layout has not changed :
@@ -286,19 +347,19 @@ public:
     bool readBuffer(int binding, std::vector<T>& v) const
     { return readBuffer(binding, v.data(), v.size() * sizeof(T)); }
     void clearBuffer(int binding);   // release the buffer at this binding
-    // zero a buffer in place, on the GPU : what a pass accumulating into it
+    // zero a buffer in place, on the GPU, which a pass accumulating into it
     // with atomics needs at the top of every frame, without the round trip a
     // setBuffer of zeros would cost
     void clearBufferData(int binding, unsigned int value = 0);
 
-    // Bind the buffer `src` holds at `src_binding` to our `binding` as well :
-    // one buffer, two passes, no copy. The producer must be streamed before
-    // the consumer (show << producer << consumer), same as setChannel — a
+    // Bind the buffer `src` holds at `src_binding` to our `binding` as well,
+    // one buffer for two passes with no copy. The producer must be streamed
+    // the consumer (show << producer << consumer), same as setChannel. A
     // barrier after every draw makes the writes visible within the frame.
     // Both keep it alive; whichever is dropped last releases it.
     void shareBuffer(int binding, const ShaderPtr& src, int src_binding);
 
-    // ── GPU → CPU : read the rendered result back ───────────────────────────
+    // ── read the rendered result back ───────────────────────────────────────
     // Reads color attachment `attachment` as RGBA floats, row-major and
     // bottom-up. 8-bit targets come back normalised to 0..1, float targets
     // exact. False if nothing has been rendered yet.
@@ -320,15 +381,15 @@ public:
 
 private:
     // a uniform is a closure that, given its resolved location, pushes its
-    // current value : unifies fixed (set) and live (bind) uniforms
-    using UniformSetter = std::function<void(int /*location*/)>;
+    // current value, unifying fixed (set) and live (bind) uniforms
+    using UniformSetter = std::function<void(int /*location*/, const TimeObject&)>;
     std::map<std::string, UniformSetter> uniforms;
 
     // .cpp-side helpers building the GL upload closures for bind()
-    void bindF (const std::string& name, std::function<float()> f);
-    void bindV2(const std::string& name, std::function<vec2()> f);
-    void bindV3(const std::string& name, std::function<vec()> f);
-    void bindV4(const std::string& name, std::function<RGBA()> f);
+    void bindF (const std::string& name, std::function<float(const TimeObject&)> f);
+    void bindV2(const std::string& name, std::function<vec2(const TimeObject&)> f);
+    void bindV3(const std::string& name, std::function<vec(const TimeObject&)> f);
+    void bindV4(const std::string& name, std::function<RGBA(const TimeObject&)> f);
 
     std::string fragment_src;
     unsigned int program = 0;   // GLuint; kept opaque to avoid a GL include here
@@ -343,7 +404,7 @@ private:
     int cur = 0;                // buf[cur] = latest output
     bool feedback = false;      // some channel samples our previous frame
     bool float_buffer = false;  // RGBA32F targets
-    bool hidden = false;        // compute-only : update but never blit
+    bool hidden = false;        // compute-only, updates but never blits
     unsigned int self_filter = 0x2601 /*LINEAR*/;
     unsigned int self_wrap   = 0x812F /*CLAMP_TO_EDGE*/;
 
@@ -354,17 +415,17 @@ private:
         unsigned int image_tex = 0; // Kind::Image (image file *or* data texture), owned
         int w = 0, h = 0;           // size, reported through <name>_size
         int comps = 0;              // >0 when it is a float data texture
-        // Kind::ShaderOut. Weak : the source may be dropped while we still
+        // Kind::ShaderOut. Weak, the source may be dropped while we still
         // hold this texture.
         std::weak_ptr<Shader> src;
-        int attachment = 0;         // Kind::ShaderOut : which MRT output to read
+        int attachment = 0;         // Kind::ShaderOut, which MRT output to read
 
         // what it was loaded from, so re-setting the same image is a no-op
         std::string file;
         Filter filter = Filter::Linear;
         Wrap   wrap   = Wrap::Clamp;
 
-        // >= 0 for the four ShaderToy channels : they also feed
+        // >= 0 for the four ShaderToy channels, which also feed
         // iChannelResolution[i], which a named texture has no part in
         int legacy_channel = -1;
 
@@ -398,13 +459,13 @@ private:
     // tag the four reserved "iChannelN" names, which also feed
     // iChannelResolution[N]
     static void markLegacyChannel(const std::string& name, Texture& t);
-    // true when some texture samples our own previous frame : what the
+    // true when some texture samples our own previous frame, which the
     // ping-pong second target exists for
     void refreshFeedback();
 
     // SSBOs, keyed by binding point
     // Shared, so that shareBuffer() can hand the same buffer to another pass.
-    // The GL name is deliberately not freed on destruction : a Shader can
+    // The GL name is deliberately not freed on destruction, a Shader can
     // outlive the context (see ~Shader), and the driver reclaims it then.
     struct StorageBuffer { unsigned int id = 0; std::size_t bytes = 0; };
     using StorageBufferPtr = std::shared_ptr<StorageBuffer>;
@@ -420,6 +481,7 @@ private:
         int transition_parameter = -1;
         int iView = -1, iViewInv = -1, iProj = -1, iProjInv = -1;
         int iCamPos = -1, iCamFov = -1, iScreenRect = -1, iWindowSize = -1;
+        int iViewCenter = -1, iViewHalf = -1;
         int iSceneDepth = -1, iSceneDepthValid = -1, iSceneDepthSize = -1;
         int iMouse = -1, iMouseNorm = -1, iHovered = -1, iDate = -1;
         // the samplers themselves are resolved per texture (they are named at
@@ -432,7 +494,7 @@ private:
     void cacheUniformLocations();
 
     int res_x = int(Options::ScreenResolutionWidth), res_y = int(Options::ScreenResolutionHeight);
-    // false at the screen-size default : getSize() then shows it at that size
+    // false at the screen-size default, getSize() then shows it at that size
     // 1:1, rather than through the 1920x1080-relative scaling an explicit
     // resolution goes through
     bool explicit_resolution = false;
@@ -444,23 +506,41 @@ private:
     float last_click_x = 0, last_click_y = 0;
     bool mouse_was_down = false;
 
-    // iFrame : how many times *this* shader has rendered, distinct from the
+    // iFrame, how many times *this* shader has rendered, distinct from the
     // slide index (iSlide)
     int frames_rendered = 0;
 
     // the texture display()/downstream should read (color attachment `a`)
     unsigned int currentTexture(int a = 0) const { return buf[cur].tex[a]; }
 
-    // file backing, for hot reload (mirrors Code)
+    // file backing, for hot reload (mirrors Code). source_path is what the
+    // caller asked for; source_file is it resolved against the project data
+    // path, which is only known once the deck is initialised, hence the
+    // re-resolve on every reload.
+    path source_path;
     path source_file;
     std::filesystem::file_time_type last_modified;
     bool from_file = false;
+    bool load_failed = false;         // reading failed, retried on every tick
+    bool load_error_reported = false; // ... but logged once, not 5x a second
 
     // files reached through #include when the source was last expanded, with
     // their timestamps; hot reload watches these too
     std::vector<std::pair<std::string, std::filesystem::file_time_type>> include_deps;
     // source-string index -> file, to make a failed compile's "N:line" readable
     std::vector<std::string> source_units;
+
+    // ── world space (setView) ───────────────────────────────────────────────
+    std::function<vec2()>   view_center;
+    std::function<scalar()> view_half;
+    // What was last uploaded to iViewCenter/iViewHalf, and the rect it was
+    // drawn into (window relative, y down). worldToScreen inverts these rather
+    // than re-reading the callables, so it cannot disagree with the image.
+    mutable vec2   drawn_view_center = vec2::Zero();
+    mutable scalar drawn_view_half   = 1;
+    mutable vec2   drawn_rect_min = vec2::Zero(), drawn_rect_max = vec2(1, 1);
+    mutable bool   rect_recorded  = false;
+    bool bad_view_reported = false;   // a degenerate view is said once, not per frame
 
     // where this shader is drawn, in ImGui display units (y down). Shared by
     // the blit and the camera uniforms, which must agree exactly.
@@ -482,7 +562,7 @@ private:
     void runNextPendingRender();
     void reportRenderError(const std::string& what);
 
-    // One recorded placement, waiting for its callback : a shader can be
+    // One recorded placement, waiting for its callback. A shader can be
     // placed more than once per slide, so these queue rather than overwrite.
     // The rect is captured here since the callback has no ImGui window stack.
     struct PendingRender {

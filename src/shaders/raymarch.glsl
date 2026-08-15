@@ -19,7 +19,7 @@
 //       if (marchScene(ro, rd, pos)) { ... }
 //   }
 //
-// Every shader that includes this one MUST define sceneSDF : the functions here
+// Every shader that includes this one MUST define sceneSDF, the functions here
 // call it, so leaving it out is a link error even if you never call them.
 // ─────────────────────────────────────────────────────────────────────────────
 #include <camera.glsl>
@@ -75,7 +75,7 @@ vec3 sceneNormal(vec3 p) {
 }
 
 // ── shading terms ────────────────────────────────────────────────────────────
-// penumbra comes free : how close the ray passed to the geometry is already the
+// penumbra comes free, how close the ray passed to the geometry is already the
 // distance field, so no extra sampling is needed for a soft edge
 float softShadow(vec3 ro, vec3 rd, float mint, float maxt, float sharpness) {
     float res = 1.0, t = mint;
@@ -89,7 +89,7 @@ float softShadow(vec3 ro, vec3 rd, float mint, float maxt, float sharpness) {
     return clamp(res, 0.0, 1.0);
 }
 
-// how enclosed a point is : march a little way along the normal and see how
+// how enclosed a point is, march a little way along the normal and see how
 // much less distance we gained than we travelled
 float ambientOcclusion(vec3 p, vec3 n) {
     float occ = 0.0, sca = 1.0;
@@ -101,19 +101,19 @@ float ambientOcclusion(vec3 p, vec3 n) {
     return clamp(1.0 - 1.5 * occ, 0.0, 1.0);
 }
 
-// grazing angles reflect more : the cheap rim light that reads as "solid"
+// grazing angles reflect more, the cheap rim light that reads as "solid"
 float fresnel(vec3 rd, vec3 n, float power) {
     return pow(clamp(1.0 + dot(rd, n), 0.0, 1.0), power);
 }
 
-// classic checkerboard in world-space plane coordinates : the reference
+// classic checkerboard in world-space plane coordinates, the reference
 // texture for judging scale and grounding a raymarched scene.
 float checker(vec2 p, float scale) {
     vec2 c = floor(p / scale);
     return mod(c.x + c.y, 2.0);
 }
 
-// a serviceable default : one key light with a soft shadow, ambient tinted by
+// a serviceable default, one key light with a soft shadow, ambient tinted by
 // the up direction and gated by occlusion, plus a rim
 vec3 shadeDefault(vec3 p, vec3 n, vec3 rd, vec3 albedo, vec3 light_dir) {
     vec3 l = normalize(light_dir);
@@ -126,6 +126,6 @@ vec3 shadeDefault(vec3 p, vec3 n, vec3 rd, vec3 albedo, vec3 light_dir) {
     return col + fresnel(rd, n, 3.0) * 0.25;
 }
 
-// the camera lives in <camera.glsl> : it has nothing to do with the SDF, and a
+// the camera lives in <camera.glsl>, it has nothing to do with the SDF, and a
 // shader tracing something else (a height field, say) wants it without being
 // obliged to define sceneSDF

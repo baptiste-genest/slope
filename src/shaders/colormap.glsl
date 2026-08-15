@@ -3,7 +3,7 @@
 // Scientific colour maps, as polynomial fits over t in 0..1.
 //
 // The sequential maps (viridis, magma, inferno, plasma) are perceptually
-// uniform : equal steps in t read as equal steps in brightness, so a scalar
+// uniform, equal steps in t read as equal steps in brightness, so a scalar
 // field is not given features it does not have. Prefer them to a raw hue ramp.
 // Use a diverging map (coolwarm) when zero is meaningful, and turbo only when
 // you want maximum discriminability and do not care about uniformity.
@@ -86,7 +86,7 @@ vec3 coolwarm(float t) {
 }
 
 // ── procedural ───────────────────────────────────────────────────────────────
-// Inigo Quilez's cosine-gradient palette : one line tunes a whole custom
+// Inigo Quilez's cosine-gradient palette, one line tunes a whole custom
 // scheme from its offset, amplitude, frequency and phase.
 //   cosinePalette(t, vec3(0.5), vec3(0.5), vec3(1.0), vec3(0.0, 0.33, 0.67))
 vec3 cosinePalette(float t, vec3 offset, vec3 amp, vec3 freq, vec3 phase) {
@@ -99,13 +99,13 @@ float remap(float v, float lo, float hi) {
     return clamp((v - lo) / max(hi - lo, 1e-8), 0.0, 1.0);
 }
 // map a signed value to 0..1 with zero landing exactly on 0.5, for a
-// diverging map : the two sides then share one scale
+// diverging map, the two sides then share one scale
 float signedRemap(float v, float amplitude) {
     return clamp(0.5 + 0.5 * v / max(amplitude, 1e-8), 0.0, 1.0);
 }
 
 // hue/saturation/value -> rgb. Not a good scalar map (hue is not perceptually
-// ordered), but the natural choice for an angle : phase, orientation, winding.
+// ordered), but the natural choice for an angle, phase, orientation, winding.
 vec3 hsv2rgb(vec3 c) {
     vec3 p = abs(fract(c.xxx + vec3(1.0, 2.0/3.0, 1.0/3.0)) * 6.0 - 3.0);
     return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
@@ -113,7 +113,7 @@ vec3 hsv2rgb(vec3 c) {
 
 // ── contours ─────────────────────────────────────────────────────────────────
 // 1 on the isolines of `v`, fading out over one pixel. `grad` is the length of
-// v's screen-space gradient : pass length(vec2(dFdx(v), dFdy(v))) so the lines
+// v's screen-space gradient, pass length(vec2(dFdx(v), dFdy(v))) so the lines
 // keep a constant width whatever the field is doing.
 float isoline(float v, float spacing, float grad, float width_px) {
     float d = abs(fract(v / spacing - 0.5) - 0.5) * spacing;
