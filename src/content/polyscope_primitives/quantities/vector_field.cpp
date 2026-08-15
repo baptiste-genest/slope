@@ -1,4 +1,5 @@
 #include "vector_field.h"
+#include <spdlog/spdlog.h>
 
 
 namespace slope {

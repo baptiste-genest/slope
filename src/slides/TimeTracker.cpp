@@ -6,6 +6,8 @@
 #include <cmath>
 #include <set>
 #include <fstream>
+#include <spdlog/spdlog.h>
+#include "extern/json.hpp"
 
 std::string slope::TimeTracker::formatTime(float totalSeconds)
 {
@@ -36,8 +38,7 @@ slope::path slope::TimeTracker::file()
 
 void slope::TimeTracker::load()
 {
-    // the rehearsal timer is opt-in : without it we never surface the previous
-    // run, so there is no reason to read it back
+    // opt-in, and without it the previous run is never surfaced
     if (!Options::Rehearse)
         return;
     std::ifstream f(file());
@@ -48,8 +49,7 @@ void slope::TimeTracker::load()
         f >> j;
         previous_time_from_start = j.value("total", 0.0);
         previous_time_per_slide_group.clear();
-        // must be a named object : calling .items() on the temporary returned
-        // by value() leaves the iterators dangling
+        // a named object, .items() on the temporary from value() dangles
         const json sections = j.value("sections", json::object());
         for (const auto& [k, v] : sections.items())
             if (v.is_number())

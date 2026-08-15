@@ -1,4 +1,7 @@
 #include "screenshot.h"
+#include <spdlog/spdlog.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 
 #ifdef __APPLE__
 void slope::screenshot(std::string file)

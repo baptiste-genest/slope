@@ -5,6 +5,7 @@
 #include "../content/io.h"
 #include "spdlog/spdlog.h"
 #include <cassert>
+#include <spdlog/spdlog.h>
 
 
 int slope::parseCLI(int argc,char** argv) {

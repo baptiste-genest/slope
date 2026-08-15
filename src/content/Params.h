@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <map>
 #include <set>
+#include "extern/json.hpp"
 
 namespace slope {
 
@@ -110,8 +111,15 @@ public:
                               scalar min = 0, scalar max = 0);
     static DirParam    AddDir(const std::string& name, const vec& def);
 
-    // lazy variant : registers on first use, then reads
+    // lazy variant, registers on first use then reads
     static scalar get(const std::string& name, scalar def, scalar min = 0, scalar max = 0);
+
+    // Reading a parameter by name, for callers that never hold a handle, which
+    // is all the deck and the snippet namespace ever have. Both return how many
+    // components the parameter has, 0 when the name is not registered at all,
+    // so they also answer whether it exists.
+    static int components(const std::string& name);
+    static int read(const std::string& name, scalar* out4);
 
     static void DrawPanel();
 
@@ -145,7 +153,7 @@ private:
     // A parameter can be declared again while the show runs (the deck loader
     // re-declares a shader's uniforms on every hot reload). An edit not yet
     // saved is then the newest value there is, and outranks both the declared
-    // default and the file : true when the caller must leave the value alone.
+    // default and the file, true when the caller must leave the value alone.
     static bool keepEditedValue(const std::string& name);
     // the saved value, if any, over the freshly declared default
     static void applyFileValue(const EntryPtr& e, const std::string& name);

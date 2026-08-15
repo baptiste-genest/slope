@@ -1,5 +1,6 @@
 #include "color_tools.h"
 #include "Options.h"
+#include <spdlog/spdlog.h>
 
 
 std::set<std::string> slope::PaletteHandler::labels;

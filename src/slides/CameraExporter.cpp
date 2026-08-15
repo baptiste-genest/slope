@@ -3,6 +3,7 @@
 #include "spdlog/spdlog.h"
 #include "imgui.h"
 #include <fstream>
+#include <spdlog/spdlog.h>
 
 void slope::CameraExporter::save(const std::string& file) const
 {

@@ -12,12 +12,10 @@ class TimeTracker {
     TimeTypeSec time_from_start = 0;
     TimeStamp last_recorded_time;
     bool started = false;
-    // stops the rehearsal clock without touching the slideshow : distinct from
-    // SlideState's pause, which halts the presentation itself
+    // stops the rehearsal clock only, unlike SlideState's pause
     bool paused = false;
 
-    // timings of the previous run, loaded from disk : rehearsing is inherently
-    // a across-runs activity, so the last run is the reference to beat
+    // timings of the previous run, the reference to beat
     std::map<std::string, TimeTypeSec> previous_time_per_slide_group;
     TimeTypeSec previous_time_from_start = 0;
     bool has_previous = false;
@@ -40,8 +38,7 @@ public:
     void load();
     void save() const;
 
-    // whether this run holds timings worth offering to save on quit : mirrors
-    // the guard in save()
+    // whether this run holds timings worth saving, mirrors the guard in save()
     bool hasRecordableSession() const { return started && time_from_start >= 1; }
 
     void drawMenu(int n_slides,

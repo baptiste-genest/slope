@@ -1,6 +1,8 @@
 #ifndef PCH_H
 #define PCH_H
 
+// heavy headers (json, svg, stb, regex, X11) live in the few TUs that use them
+
 
 //#define EIGEN_MPL2_ONLY
 #define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
@@ -23,7 +25,6 @@
 #include "polyscope/surface_mesh.h"
 #include "polyscope/structure.h"
 
-#include "extern/json.hpp"
 #include "polyscope/color_management.h"
 #include <stdarg.h>
 
@@ -43,13 +44,9 @@
 #include <functional>
 
 #include <filesystem>
-#include <regex>
 
 #include <glm/gtx/matrix_interpolation.hpp>
 
-#include "extern/json.hpp"
-#include "extern/stb_image.h"
-#include "extern/svg.hpp"
 
 #include <iostream>
 #include <fstream>
@@ -61,10 +58,6 @@
 #endif
 
 #include "polyscope/screenshot.h"
-#if !defined(__APPLE__) && !defined(_WIN32)
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#endif
 #include <cstdint>
 #include <cstring>
 #include <vector>

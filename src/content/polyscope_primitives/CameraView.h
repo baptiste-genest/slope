@@ -4,6 +4,7 @@
 #include "PolyscopePrimitive.h"
 #include "../Options.h"
 #include <fstream>
+#include "extern/json.hpp"
 
 namespace slope {
 
@@ -33,13 +34,13 @@ public:
 
 public:
     void enable() {
-        // a flight animates over several frames : exported screenshots
-        // would catch the camera mid-flight, so jump to the view instead
+        // a flight animates over several frames, an export would catch it
+        // mid-flight, so jump to the view instead
         bool fly = flyTo && !Options::ExportMode;
         if (fromFile) {
             // polyscope 2.6.1's setViewFromJson never restores "fov" (its
-            // key check is inverted), so apply the saved fov beforehand :
-            // both the direct path and the flyTo flight target then use it
+            // key check is inverted), so apply the saved fov beforehand, both
+            // the direct path and the flyTo target then use it
             if (saved_fov > 0)
                 polyscope::view::fov = saved_fov;
             polyscope::view::setCameraFromJson(jsonContent,fly);

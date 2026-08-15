@@ -4,10 +4,11 @@
 #include "spdlog/spdlog.h"
 #include "polyscope/transformation_gizmo.h"
 #include "polyscope/view.h"
+#include <spdlog/spdlog.h>
 
 namespace slope {
 
-// opt-in 3D manipulator for the vec parameters, ownership stays here :
+// opt-in 3D manipulator for the vec parameters, ownership stays here since
 // polyscope's remove() only deregisters the widget
 static std::map<std::string, std::shared_ptr<polyscope::TransformationGizmo>> vec_gizmos;
 
@@ -89,6 +90,50 @@ void Params::applyFileValue(const EntryPtr& e, const std::string& name)
         return;
     e->fromJson(file_values[name]);
     edited.insert(name);
+}
+
+// Stamps last_read like a handle would, so the Tuner still shows it as used.
+int Params::components(const std::string& name)
+{
+    auto it = registry.find(name);
+    if (it == registry.end())
+        return 0;
+    if (std::dynamic_pointer_cast<Vec2Entry>(it->second))  return 2;
+    if (std::dynamic_pointer_cast<VecEntry>(it->second))   return 3;
+    if (std::dynamic_pointer_cast<DirEntry>(it->second))   return 3;
+    if (std::dynamic_pointer_cast<ColorEntry>(it->second)) return 4;
+    return 1;
+}
+
+int Params::read(const std::string& name, scalar* out4)
+{
+    auto it = registry.find(name);
+    if (it == registry.end())
+        return 0;
+    const EntryPtr& e = it->second;
+    e->last_read = frame;
+
+    if (auto p = std::dynamic_pointer_cast<Vec2Entry>(e)) {
+        out4[0] = p->value(0); out4[1] = p->value(1);
+        return 2;
+    }
+    if (auto p = std::dynamic_pointer_cast<VecEntry>(e)) {
+        for (int i = 0; i < 3; i++) out4[i] = p->value(i);
+        return 3;
+    }
+    if (auto p = std::dynamic_pointer_cast<DirEntry>(e)) {
+        for (int i = 0; i < 3; i++) out4[i] = p->value(i);
+        return 3;
+    }
+    if (auto p = std::dynamic_pointer_cast<ColorEntry>(e)) {
+        out4[0] = p->value.Value.x; out4[1] = p->value.Value.y;
+        out4[2] = p->value.Value.z; out4[3] = p->value.Value.w;
+        return 4;
+    }
+    if (auto p = std::dynamic_pointer_cast<ScalarEntry>(e)) { out4[0] = p->value; return 1; }
+    if (auto p = std::dynamic_pointer_cast<IntEntry>(e))    { out4[0] = p->value; return 1; }
+    if (auto p = std::dynamic_pointer_cast<BoolEntry>(e))   { out4[0] = p->value ? 1 : 0; return 1; }
+    return 0;
 }
 
 Params::ScalarParam Params::Add(const std::string& name, scalar def, scalar min, scalar max)
@@ -264,9 +309,8 @@ void Params::VecEntry::fromJson(const json& j)
     value = vec((scalar)j[0], (scalar)j[1], (scalar)j[2]);
 }
 
-// the screen counterpart of the gizmo : a vec2 parameter grabbed where it
-// acts, in 0..1 across the window with y up — gl_FragCoord's convention, so a
-// full screen shader reads the handle's position as its own uv
+// the screen counterpart of the gizmo, a vec2 parameter grabbed where it acts,
+// in 0..1 with y up like gl_FragCoord, so a shader reads it as its own uv
 static std::set<std::string> vec2_handles;
 static std::string dragged_handle;
 
@@ -375,8 +419,7 @@ static bool drawVecGizmoLine(const std::string& name, vec& value, bool value_cha
 
 // ------------------------------------------------------------ direction ball
 
-// the unit sphere seen from the current camera : x right, y up, z toward the
-// viewer, so the ball is oriented like the scene behind it
+// the unit sphere seen from the current camera, oriented like the scene
 static glm::mat3 viewRotation()
 {
     return glm::mat3(polyscope::view::getCameraViewMatrix());
@@ -400,11 +443,11 @@ bool Params::DirEntry::drawUI(const char* label)
     glm::vec3 d = R * glm::vec3(float(value(0)), float(value(1)), float(value(2)));
 
     bool changed = false;
-    if (ImGui::IsItemActive()) { // held : a click aims as well as a drag
+    if (ImGui::IsItemActive()) { // held, a click aims as well as a drag
         ImVec2 m = ImGui::GetMousePos();
         glm::vec2 p((m.x - center.x) / radius, (center.y - m.y) / radius);
         float r2 = glm::dot(p, p);
-        if (r2 > 1.f) { // past the rim : slide along the silhouette
+        if (r2 > 1.f) { // past the rim, slide along the silhouette
             p /= std::sqrt(r2);
             r2 = 1.f;
         }
@@ -530,9 +573,8 @@ void Params::DrawPanel()
         ImGui::TextDisabled("Ctrl+S to save %d change(s)", (int)dirty.size());
     }
 
-    // keep the camera still while tweaking : ImGui must capture the mouse
-    // when it interacts with this panel (slope forces the capture off each
-    // frame so that clicks reach the slides / polyscope)
+    // keep the camera still while tweaking, slope forces the capture off each
+    // frame so that clicks reach the slides
     if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)
         || ImGui::IsAnyItemActive())
         ImGui::SetNextFrameWantCaptureMouse(true);
@@ -563,8 +605,7 @@ void Params::saveAllDirty()
 {
     if (dirty.empty())
         return;
-    // only ever-edited parameters are written : the others keep following
-    // their code defaults
+    // only edited parameters are written, the others follow their code defaults
     for (const auto& name : edited)
         if (registry.count(name))
             file_values[name] = registry[name]->toJson();

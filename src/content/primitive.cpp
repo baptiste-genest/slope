@@ -6,11 +6,8 @@ slope::TimeObject slope::TimeObject::operator()(Primitive* p) const {
     auto tmp = *this;
     tmp.inner_time = p->getInnerTime();
     tmp.relative_frame_number = p->relativeSlideIndex(tmp.absolute_frame_number);
-    // delta_time is a property of the frame, not of the primitive : it is
-    // stamped once per frame by the slideshow and inherited from *this. It used
-    // to be measured here against a function-local static, which is shared by
-    // every primitive — so only the first one drawn saw the real frame delta
-    // and all the others got ~0.
+    // delta_time belongs to the frame, not the primitive, and is stamped once
+    // per frame by the slideshow
     return tmp;
 }
 
@@ -22,8 +19,7 @@ void slope::Primitive::addPrimitive(PrimitivePtr ptr) {
     ptr->initPolyscope();
     ptr->transition = Primitive::DefaultTransition;
 
-    // depth stays 0 by default : draw order follows the order of insertion
-    // in each slide (see Slide::getDepthSorted), setDepth overrides it
+    // depth stays 0 by default, draw order then follows insertion order
 
     primitives.push_back(ptr);
 }

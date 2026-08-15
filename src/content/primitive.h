@@ -45,8 +45,8 @@ struct Primitive {
 
     void handleInnerTime();
 
-    // backdates the clock so getInnerTime() returns t : exports settle
-    // time-based animations past their intro instead of capturing t = 0
+    // backdates the clock so getInnerTime() returns t, which settles a
+    // time-based animation past its intro on export
     void settleInnerTime(TimeTypeSec t) {
         inner_time = Time::now() - std::chrono::duration_cast<TimeStamp::duration>(DurationSec(t));
     }

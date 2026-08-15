@@ -1,4 +1,5 @@
 #include "Panel.h"
+#include <spdlog/spdlog.h>
 
 slope::Panel::Panel(bool reveal, vec2 p) : reveal(reveal) {
     anchor = AbsoluteAnchor::Add(p);

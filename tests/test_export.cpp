@@ -120,7 +120,7 @@ int main()
     fs::remove_all(project, ec);
     fs::create_directories(project);
 
-    const int W = 320, H = 180; // small on purpose : this is a correctness check, not a render benchmark
+    const int W = 320, H = 180; // small on purpose, this is a correctness check, not a render benchmark
 
     // CachePath comes from argv[0]'s parent, so it must be a real path
     std::vector<std::string> arg_storage = {
