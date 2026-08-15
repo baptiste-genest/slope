@@ -8,6 +8,7 @@
 #include "../Options.h"
 #include "LateXMacros.h"
 #include <future>
+#include "extern/json.hpp"
 
 namespace slope {
 
@@ -130,9 +131,8 @@ struct Latex : public TextualPrimitive {
     TexObject tex_source; // the exact tex passed in (content may differ, cf Title)
     std::string full_content;
 
-    // opt-in : setColor renders the glyphs white and multiplies them by `color`
-    // at draw time, so recoloring costs no recompilation. It stays off by
-    // default because the multiply would turn any \textcolor of the source black
+    // opt-in. setColor renders the glyphs white and multiplies them by `color`
+    // at draw time, which would turn any \textcolor of the source black
     bool tintable = false;
     Color color = Color(1.f,1.f,1.f,1.f);
 
@@ -141,6 +141,9 @@ struct Latex : public TextualPrimitive {
     // their ink, so that e and e^{a^{b^{c}}} sit on the same line
     double baseline = -1;
     bool alignOnBaseline = true;
+
+    // fraction of the png the texture actually holds, one per axis
+    double tex_sx = 1, tex_sy = 1;
 
     double baselineOffset() const {
         if (baseline < 0 || !isFormula || !alignOnBaseline)
@@ -173,11 +176,31 @@ public:
         return 800./slope::Options::PDFtoPNGDensity*0.45;
     }
 
-    void display(const StateInSlide& sis) const{
+    // the factor the png is drawn at, which is what the texture is stored at so
+    // that the sampler never has to minify glyphs
+    std::pair<double,double> drawScale() const {
+        double sx = scale*getNormalizationFactor(), sy = sx;
+        if (Options::ScreenResolutionWidth != 1920 || Options::ScreenResolutionHeight != 1080){
+            sx *= Options::ScreenResolutionWidth/1920.;
+            sy *= Options::ScreenResolutionHeight/1080.;
+        }
+        return {sx,sy};
+    }
+
+    // refills from the png when a zoom asks for more texels than the texture
+    // holds. It only ever grows, and in steps, so a drag settles quickly
+    void ensureTexelsFor(double sx,double sy);
+
+    // uploads the png at the size it will be drawn at
+    void loadTexture(const path& png);
+
+    void display(const StateInSlide& sis) {
         FlushPending();
         if (data.width == -1)
             return;
         anchor->updatePos(sis.getPosition());
+        auto [dx,dy] = drawScale();
+        ensureTexelsFor(dx*sis.getScale(),dy*sis.getScale());
         scalar s = scale*getNormalizationFactor()*sis.getScale();
         DisplayImage(data,sis,s,
                      tintable ? color.getImColor() : RGBA(1.f,1.f,1.f,1.f),
@@ -196,6 +219,8 @@ public:
 
     // ScreenPrimitive interface
 public:
+    bool canRotate() const override {return true;}
+
     virtual vec2 getSize() const override {
         FlushPending();
         bool notfullHD = (Options::ScreenResolutionWidth != 1920) ||(Options::ScreenResolutionHeight != 1080);

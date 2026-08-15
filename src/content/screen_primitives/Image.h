@@ -23,6 +23,15 @@ struct ImageData {
 };
 
 ImageData loadImage(path filename);
+
+/// exact area average of an RGBA buffer, done on premultiplied alpha so that a
+/// transparent border cannot bleed into the ink
+std::vector<unsigned char> areaReduceRGBA(const unsigned char* src,int sw,int sh,int dw,int dh);
+
+/// same as loadImage, but stores the texture at the size it will be drawn at.
+/// A 2x2 bilinear tap only covers its footprint up to a 2:1 minification, so
+/// anything smaller has to be filtered here rather than by the sampler
+ImageData loadImage(path filename,double xscale,double yscale);
 void DisplayImage(const ImageData& data,const StateInSlide& sis,scalar scale = 1,const RGBA& tint = RGBA(1.f,1.f,1.f,1.f),scalar y_offset = 0);
 void ImageRotated(ImTextureID tex_id, ImVec2 center, ImVec2 size, float angle,const RGBA& color_mult);
 
@@ -71,6 +80,7 @@ public:
     void playIntro(const TimeObject& t, const StateInSlide &sis) override;
     void playOutro(const TimeObject& t, const StateInSlide &sis) override;
     Size getSize() const override;
+    bool canRotate() const override {return true;}
 };
 
 
@@ -92,6 +102,8 @@ public:
     void playOutro(const TimeObject& t, const StateInSlide &sis) override;
 
     Size getSize() const override;
+
+    bool canRotate() const override {return true;}
 
     int current_img = 0;
 

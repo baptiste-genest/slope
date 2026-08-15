@@ -5,6 +5,7 @@
 #include <fmt/core.h>
 #include <cstring>
 #include <cstdlib>
+#include <regex>
 //#include <format>
 
 slope::LatexPtr slope::Latex::Add(const TexObject &tex,scalar scale,int width)
@@ -33,7 +34,7 @@ slope::LatexPtr slope::Latex::MakeObject(const TexObject &tex, scalar scale, int
     path filename = GetLatexPath(rslt->full_content);
     if (io::file_exists(filename) && !Options::ignore_cache) {
         try {
-            rslt->data = loadImage(filename);
+            rslt->loadTexture(filename);
             rslt->baseline = ReadBaseline(filename);
             return rslt;
         } catch (const std::exception& e) {
@@ -59,7 +60,7 @@ void slope::Latex::FlushPending()
 
     for (const auto& l : todo) {
         try {
-            l->data = loadImage(GetLatexPath(l->full_content));
+            l->loadTexture(GetLatexPath(l->full_content));
             l->baseline = ReadBaseline(GetLatexPath(l->full_content));
         } catch (const std::exception& e) {
             spdlog::error("[latex] '{}' : {}",l->tex_source,e.what());
@@ -75,6 +76,37 @@ void slope::Latex::updateContent(json j)
     width = LatexLoader::GetWidth(j);
 }
 
+void slope::Latex::loadTexture(const path &png)
+{
+    auto [sx,sy] = drawScale();
+    tex_sx = std::min(1.0,sx);
+    tex_sy = std::min(1.0,sy);
+    data = loadImage(png,tex_sx,tex_sy);
+}
+
+void slope::Latex::ensureTexelsFor(double sx, double sy)
+{
+    const double have = std::max(tex_sx,tex_sy);
+    const double need = std::min(1.0,std::max(sx,sy));
+    if (have >= 1 || need <= have*1.05)
+        return;
+
+    // jump straight to a power of 1.5 above what is asked, so that a zoom drag
+    // costs a handful of reloads instead of one per frame
+    const double k = std::min(1.0/have,
+                              std::pow(1.5,std::ceil(std::log(need/have)/std::log(1.5))));
+    try {
+        ImageData fresh = loadImage(GetLatexPath(full_content),tex_sx*k,tex_sy*k);
+        if (data.texture && glfwGetCurrentContext())
+            glDeleteTextures(1,&data.texture);
+        data = fresh;
+        tex_sx = std::min(1.0,tex_sx*k);
+        tex_sy = std::min(1.0,tex_sy*k);
+    } catch (const std::exception& e) {
+        spdlog::error("[latex] {}",e.what());
+    }
+}
+
 void slope::Latex::ensureRendered()
 {
     auto tex_content = WriteTexFile(tex_source,isFormula,width,tintable);
@@ -84,7 +116,7 @@ void slope::Latex::ensureRendered()
     try {
         if (!io::file_exists(filename) || Options::ignore_cache)
             GenerateLatex(filename,tex_content);
-        data = loadImage(filename);
+        loadTexture(filename);
         baseline = ReadBaseline(filename);
     } catch (const std::exception& e) {
         spdlog::error("[latex] '{}' : {}", tex_source, e.what());
@@ -129,8 +161,8 @@ void slope::Latex::rebuildContext()
     }
 }
 
-// the compilation itself runs off the render thread : every primitive keeps
-// showing its previous image until PumpBatch picks the new ones up
+// compiled off the render thread, each primitive shows its previous image
+// until PumpBatch picks the new one up
 void slope::Latex::RegenerateAll()
 {
     FlushPending();
@@ -170,7 +202,7 @@ void slope::Latex::PumpBatch()
     batch_future.get();
     for (const auto& l : batch_targets) {
         try {
-            l->data = loadImage(GetLatexPath(l->full_content));
+            l->loadTexture(GetLatexPath(l->full_content));
             l->baseline = ReadBaseline(GetLatexPath(l->full_content));
         } catch (const std::exception& e) {
             spdlog::error("[latex] {}",e.what());
@@ -221,8 +253,8 @@ static std::string quote(const std::string& s) {
 }
 
 // a border fixed in pixels makes the on-screen size of the very same formula
-// depend on the density (43% spread between 300 and 1200 dpi) : keep it at a
-// constant 1.2pt instead, which is exactly the historical 10px at 600 dpi
+// depend on the density (43% spread between 300 and 1200 dpi), so keep it at a
+// constant 1.2pt, the historical 10px at 600 dpi
 static std::string borderPx() {
     return std::to_string(std::max<std::size_t>(1,(slope::Options::PDFtoPNGDensity*12+360)/720));
 }
@@ -319,8 +351,7 @@ void slope::GenerateLatex(const path &filename,
 {
     spdlog::info("Generating latex for '{}'...", texcontent);
 
-    // one job name per formula, inside the cache : no cwd pollution and no
-    // clash between two slope instances
+    // one job name per formula, inside the cache, so two instances cannot clash
     std::string job = (Options::CachePath + filename.stem().string());
     path tex_file = job + ".tex";
     path pdf_file = job + ".pdf";
@@ -371,7 +402,7 @@ void slope::GenerateLatex(const path &filename,
 }
 
 // one pdflatex run for every formula sharing a preamble, then a single
-// conversion splitting the pdf pages : N compiles become 1
+// conversion splitting the pdf pages, so N compiles become 1
 static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& group)
 {
     using namespace slope;
@@ -400,15 +431,14 @@ static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& g
     for (auto ext : {".tex",".pdf",".aux",".log"})
         std::filesystem::remove(job + ext);
 
-    // page i is formula i : should one of them span two pages, every following
-    // page would silently land on the wrong primitive, so refuse the mapping
+    // page i is formula i, and one spanning two pages would shift every
+    // following one onto the wrong primitive, so refuse the mapping
     if (ok && io::file_exists(job + "-" + std::to_string(group.size()) + ".png")) {
         spdlog::warn("[latex] a formula of the batch spans several pages");
         ok = false;
     }
 
-    // a single bad formula fails the whole document : fall back to compiling
-    // the group one by one so only the offender is lost
+    // one bad formula fails the document, so fall back to one by one
     if (!ok) {
         for (std::size_t i = 0;io::file_exists(job + "-" + std::to_string(i) + ".png");i++)
             std::filesystem::remove(job + "-" + std::to_string(i) + ".png");
@@ -542,8 +572,8 @@ bool slope::LatexLoader::initialized = false;
 int slope::LatexLoader::generation = 0;
 
 
-// preview/tightpage makes each body its own page, cropped to its own content :
-// nothing can overflow a fixed page any more, and the converter only
+// preview/tightpage makes each body its own page, cropped to its own content,
+// so nothing overflows a fixed page any more, and the converter only
 // rasterizes what is actually there.
 // `white` renders the glyphs white so that the draw-time tint can give them any
 // color ; it is opt-in because the tint multiplies, and would otherwise turn
@@ -569,12 +599,12 @@ std::string slope::TexPreamble(bool white)
 }
 
 // the body is boxed before being previewed so that TeX can report the height
-// of that very box : [t] makes it the height above the *first* baseline, which
-// is what lets two formulas of different heights be aligned on it
+// of that very box. [t] makes it the height above the *first* baseline, which
+// is what aligns two formulas of different heights
 std::string slope::TexBody(const TexObject &tex, bool formula, int width)
 {
-    // the historical textwidth of the article page : wrapping without an
-    // explicit width has to keep breaking lines where it used to
+    // the historical textwidth of the article page, so unspecified wrapping
+    // keeps breaking lines where it used to
     std::string w = width == -1 ? "493.69707" : std::to_string(width);
     std::string body = formula
         ? "$\\displaystyle\\begin{aligned}[t]\n" + tex + "\n\\end{aligned}$"
