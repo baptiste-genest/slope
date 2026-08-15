@@ -100,19 +100,6 @@ install(TARGETS slope
 install(DIRECTORY src/shaders/ DESTINATION share/slope/shaders
         FILES_MATCHING PATTERN "*.glsl")
 
-option(BUILD_SLOPE_TUTORIALS "Build the slope tutorials" OFF)
-
-if (BUILD_SLOPE_TUTORIALS)
-
-## Tutorials
-add_executable(tuto_helloworld tutorials/tuto_helloworld.cpp)
-target_link_libraries(tuto_helloworld slope)
-
-add_executable(tuto_mesh tutorials/tuto_mesh.cpp)
-target_link_libraries(tuto_mesh slope)
-
-endif()
-
 option(BUILD_SLOPE_TESTS "Build the slope test suite" OFF)
 
 if (BUILD_SLOPE_TESTS)
