@@ -22,6 +22,7 @@ include(polyscope)
 include(spdlog)
 include(fmt)
 include(yamlcpp)
+include(luajit)
 
 find_package(OpenGL REQUIRED)
 
@@ -79,7 +80,7 @@ file(GLOB HEADER_LIST CONFIGURE_DEPENDS "src/*.h*")
 
 ## The library
 add_library(slope STATIC ${SRC_lib})
-target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog OpenGL::GL fmt yaml-cpp)
+target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog OpenGL::GL fmt yaml-cpp luajit)
 target_compile_features(slope PUBLIC cxx_std_20)
 # MSVC's <cmath> only defines M_PI etc. when this is set, unlike glibc/libc++
 target_compile_definitions(slope PUBLIC $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>)

@@ -16,3 +16,7 @@ target_compile_definitions(test_export PRIVATE SLOPE_TEST_SOURCE_DIR="${CMAKE_CU
 add_test(NAME export_pipeline COMMAND test_export)
 # reported by the test when no OpenGL context can be created, see test_export.cpp
 set_tests_properties(export_pipeline PROPERTIES SKIP_RETURN_CODE 125)
+
+add_executable(test_snippet test_snippet.cpp)
+target_link_libraries(test_snippet PRIVATE slope)
+add_test(NAME lua_snippets COMMAND test_snippet)
