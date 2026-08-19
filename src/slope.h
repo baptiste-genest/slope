@@ -12,6 +12,7 @@
 #include "content/polyscope_primitives/PointCloud.h"
 #include "content/screen_primitives/LateX.h"
 #include "content/polyscope_primitives/Mesh.h"
+#include "content/Snippet.h"
 #include "content/polyscope_primitives/PolyscopeSnippets.h"
 #include "content/polyscope_primitives/quantities/MeshScalarField.h"
 #include "content/polyscope_primitives/quantities/vector_field.h"

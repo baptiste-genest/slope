@@ -2,7 +2,7 @@
 #define DECK_JSONREAD_H
 
 #include "../../libslope.h"
-#include "../../content/LiveVec.h"
+#include "../../content/Snippet.h"
 #include "extern/json.hpp"
 
 namespace slope {
