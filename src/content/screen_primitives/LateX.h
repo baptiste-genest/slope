@@ -203,8 +203,10 @@ public:
         if (sis.hasPlane()){
             // the warp decides the on screen size, not the slide scale
             scalar pw,ph;
+            // data.width is the png's own size, so this is the fraction of it
+            // the screen asks for, the same currency drawScale uses below
             if (PlaneScreenExtent(sis,data,s,pw,ph) && data.width > 0 && data.height > 0)
-                ensureTexelsFor(pw*tex_sx/data.width,ph*tex_sy/data.height);
+                ensureTexelsFor(pw/data.width,ph/data.height);
         }
         else {
             auto [dx,dy] = drawScale();
