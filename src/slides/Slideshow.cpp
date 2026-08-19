@@ -614,8 +614,6 @@ void slope::Slideshow::addKeyboardInputs()
         [this](){wm.Toggle(WindowType::SlideMenu);},true);
     input_manager.addInput("export current camera view","C",ImGuiKey_C,
         [this](){wm.Toggle(WindowType::Camera);},true);
-    input_manager.addInput("show color palette editor","W",ImGuiKey_W,
-        [this](){wm.Toggle(WindowType::Palette);},true);
     input_manager.addInput("show animation parameter tuner","A",ImGuiKey_A,
         [this](){wm.Toggle(WindowType::Tuner);},true);
     input_manager.addInput("show polyscope GUI","D",ImGuiKey_D,
@@ -661,8 +659,6 @@ void slope::Slideshow::displayPopUps()
 {
     if (wm.isOpen(WindowType::Camera))
         camera_exporter.drawPopup(wm);
-    else if (wm.isOpen(WindowType::Palette))
-        PaletteHandler::ShowColorPickingModule();
     else if (wm.isOpen(WindowType::Tuner))
         Params::DrawPanel();
     else if (wm.isOpen(WindowType::SlideMenu))

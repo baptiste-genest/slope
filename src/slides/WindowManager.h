@@ -10,7 +10,6 @@ namespace slope {
 
 enum class WindowType {
     none,
-    Palette,
     Camera,
     SlideMenu,
     Transform,

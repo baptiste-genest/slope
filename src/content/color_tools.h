@@ -2,6 +2,7 @@
 #include "../libslope.h"
 #include "Options.h"
 #include "io.h"
+#include "Params.h"
 
 namespace slope {
 
@@ -14,29 +15,23 @@ inline glm::vec3 GetChromaticOpposite(const glm::vec3& color_rgb) {
 
 using ColorType = glm::vec4;
 
-class PaletteHandler {
-    static std::set<std::string> labels;
-public:
-    static void RegisterColor(const std::string& label) {
-        if (!labels.contains(label)) {
-            WriteToLabel(label, ColorType(0.4,0.1,0.8,1),false);
-            labels.insert(label);
-        }
-    }
-    static ColorType GetColorFromLabel(std::string label);
-
-    static void WriteToLabel(std::string label, ColorType color,bool override);
-
-    static void ShowColorPickingModule();
-};
-
+/*
+ * A colour, either a literal or a named one.
+ *
+ * A named colour is a Params entry like any other : edited in the Tuner, saved
+ * to views/params.json with Ctrl+S, hot reloaded, and readable from a snippet
+ * or bindable to a shader uniform by that same name. Names may be grouped,
+ * "shape/clay". A project that still holds a views/<name>.color from the old
+ * palette is read once, so the value carries over.
+ */
 class Color {
     std::string label = "";
-    ColorType value;
+    ColorType value = ColorType(1,1,1,1);
+    Params::ColorParam handle;
 
 public:
     Color() {}
-    Color(std::string label) : label(label) {PaletteHandler::RegisterColor(label);}
+    Color(std::string label, ColorType def = ColorType(0.4,0.1,0.8,1));
 
     Color(ColorType value) : value(value) {}
 
@@ -45,10 +40,10 @@ public:
     bool isPersistent() const { return !label.empty(); }
 
     ColorType getValue() const {
-        if (isPersistent())
-            return PaletteHandler::GetColorFromLabel(label);
-        else
+        if (!handle.entry)
             return value;
+        const RGBA c = *handle;
+        return ColorType(c.Value.x,c.Value.y,c.Value.z,c.Value.w);
     }
 
     ImColor getImColor() const {

@@ -253,7 +253,13 @@ bool Params::BoolEntry::drawUI(const char* label)
 
 bool Params::ColorEntry::drawUI(const char* label)
 {
-    return ImGui::ColorEdit4(label, (float*)&value.Value);
+    // a swatch on the row, the wheel in the popup it opens. The inline drag
+    // fields are dropped, a panel of colours is unreadable with four each
+    return ImGui::ColorEdit4(label, (float*)&value.Value,
+                             ImGuiColorEditFlags_NoInputs
+                             | ImGuiColorEditFlags_AlphaBar
+                             | ImGuiColorEditFlags_AlphaPreviewHalf
+                             | ImGuiColorEditFlags_PickerHueWheel);
 }
 
 json Params::ColorEntry::toJson() const
