@@ -50,7 +50,7 @@ class Mesh : public PolyscopePrimitive
 
     void normalize();
 
-private:
+protected:
     vecs vertices;
     bool smooth = false;
     Faces faces;

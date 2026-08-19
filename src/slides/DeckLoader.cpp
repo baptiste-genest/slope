@@ -9,6 +9,7 @@
 #include "../content/screen_primitives/Webcam.h"
 #include "../content/Params.h"
 #include "../content/polyscope_primitives/Mesh.h"
+#include "../content/polyscope_primitives/PolyscopeSnippets.h"
 #include "spdlog/spdlog.h"
 #include "yaml-cpp/yaml.h"
 #include <spdlog/spdlog.h>
@@ -1065,6 +1066,8 @@ static void warnUnknownKeys(const json& item)
         {"object",  {"id","at","follow","offset","alpha","rot","zoom","view","group",
                      "uniforms","textures"}},
         {"mesh",    {"id","at","alpha","smooth","normalize","group"}},
+        {"surface", {"id","at","alpha","smooth","u","v","resolution","closed","group"}},
+        {"curve",   {"id","at","alpha","u","resolution","closed","radius","group"}},
         {"arrow",   {"id","alpha","group"}},
         {"box",     {"id","alpha","padding","padx","pady","thickness","color","fill_color","filled","group"}},
         {"stack",   {"id","at","spacing","align","group"}},
@@ -1185,6 +1188,68 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
                        return m;
                    }));
         named[item.value("id", std::filesystem::path(file).stem().string())] = prim;
+        scalar alpha = item.value("alpha", 1.);
+        auto pis = item.contains("at") && item["at"].is_string()
+            ? prim->at(item["at"].get<std::string>(), alpha)
+            : prim->at(alpha);
+        show.addToLastSlide(pis);
+        used_primitives.insert(prim);
+    }
+    else if (item.contains("surface")) {
+        SnippetSurface::Spec spec;
+        spec.fn = item["surface"];
+        spec.name = item.value("id", spec.fn);
+        if (item.contains("u")) spec.u = readVec2(item["u"], "u");
+        if (item.contains("v")) spec.v = readVec2(item["v"], "v");
+        if (item.contains("resolution")) {
+            const json& r = item["resolution"];
+            if (r.is_array()) {
+                vec2 n = readVec2(r, "resolution");
+                spec.res_u = int(n(0));
+                spec.res_v = int(n(1));
+            } else
+                spec.res_u = spec.res_v = r.get<int>();
+        }
+        if (item.contains("closed")) {
+            const json& c = item["closed"];
+            if (c.is_array()) {
+                if (c.size() != 2)
+                    throw std::runtime_error("\"closed\" must be a bool or [u, v]");
+                spec.closed_u = c[0].get<bool>();
+                spec.closed_v = c[1].get<bool>();
+            } else
+                spec.closed_u = spec.closed_v = c.get<bool>();
+        }
+        spec.smooth = item.value("smooth", true);
+
+        // cached on identity alone, so editing the domain or the resolution
+        // reconfigures the surface in place instead of building a second one
+        auto prim = std::static_pointer_cast<SnippetSurface>(
+            cached("surface:" + spec.name + ":" + spec.fn,
+                   [&]() -> PrimitivePtr { return SnippetSurface::Add(spec); }));
+        prim->configure(spec);
+        named[spec.name] = prim;
+        scalar alpha = item.value("alpha", 1.);
+        auto pis = item.contains("at") && item["at"].is_string()
+            ? prim->at(item["at"].get<std::string>(), alpha)
+            : prim->at(alpha);
+        show.addToLastSlide(pis);
+        used_primitives.insert(prim);
+    }
+    else if (item.contains("curve")) {
+        SnippetCurve::Spec spec;
+        spec.fn = item["curve"];
+        spec.name = item.value("id", spec.fn);
+        if (item.contains("u")) spec.u = readVec2(item["u"], "u");
+        spec.resolution = item.value("resolution", 200);
+        spec.closed = item.value("closed", false);
+        spec.radius = item.value("radius", -1.);
+
+        auto prim = std::static_pointer_cast<SnippetCurve>(
+            cached("curve:" + spec.name + ":" + spec.fn,
+                   [&]() -> PrimitivePtr { return SnippetCurve::Add(spec); }));
+        prim->configure(spec);
+        named[spec.name] = prim;
         scalar alpha = item.value("alpha", 1.);
         auto pis = item.contains("at") && item["at"].is_string()
             ? prim->at(item["at"].get<std::string>(), alpha)

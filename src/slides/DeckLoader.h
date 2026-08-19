@@ -91,6 +91,18 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *       - mesh: bunny.obj               # loads an obj file; optional
  *         smooth: true                  # smooth (default true), normalize,
  *         at: transform_label           # persistent transform label
+ *       - surface: wave                 # a mesh from a snippet function of the
+ *         u: [0, 6.2832]                # parameter square, vec2 -> vec3,
+ *         v: [0, 6.2832]                # re-evaluated every frame. u/v are
+ *         resolution: [96, 48]          # the domain (default [0,1]), and the
+ *         closed: [true, true]          # resolution its grid, one number for
+ *         at: transform_label           # a square one. "closed" welds a
+ *                                       # periodic seam
+ *       - curve: helix                  # a curve network from a snippet
+ *         u: [0, 12.566]                # function of one number, scalar ->
+ *         resolution: 400               # vec3, sampled over the segment "u"
+ *         closed: false                 # (default [0,1]). "closed" joins the
+ *         radius: 0.01                  # last node back to the first
  *       - arrow: {from: some_item, to: other_item, bend: 0.3,
  *                 from_offset: [0.02, 0], to_offset: [0, -0.01]}
  *                                       # endpoints follow their target,
@@ -194,6 +206,26 @@ using ShaderPtr = std::shared_ptr<Shader>;
  * the image; removing an entry unbinds it. Only image files, a texture fed by
  * another pass needs a streaming order a manifest cannot express and stays on
  * the C++ side (Shader::setTexture).
+ *
+ * Snippet objects
+ * ---------------
+ * "surface:" and "curve:" name a callable snippet section and sample it over
+ * a parameter domain, a vec2 for a surface and one number for a curve
+ *
+ *   --- wave                            # in snippets.lua
+ *   return function(uv)
+ *     return vec3(uv.x, uv.y, 0.2*math.sin(6*uv.x + t.from_begin))
+ *   end
+ *
+ *   --- helix
+ *   return function(s)
+ *     return vec3(math.cos(s + t.from_begin), math.sin(s + t.from_begin), 0.15*s)
+ *   end
+ *
+ * The section sees `t`, so the object animates without a line of C++, and is
+ * hot-reloaded with the file. "resolution" is how finely the domain is
+ * sampled, and editing it in the deck rebuilds the object live. A per sample
+ * Lua call is not free, see examples/snippet_perf for what a size costs.
  *
  * Items are referenced (by remove/replace/below/...) through their key
  * (latex key, image filename stem, object name, "title") or an explicit
