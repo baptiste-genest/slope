@@ -1380,8 +1380,31 @@ void Shader::cacheUniformLocations()
     user_uniform_loc.clear();
 }
 
+void Shader::setTexture(const std::string &name, const SnippetTexture::Spec &spec,
+                        Filter f, Wrap wrap)
+{
+    auto& e = snippet_textures[name];
+    if (e.tex)
+        e.tex->configure(spec);
+    else
+        e.tex = std::make_shared<SnippetTexture>(spec);
+    e.filter = f;
+    e.wrap = wrap;
+}
+
+void Shader::refreshSnippetTextures()
+{
+    for (auto& [name, e] : snippet_textures){
+        if (!e.tex || !e.tex->update())
+            continue;
+        setTexture(name, e.tex->data(), e.tex->width(), e.tex->height(),
+                   e.tex->components(), e.filter, e.wrap);
+    }
+}
+
 void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
 {
+    refreshSnippetTextures();
     ensureResources();
     if (needs_recompile)
         recompile();

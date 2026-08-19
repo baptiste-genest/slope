@@ -207,9 +207,53 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
 //   textures:
 //     noise: noise.png
 //     grad:  {file: gradient.png, filter: nearest, wrap: repeat}
+//     prior: {snippet: prior_mean, resolution: 512, domain: [-6, 6]}
 //
-// Only image files. A texture fed by another pass needs a streaming order the
-// manifest cannot express, and stays on the C++ side.
+// An image file or a sampled snippet. A texture fed by another pass needs a
+// streaming order the manifest cannot express, and stays on the C++ side.
+// {snippet: fn, resolution: N or [w,h], domain: [a,b] or [[a,b],[c,d]],
+//  components: 1..4, resample: auto|once|always}
+static SnippetTexture::Spec snippetTextureSpec(const std::string& name, const json& spec)
+{
+    SnippetTexture::Spec sp;
+    sp.fn = spec["snippet"].get<std::string>();
+
+    if (spec.contains("resolution")) {
+        const json& r = spec["resolution"];
+        if (r.is_array()) {
+            vec2 n = readVec2(r, "resolution");
+            sp.res_u = int(n(0));
+            sp.res_v = int(n(1));
+        } else
+            sp.res_u = r.get<int>();
+    }
+    if (spec.contains("domain")) {
+        const json& d = spec["domain"];
+        if (!d.is_array() || d.empty())
+            throw std::runtime_error("texture \"" + name + "\" : \"domain\" must be "
+                                     "[a, b], or [[a, b], [c, d]] for a 2D one");
+        if (d[0].is_array()) {
+            if (d.size() != 2)
+                throw std::runtime_error("texture \"" + name + "\" : a 2D \"domain\" is "
+                                         "[[a, b], [c, d]]");
+            sp.u = readVec2(d[0], "domain");
+            sp.v = readVec2(d[1], "domain");
+        } else
+            sp.u = readVec2(d, "domain");
+    }
+    sp.components = spec.value("components", 1);
+    if (sp.components < 1 || sp.components > 4)
+        throw std::runtime_error("texture \"" + name + "\" : \"components\" is 1 to 4");
+
+    const std::string w = spec.value("resample", "auto");
+    if      (w == "once")   sp.when = SnippetTexture::Spec::When::Once;
+    else if (w == "always") sp.when = SnippetTexture::Spec::When::Always;
+    else if (w != "auto")
+        throw std::runtime_error("texture \"" + name + "\" : \"resample\" must be "
+                                 "\"auto\", \"once\" or \"always\"");
+    return sp;
+}
+
 void declareShaderTextures(const ShaderPtr& shader, const json& item)
 {
     std::vector<std::string> declared;
@@ -227,9 +271,14 @@ void declareShaderTextures(const ShaderPtr& shader, const json& item)
             auto filter = Shader::Filter::Linear;
             auto wrap   = Shader::Wrap::Clamp;
             if (spec.is_object()) {
-                if (!spec.contains("file"))
-                    throw std::runtime_error("texture \"" + name + "\" needs a \"file\"");
-                file = spec["file"];
+                if (!spec.contains("file") && !spec.contains("snippet"))
+                    throw std::runtime_error("texture \"" + name + "\" needs a \"file\" "
+                                             "or a \"snippet\"");
+                if (spec.contains("file") && spec.contains("snippet"))
+                    throw std::runtime_error("texture \"" + name + "\" is either a "
+                                             "\"file\" or a \"snippet\", not both");
+                if (spec.contains("file"))
+                    file = spec["file"];
                 const std::string fs = spec.value("filter", "linear");
                 const std::string ws = spec.value("wrap", "clamp");
                 if      (fs == "nearest") filter = Shader::Filter::Nearest;
@@ -245,6 +294,11 @@ void declareShaderTextures(const ShaderPtr& shader, const json& item)
             } else {
                 throw std::runtime_error("texture \"" + name + "\" must be a file name "
                                          "or {file: ..., filter: ..., wrap: ...}");
+            }
+            if (file.empty()) {
+                shader->setTexture(name, snippetTextureSpec(name, spec), filter, wrap);
+                declared.push_back(name);
+                continue;
             }
             // re-setting the same file is a no-op, so a hot reload does not
             // re-decode every image on every save

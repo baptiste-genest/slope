@@ -88,6 +88,11 @@ std::map<std::string, Var> vars;
 std::map<std::string, Snippet::Derivation> derivations;
 std::map<std::string, Snippet::CallPtr> calls;
 
+// what a recorded block of calls read, see Snippet::beginRecord
+bool recording = false;
+Snippet::Deps record;
+long reload_counter = 0;
+
 long frame_counter = 0;
 TimeObject current_time;
 std::string last_error;
@@ -187,6 +192,13 @@ int env_index(lua_State* s) {
     // upvalue 1 is the builtins table
     const char* key = lua_tostring(s, 2);
     if (!key) return 0;
+
+    if (recording) {
+        // t is a builtin and returns just below, so this is the only place it
+        // can be seen, and reading it at all makes the caller time dependent
+        if (std::strcmp(key, "t") == 0) record.time = true;
+        else record.names.insert(key);
+    }
 
     lua_pushvalue(s, 2);
     lua_rawget(s, lua_upvalueindex(1));
@@ -723,6 +735,7 @@ void discover() {
     }
     for (auto& [name, c] : calls)
         c->ref = LUA_NOREF;   // re-bound lazily against the new chunks
+    reload_counter++;
 }
 
 void rebuild() {
@@ -831,6 +844,32 @@ Snippet::Value Snippet::get(const std::string& name) {
             return it->second.value;
     }
     return fromParams(name);
+}
+
+void Snippet::beginRecord() {
+    record = Deps();
+    recording = true;
+}
+
+Snippet::Deps Snippet::endRecord() {
+    recording = false;
+    return record;
+}
+
+long Snippet::reloads() {return reload_counter;}
+
+long Snippet::stateOf(const Deps& d) {
+    long h = reload_counter*1000003L;
+    for (const auto& n : d.names) {
+        h = h*31 + changed(n);
+        // a parameter is not a section, so its generation never moves. Fold in
+        // what it currently reads instead
+        scalar v[4];
+        if (int n_comp = Params::read(n, v); n_comp > 0)
+            for (int i = 0; i < n_comp; i++)
+                h = h*31 + (long)std::llround(v[i]*1e6);
+    }
+    return h;
 }
 
 long Snippet::changed(const std::string& name) {

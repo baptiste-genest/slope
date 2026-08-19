@@ -2,6 +2,7 @@
 #define SHADER_H
 
 #include "ScreenPrimitive.h"
+#include "../SnippetTexture.h"
 #include <filesystem>
 #include <functional>
 #include "extern/json.hpp"
@@ -322,6 +323,15 @@ public:
                     int w, int h, int comps = 1,
                     Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp)
     { setTexture(name, data.data(), w, h, comps, f, wrap); }
+    // ── a snippet function as a texture ─────────────────────────────────────
+    // Samples a callable section onto a grid and binds the result. A section
+    // that reads t is resampled every frame, one that does not is sampled once.
+    // See SnippetTexture for the cost and for overriding that verdict :
+    //   SnippetTexture::Spec sp; sp.fn = "prior_mean"; sp.u = vec2(-6,6);
+    //   fx->setTexture("prior", sp);
+    void setTexture(const std::string& name, const SnippetTexture::Spec& spec,
+                    Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp);
+
     // the same, onto a numbered channel
     void setData(int i, const float* data, int w, int h, int comps = 1,
                  Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp)
@@ -437,6 +447,15 @@ private:
     };
     static constexpr int kChannels = 4;   // how many iChannelN the prelude declares
     std::map<std::string, Texture> textures;
+
+    // sampled snippets, re-uploaded on the frames they actually change
+    struct SnippetTex {
+        std::shared_ptr<SnippetTexture> tex;
+        Filter filter = Filter::Linear;
+        Wrap   wrap   = Wrap::Clamp;
+    };
+    std::map<std::string, SnippetTex> snippet_textures;
+    void refreshSnippetTextures();
 
     // polyscope's depth buffer goes on the unit just past the textures, so it
     // depends on how many are bound this frame

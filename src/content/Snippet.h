@@ -4,6 +4,7 @@
 #include "../libslope.h"
 #include "TimeObject.h"
 #include <array>
+#include <set>
 #include <source_location>
 
 namespace slope {
@@ -142,6 +143,21 @@ public:
         vec    v3()   const { return operator vec(); }
         RGBA   rgba() const { return operator RGBA(); }
     };
+
+    // ── what a block of calls depends on ───────────────────────────────────
+    // Wrap a run of get()/fn() calls in beginRecord()/endRecord() to learn what
+    // it read. Sampling a snippet into a texture uses this to keep the samples
+    // when nothing they were built from has moved.
+    struct Deps {
+        std::set<std::string> names;
+        bool time = false;      // it read t, so it changes every frame
+    };
+    static void beginRecord();
+    static Deps endRecord();
+    // changes whenever anything in d has moved, reloads and parameters included
+    static long stateOf(const Deps& d);
+    // bumped every time a snippet file is re-read
+    static long reloads();
 
     static Value get(const std::string& name);
     // bumps whenever the value actually differs from the previous frame's.
