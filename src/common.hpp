@@ -1,5 +1,5 @@
-#ifndef PCH_H
-#define PCH_H
+#ifndef COMMON_H
+#define COMMON_H
 
 // heavy headers (json, svg, stb, regex, X11) live in the few TUs that use them
 
@@ -64,4 +64,4 @@
 #include <string>
 
 #include <spdlog/spdlog.h>
-#endif // PCH_H
+#endif // COMMON_H

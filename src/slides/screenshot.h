@@ -6,7 +6,7 @@
 #include <string>
 #include <spdlog/spdlog.h>
 #else
-#include "../pch.hpp"
+#include "../common.hpp"
 #endif //__APPLE__
 
 namespace slope {

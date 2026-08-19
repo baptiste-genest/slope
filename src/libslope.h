@@ -1,7 +1,7 @@
 #ifndef LIBSLOPE_H
 #define LIBSLOPE_H
 
-#include "pch.hpp"
+#include "common.hpp"
 #include "extern/json_fwd.hpp"
 
 namespace slope {
