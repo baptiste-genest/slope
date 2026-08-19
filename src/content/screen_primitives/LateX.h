@@ -199,9 +199,17 @@ public:
         if (data.width == -1)
             return;
         anchor->updatePos(sis.getPosition());
-        auto [dx,dy] = drawScale();
-        ensureTexelsFor(dx*sis.getScale(),dy*sis.getScale());
         scalar s = scale*getNormalizationFactor()*sis.getScale();
+        if (sis.hasPlane()){
+            // the warp decides the on screen size, not the slide scale
+            scalar pw,ph;
+            if (PlaneScreenExtent(sis,data,s,pw,ph) && data.width > 0 && data.height > 0)
+                ensureTexelsFor(pw*tex_sx/data.width,ph*tex_sy/data.height);
+        }
+        else {
+            auto [dx,dy] = drawScale();
+            ensureTexelsFor(dx*sis.getScale(),dy*sis.getScale());
+        }
         DisplayImage(data,sis,s,
                      tintable ? color.getImColor() : RGBA(1.f,1.f,1.f,1.f),
                      baselineOffset()*s);

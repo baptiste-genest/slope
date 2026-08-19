@@ -112,6 +112,8 @@ private:
     void renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T);
 
     void transformEditor();
+    void clearTransformGizmos();
+    int gizmo_slide = -1;
 
     void handleInputs();
 

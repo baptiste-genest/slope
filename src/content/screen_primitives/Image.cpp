@@ -1,4 +1,5 @@
 #include "Image.h"
+#include "PlaneWarp.h"
 
 size_t slope::Image::count = 0;
 std::vector<slope::Image> slope::Image::images;
@@ -106,6 +107,15 @@ slope::ImageData slope::loadImage(path file, double xscale, double yscale)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    // a plane squeezed along one axis needs the other axis to keep its texels
+#ifndef GL_TEXTURE_MAX_ANISOTROPY_EXT
+#define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
+#define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
+#endif
+    GLfloat aniso = 0;
+    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &aniso);
+    if (glGetError() == GL_NO_ERROR && aniso > 1)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(aniso,16.f));
 #if defined(GL_UNPACK_ROW_LENGTH) && !defined(__EMSCRIPTEN__)
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 #endif
@@ -270,8 +280,87 @@ void slope::ImageRotated(ImTextureID tex_id, ImVec2 center, ImVec2 size, float a
     draw_list->AddImageQuad(tex_id, pos[0], pos[1], pos[2], pos[3], uvs[0], uvs[1], uvs[2], uvs[3], color_mult);
 }
 
+namespace {
+
+using namespace slope;
+
+// half size of the screen space draw, in relative screen units
+void screenHalfSize(const ImageData& data,scalar draw_scale,scalar k,scalar& hw,scalar& hh)
+{
+    auto W = ImGui::GetWindowSize();
+    const scalar sx = Options::ScreenResolutionWidth/1920.;
+    const scalar sy = Options::ScreenResolutionHeight/1080.;
+    hw = (data.width *draw_scale*k*sx*0.5)/std::max(1.f,W.x);
+    hh = (data.height*draw_scale*k*sy*0.5)/std::max(1.f,W.y);
+}
+
+// one end of the placement. An unplaced plane becomes the billboard it is drawn as
+Transform endTransform(const std::optional<Transform>& given,const vec2& pos,
+                       scalar k,scalar angle,const ImageData& data,
+                       scalar draw_scale,scalar depth)
+{
+    if (given)
+        return FoldInPlane(*given,k,angle);
+    scalar hw,hh;
+    screenHalfSize(data,draw_scale,k,hw,hh);
+    return TransformFromFrame(BillboardFrame(pos,hw,hh,angle,depth));
+}
+
+bool resolvedFrame(const StateInSlide& sis,const ImageData& data,scalar draw_scale,Frame3D& out)
+{
+    if (data.height <= 0 || data.width <= 0)
+        return false;
+    const scalar aspect = scalar(data.width)/data.height;
+
+    const std::optional<Transform> here = sis.planeTransform();
+    const Transform to = endTransform(here,sis.getPosition(),sis.getScale(),
+                                      sis.getAngle(),data,draw_scale,DefaultPlaneDepth());
+    bool ds = here ? sis.plane.double_sided : true;
+
+    Transform T = to;
+    if (sis.plane.blending()){
+        const PlanePlacement::End& e = *sis.plane.from;
+        const CameraProjector cam = CameraProjector::Current();
+        const scalar depth = cam.viewDepth(vec(to.translation.x,to.translation.y,to.translation.z));
+        const Transform from = endTransform(e.frame,e.pos,e.scale,e.angle,data,draw_scale,depth);
+        T = Transform::Interpolate(from,to,sis.plane.blend);
+        ds = ds || !e.frame || e.double_sided;
+    }
+
+    out = FrameFromTransform(T,aspect);
+    out.double_sided = ds;
+    NotePlaneDrawn(sis.persistentTransform.getLabel(),to);
+    return true;
+}
+
+}
+
+void slope::DisplayImageOnPlane(const ImageData &data, const StateInSlide &sis, scalar scale, const RGBA &tint, scalar y_offset)
+{
+    Frame3D f;
+    if (!resolvedFrame(sis,data,scale,f))
+        return;
+    // the latex baseline arrives in pixels, a fraction of the drawn height
+    if (std::abs(y_offset) > 1e-9 && scale > 0)
+        f.origin += (2*y_offset/(data.height*scale))*f.v;
+    DrawTexturedPlane(f,data,tint,sis.getAlpha());
+}
+
+bool slope::PlaneScreenExtent(const StateInSlide &sis, const ImageData &data, scalar draw_scale,
+                              scalar &px_w, scalar &px_h)
+{
+    Frame3D f;
+    if (!sis.hasPlane() || !resolvedFrame(sis,data,draw_scale,f))
+        return false;
+    return PlaneScreenExtent(f,px_w,px_h);
+}
+
 void slope::DisplayImage(const ImageData &data, const StateInSlide &sis, scalar scale, const RGBA& tint, scalar y_offset)
 {
+    if (sis.hasPlane()){
+        DisplayImageOnPlane(data,sis,scale,tint,y_offset);
+        return;
+    }
     RGBA color_multiplier = ImColor(tint.Value.x,tint.Value.y,tint.Value.z,tint.Value.w*sis.getAlpha());
     auto P = sis.getAbsolutePosition();
     P.y += y_offset;

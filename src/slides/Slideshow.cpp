@@ -244,7 +244,7 @@ void slope::Slideshow::ImGuiWindowConfig()
 void slope::Slideshow::onWindowClose(GLFWwindow* w)
 {
     auto* self = static_cast<Slideshow*>(glfwGetWindowUserPointer(w));
-    if (LabelAnchor::hasDirty() || Params::hasDirty()
+    if (LabelAnchor::hasDirty() || Params::hasDirty() || PersistentTransform::hasDirty()
         || self->time_tracker.hasRecordableSession()) {
         glfwSetWindowShouldClose(w, GLFW_FALSE);
         if (!self->wm.isAnyOpen())
@@ -476,28 +476,68 @@ void slope::Slideshow::loadSlides()
 }
 
 
+void slope::Slideshow::clearTransformGizmos()
+{
+    for (auto& S : slides)
+        for (auto& p : S)
+            p.second.persistentTransform.guizmo = nullptr;
+}
+
 void slope::Slideshow::transformEditor()
 {
-    auto PP = slides[state.current].getPolyscopePrimitives();
-    for (const auto& pis : PP){
-        PrimitivePtr p = pis.first;
-        auto& pt = slides[state.current].at(p).persistentTransform;
+    // a gizmo lives in its slide's state, leaving the slide would strand it
+    if (gizmo_slide != (int)state.current){
+        clearTransformGizmos();
+        gizmo_slide = (int)state.current;
+    }
+
+    Slide& CS = slides[state.current];
+    // a mesh's transform moves it, a label's is the plane it is pasted on
+    std::map<PrimitivePtr,PolyscopePrimitivePtr> polyscope_prims;
+    for (const auto& pis : CS.getPolyscopePrimitives())
+        polyscope_prims[pis.first] = pis.first;
+
+    // with a selection the gizmo follows it, otherwise every transform shows
+    PrimitivePtr sel = drag_editor.getSelected();
+
+    std::set<std::string> seen;
+    for (auto& p : CS){
+        auto& pt = CS.at(p.first).persistentTransform;
         if (!pt.isActive())
             continue;
+        if ((sel && p.first != sel) || !seen.insert(pt.getLabel()).second){
+            pt.guizmo = nullptr;
+            continue;
+        }
+
         if (pt.guizmo == nullptr){
-            pt.guizmo = PersistentTransform::makeGuizmo(pis.first->getPolyscopeName()+pt.getLabel());
+            auto T = pt.stored();
+            if (!T) T = LastPlaneDrawn(pt.getLabel());
+            if (!T) continue;
+            // grabbing an unplaced plane freezes the billboard it was drawn as
+            if (!pt.stored())
+                pt.writeAtLabel(*T);
+
+            pt.guizmo = PersistentTransform::makeGuizmo("transform " + pt.getLabel());
             pt.guizmo->setAllowTranslation(true);
             pt.guizmo->setAllowRotation(true);
             pt.guizmo->setAllowScaling(true);
             pt.guizmo->setInteractInLocalSpace(true);
-            pt.writeAtLabel(pt.readFromLabel());
-            pt.guizmo->setTransform(pt.readFromLabel().getMatrix());
+            pt.guizmo->setTransform(T->getMatrix());
             pt.guizmo->setEnabled(true);
         }
         else {
-            Transform T;T.fromGLMMat4(pt.guizmo->getTransform());
-            pt.writeAtLabel(T);
-            pis.first->setTransform(pis.second);
+            Transform T; T.fromGLMMat4(pt.guizmo->getTransform());
+            // only a real drag counts, or opening the gizmo would dirty everything
+            auto cur = pt.stored();
+            if (!cur || glm::distance(cur->translation,T.translation) > 1e-6f
+                     || glm::distance(cur->scale,T.scale) > 1e-6f
+                     || std::abs(cur->angle - T.angle) > 1e-6f
+                     || glm::distance(cur->axis,T.axis) > 1e-6f)
+                pt.writeAtLabel(T);
+            auto pp = polyscope_prims.find(p.first);
+            if (pp != polyscope_prims.end())
+                pp->second->setTransform(p.second);
         }
     }
 }
@@ -512,13 +552,14 @@ void slope::Slideshow::handleInputs()
     if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_S)) {
         LabelAnchor::saveAllDirty();
         Params::saveAllDirty();
+        PersistentTransform::saveAllDirty();
     }
 
     if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_Z))
         drag_editor.undo(slides[state.current], wm);
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape) && !wm.isAnyOpen()) {
-        if (LabelAnchor::hasDirty() || Params::hasDirty()
+        if (LabelAnchor::hasDirty() || Params::hasDirty() || PersistentTransform::hasDirty()
             || time_tracker.hasRecordableSession())
             wm.Toggle(WindowType::QuitWarning);
         else
@@ -604,22 +645,16 @@ bool slope::Slideshow::inGizmoMode() const
 
 void slope::Slideshow::handleGuizmos()
 {
-    if (ImGui::IsKeyPressed(ImGuiKey_T)){
-        if (wm.isOpen(WindowType::Transform)){
-            for (auto& pis : slides[state.current].getPolyscopePrimitives()){
-                auto& pt = slides[state.current].at(pis.first).persistentTransform;
-                if (!pt.isActive())
-                    continue;
-                pt.guizmo = nullptr; // the deleter disables and deregisters it
-            }
-        }
+    if (ImGui::IsKeyPressed(ImGuiKey_T))
         wm.Toggle(WindowType::Transform);
-    }
 
-    if (wm.isOpen(WindowType::Transform)){
+    if (wm.isOpen(WindowType::Transform))
         transformEditor();
+    else if (gizmo_slide != -1){
+        // however the mode was left, the widgets go with it
+        clearTransformGizmos();
+        gizmo_slide = -1;
     }
-
 }
 
 void slope::Slideshow::displayPopUps()
@@ -637,7 +672,7 @@ void slope::Slideshow::displayPopUps()
     else if (wm.isOpen(WindowType::QuitWarning)) {
         ImGui::OpenPopup("Save before quitting?");
         if (ImGui::BeginPopupModal("Save before quitting?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-            if (LabelAnchor::hasDirty() || Params::hasDirty())
+            if (LabelAnchor::hasDirty() || Params::hasDirty() || PersistentTransform::hasDirty())
                 ImGui::Text("Unsaved position/parameter changes.");
             if (time_tracker.hasRecordableSession())
                 ImGui::Text("This rehearsal session's timings are not saved.");
@@ -646,6 +681,7 @@ void slope::Slideshow::displayPopUps()
             if (ImGui::Button("Save and quit")) {
                 LabelAnchor::saveAllDirty();
                 Params::saveAllDirty();
+                PersistentTransform::saveAllDirty();
                 time_tracker.save();
                 polyscope::unshow();
                 ImGui::CloseCurrentPopup();

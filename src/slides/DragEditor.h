@@ -78,6 +78,8 @@ public:
 
     bool isActive() const { return selected_primitive != nullptr || !group.empty(); }
 
+    PrimitivePtr getSelected() const { return selected_primitive; }
+
     // A primitive is dropped with a plain click, which lands on whatever is
     // under it. Primitives are drawn before the editor runs, so this holds the
     // state they must read to tell that click from one meant for them.

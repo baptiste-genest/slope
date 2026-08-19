@@ -1,4 +1,5 @@
 #include "ScreenPrimitive.h"
+#include "PlaneWarp.h"
 
 slope::ScreenPrimitive::ScreenPrimitive() {
     anchor = AbsoluteAnchor::Add(vec2(0,0));
@@ -42,6 +43,30 @@ slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::at(const vec2 &p, scalar a
     anchor->updatePos(p);
     sis.alpha = alpha;
     return {get(pid),sis};
+}
+
+static slope::StateInSlide planeState(slope::scalar alpha) {
+    slope::StateInSlide sis;
+    // an unplaced plane draws as a billboard here, so it starts mid screen
+    sis.anchor = slope::AbsoluteAnchor::Add(slope::vec2(0.5,0.5));
+    sis.alpha = alpha;
+    return sis;
+}
+
+slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::onPlane(const std::string &id, scalar alpha) {
+    StateInSlide sis = planeState(alpha);
+    sis.persistentTransform = PersistentTransform(id);
+    return {get(pid),sis};
+}
+
+slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::onPlane(const Transform &plane, scalar alpha) {
+    StateInSlide sis = planeState(alpha);
+    sis.plane.frame = plane;
+    return {get(pid),sis};
+}
+
+slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::onPlane(const vec &origin, const vec &u, const vec &normal, scalar alpha) {
+    return onPlane(TransformFromWidth(origin,u,normal),alpha);
 }
 
 slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::at(StateInSlide sis) {

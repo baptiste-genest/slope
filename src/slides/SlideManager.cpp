@@ -273,5 +273,27 @@ slope::StateInSlide slope::transition(parameter t, const StateInSlide &sa, const
     St.angle = std::lerp(sa.getAngle(),sb.getAngle(),t);
     St.LocalToWorld = Transform::Interpolate(sa.getLocalToWorld(),sb.getLocalToWorld(),t);
     St.scale = std::lerp(sa.getScale(),sb.getScale(),t);
+    // a primitive that changes support between two slides blends instead of snapping
+    if (sa.hasPlane() || sb.hasPlane()){
+        auto end = [](const StateInSlide& s) {
+            PlanePlacement::End e;
+            e.frame = s.planeTransform();
+            e.pos = s.getPosition(); e.scale = s.getScale(); e.angle = s.getAngle();
+            e.double_sided = s.plane.double_sided;
+            return e;
+        };
+        const bool forward = sb.hasPlane();
+        const StateInSlide& to   = forward ? sb : sa;
+        const StateInSlide& from = forward ? sa : sb;
+
+        St.persistentTransform = to.persistentTransform;
+        St.plane.frame = to.planeTransform();
+        St.plane.double_sided = to.plane.double_sided;
+        St.plane.from = end(from);
+        St.plane.blend = forward ? t : 1-t;
+        // the ends carry their own scale and spin, folded in at draw time
+        St.scale = to.getScale();
+        St.angle = to.getAngle();
+    }
     return St;
 }

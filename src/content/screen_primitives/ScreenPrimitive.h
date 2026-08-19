@@ -40,6 +40,11 @@ public:
 
     ScreenPrimitiveInSlide at(const vec2& p,scalar alpha=1);
 
+    // pastes onto a world plane. The named form lives in views/<id>.transform
+    ScreenPrimitiveInSlide onPlane(const std::string& id,scalar alpha = 1);
+    ScreenPrimitiveInSlide onPlane(const Transform& plane,scalar alpha = 1);
+    ScreenPrimitiveInSlide onPlane(const vec& origin,const vec& u,const vec& normal,scalar alpha = 1);
+
     ScreenPrimitiveInSlide at(StateInSlide sis);
 
 

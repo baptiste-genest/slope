@@ -7,6 +7,8 @@
 #include "screen_primitives/Anchor.h"
 
 #include "polyscope_primitives/Transform.h"
+#include "screen_primitives/PlaneWarp.h"
+#include <optional>
 
 namespace slope {
 
@@ -23,7 +25,13 @@ struct StateInSlide {
     bool offseted = false;
 
     Transform LocalToWorld;
+    // a screen primitive reads persistentTransform as the plane it is pasted on
     PersistentTransform persistentTransform;
+
+    PlanePlacement plane;
+
+    bool hasPlane() const {return plane.active(persistentTransform);}
+    std::optional<Transform> planeTransform() const {return plane.resolve(persistentTransform);}
 
     bool updaterOverrided = false;
     Updater updaterOverride;

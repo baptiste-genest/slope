@@ -24,6 +24,18 @@ struct ImageData {
 
 ImageData loadImage(path filename);
 
+void DisplayImageOnPlane(const ImageData& data,const StateInSlide& sis,scalar scale,
+                         const RGBA& tint,scalar y_offset);
+
+bool PlaneScreenExtent(const StateInSlide& sis,const ImageData& data,scalar draw_scale,
+                       scalar& px_w,scalar& px_h);
+
+void DisplayImageOnPlane(const ImageData& data,const StateInSlide& sis,scalar scale,
+                         const RGBA& tint,scalar y_offset);
+
+bool PlaneScreenExtent(const StateInSlide& sis,const ImageData& data,scalar draw_scale,
+                       scalar& px_w,scalar& px_h);
+
 /// exact area average of an RGBA buffer, done on premultiplied alpha so that a
 /// transparent border cannot bleed into the ink
 std::vector<unsigned char> areaReduceRGBA(const unsigned char* src,int sw,int sh,int dw,int dh);

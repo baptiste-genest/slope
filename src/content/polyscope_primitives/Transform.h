@@ -3,6 +3,8 @@
 
 #include "../io.h"
 #include "../Options.h"
+#include <optional>
+#include <unordered_map>
 
 namespace slope {
 
@@ -167,6 +169,26 @@ public:
 class PersistentTransform {
     std::string label;
 
+    inline static std::unordered_map<std::string,Transform> session_cache;
+    inline static std::set<std::string> dirty_labels;
+
+    static std::string pathOf(const std::string& l) {
+        return slope::Options::ProjectViewsPath + l + ".transform";
+    }
+
+    static bool readFile(const std::string& path,Transform& T) {
+        std::ifstream f(path);
+        if (!f) return false;
+        vec s,t,axis;
+        scalar angle;
+        if (!(f >> s(0) >> s(1) >> s(2)
+                >> t(0) >> t(1) >> t(2)
+                >> axis(0) >> axis(1) >> axis(2)
+                >> angle))
+            return false;
+        T = Transform::ScalePositionRotate(s,t,axis,angle);
+        return true;
+    }
 
 public:
 
@@ -192,34 +214,60 @@ public:
 
     bool isActive() const {return label != "";}
 
-    Transform readFromLabel() const{
-        if (label == "")
-            return Transform();
-        std::ifstream f(slope::Options::ProjectViewsPath + label);
-        if (!f) return Transform();
-        vec s,t,axis;
-        scalar angle;
-        f >> s(0) >> s(1) >> s(2);
-        f >> t(0) >> t(1) >> t(2);
-        f >> axis(0) >> axis(1) >> axis(2);
-        f >> angle;
-        return Transform::ScalePositionRotate(s,t,axis,angle);
-    }
-
     std::string getLabel() const {return label;}
 
+    // nullopt when the label was never placed, which onPlane reads as a billboard
+    std::optional<Transform> stored() const {
+        if (label == "")
+            return std::nullopt;
+        auto it = session_cache.find(label);
+        if (it != session_cache.end())
+            return it->second;
+
+        Transform T;
+        if (!readFile(pathOf(label),T)
+            && !readFile(slope::Options::ProjectViewsPath + label,T))
+            return std::nullopt;
+        session_cache[label] = T;
+        return T;
+    }
+
+    Transform readFromLabel() const {
+        auto T = stored();
+        return T ? *T : Transform();
+    }
+
+    // edits stay in the session, Ctrl+S and the quit prompt put them on disk
     void writeAtLabel(const Transform& T) const {
         if (label == "")
             return;
-        std::ofstream f(slope::Options::ProjectViewsPath +label);
-        if (!f) {
-            std::cerr << "[WARNING] cannot write transform to " << label << std::endl;
-            return;
+        session_cache[label] = T;
+        dirty_labels.insert(label);
+    }
+
+    static bool hasDirty() {return !dirty_labels.empty();}
+
+    static void saveAllDirty() {
+        std::error_code ec;
+        std::filesystem::create_directories(slope::Options::ProjectViewsPath, ec);
+        std::set<std::string> unsaved;
+        for (const auto& l : dirty_labels) {
+            auto it = session_cache.find(l);
+            if (it == session_cache.end())
+                continue;
+            const Transform& T = it->second;
+            std::ofstream f(pathOf(l));
+            if (!f) {
+                spdlog::error("could not write {}", pathOf(l));
+                unsaved.insert(l);
+                continue;
+            }
+            f << T.scale.x << " " << T.scale.y << " " << T.scale.z << std::endl;
+            f << T.translation.x << " " << T.translation.y << " " << T.translation.z << std::endl;
+            f << T.axis.x << " " << T.axis.y << " " << T.axis.z << std::endl;
+            f << T.angle << std::endl;
         }
-        f << T.scale.x << " " << T.scale.y << " " << T.scale.z << std::endl;
-        f << T.translation.x << " " << T.translation.y << " " << T.translation.z << std::endl;
-        f << T.axis.x << " " << T.axis.y << " " << T.axis.z << std::endl;
-        f << T.angle << std::endl;
+        dirty_labels = std::move(unsaved);
     }
 
     bool ImGuiInterface(Transform& T) const {
