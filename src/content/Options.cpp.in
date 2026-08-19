@@ -19,7 +19,7 @@ std::string Options::PathToFFMPEG = "@SLOPE_FFMPEG@";
 std::string Options::PathToFFPROBE = "@SLOPE_FFPROBE@";
 std::string Options::ShaderPath = "@SLOPE_SHADER_PATH@";
 
-size_t Options::PDFtoPNGDensity = 800;
+size_t Options::PDFtoPNGDensity = 1440;
 
 double Options::TitleScale = 1.5;
 double Options::DefaultLatexScale = 1.;

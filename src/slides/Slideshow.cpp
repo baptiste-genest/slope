@@ -591,6 +591,9 @@ void slope::Slideshow::addKeyboardInputs()
     input_manager.addInput("undo last move","Ctrl+Z");
     input_manager.addInput("select/drag a primitive, click again on the same spot to cycle through overlapping ones","Ctrl+click");
     input_manager.addInput("toggle primitives in a group selection, hold left click to move them together","Ctrl+Shift+click");
+    input_manager.addInput("Scale the selected primitive","Wheel");
+    input_manager.addInput("Change the alpha of the selected primitive","Shift + Wheel");
+    input_manager.addInput("Rotate the selected primitive","Ctrl + Wheel");
 }
 
 
