@@ -2,6 +2,7 @@
 #include "JsonRead.h"
 #include "../../content/polyscope_primitives/Mesh.h"
 #include "../../content/polyscope_primitives/PolyscopeSnippets.h"
+#include "../../content/polyscope_primitives/Point.h"
 #include <filesystem>
 
 namespace slope {
@@ -99,6 +100,23 @@ std::vector<ItemSpec> sceneItemSpecs()
             std::static_pointer_cast<SnippetCurve>(p)->configure(curveSpec(i));
         },
         [](const json& i) { return curveSpec(i).name; },
+    });
+
+    // "point: <snippet>" rides a snippet variable, "point: [x,y,z]" sits still
+    specs.push_back({
+        "point", ItemSpec::Kind::Scene, {"id","at","alpha","radius","group"},
+        [](const json& i) {
+            return "point:" + i["point"].dump() + ":" + std::to_string(i.value("radius", 0.05));
+        },
+        [](const json& i) -> PrimitivePtr {
+            LiveVec p = readLiveVec(i["point"], "point");
+            return Point::Add(DynamicParam([p](const TimeObject&) { return p.value(); }),
+                              i.value("radius", 0.05));
+        },
+        nullptr,
+        [](const json& i) {
+            return i["point"].is_string() ? i["point"].get<std::string>() : "point";
+        },
     });
 
     return specs;

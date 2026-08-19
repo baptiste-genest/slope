@@ -16,6 +16,20 @@ vec readVec3(const json& v, const std::string& what)
     return vec(v[0].get<scalar>(), v[1].get<scalar>(), v[2].get<scalar>());
 }
 
+LiveVec readLiveVec(const json& v, const std::string& what)
+{
+    LiveVec l;
+    // yaml reads a bare n, y, on or off as a boolean, never as a variable name
+    if (v.is_boolean())
+        throw std::runtime_error("\"" + what + "\" read as a boolean. Quote snippet names "
+                                 "like \"n\", \"y\", \"on\" or \"off\"");
+    if (v.is_string())
+        l.snippet = v.get<std::string>();
+    else
+        l.fixed = readVec3(v, what);
+    return l;
+}
+
 vec2 parseVec2(const json& v)
 {
     if (!v.is_array() || v.size() != 2)

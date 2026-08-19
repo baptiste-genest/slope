@@ -1,6 +1,7 @@
 #include "PlaneWarp.h"
 #include "Image.h"
 #include <polyscope/polyscope.h>
+#include <map>
 
 namespace slope {
 
@@ -228,6 +229,25 @@ void DrawTexturedPlane(const Frame3D &f, const ImageData &data, const RGBA &tint
         }
     }
     dl->PopTexture();
+}
+
+// an unknown or failing snippet reads as zero, so hold the last good frame
+std::optional<Transform> EvalLivePlane(const LivePlane &l)
+{
+    static std::map<std::string,Transform> last_good;
+    const vec o = l.origin.value(), u = l.u.value(), n = l.normal.value();
+    const std::string k = l.origin.key()+"|"+l.u.key()+"|"+l.normal.key();
+
+    if (u.norm() > 1e-9 && n.norm() > 1e-9
+        && u.normalized().cross(n.normalized()).norm() > 1e-6){
+        Transform T = TransformFromWidth(o,u,n);
+        last_good[k] = T;
+        return T;
+    }
+    auto it = last_good.find(k);
+    if (it != last_good.end())
+        return it->second;
+    return std::nullopt;
 }
 
 }

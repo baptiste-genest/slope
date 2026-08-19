@@ -44,6 +44,8 @@ public:
     ScreenPrimitiveInSlide onPlane(const std::string& id,scalar alpha = 1);
     ScreenPrimitiveInSlide onPlane(const Transform& plane,scalar alpha = 1);
     ScreenPrimitiveInSlide onPlane(const vec& origin,const vec& u,const vec& normal,scalar alpha = 1);
+    // the snippet driven form, re-read every frame
+    ScreenPrimitiveInSlide onPlane(const LivePlane& plane,scalar alpha = 1);
 
     ScreenPrimitiveInSlide at(StateInSlide sis);
 

@@ -69,6 +69,12 @@ slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::onPlane(const vec &origin,
     return onPlane(TransformFromWidth(origin,u,normal),alpha);
 }
 
+slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::onPlane(const LivePlane &plane, scalar alpha) {
+    StateInSlide sis = planeState(alpha);
+    sis.plane.live = plane;
+    return {get(pid),sis};
+}
+
 slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::at(StateInSlide sis) {
     return {get(pid),sis};
 }

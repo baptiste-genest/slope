@@ -509,7 +509,8 @@ static void applyStateOptions(StateInSlide& sis, const json& item)
         sis.plane.double_sided = item["two_sided"].get<bool>();
 }
 
-// "on: <id>" names a plane the T gizmo owns, a map is one the deck owns
+// "on: <id>" names a plane the T gizmo owns, a map is one the deck owns.
+// In the map form each vector is [x,y,z] or a snippet name, so a plane can move
 static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& on, scalar alpha)
 {
     if (on.is_boolean())
@@ -522,9 +523,15 @@ static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& 
     for (const char* k : {"origin", "u", "normal"})
         if (!on.contains(k))
             throw std::runtime_error(std::string("\"on:\" as a map needs \"") + k + ":\"");
-    return prim->onPlane(readVec3(on["origin"], "on.origin"),
-                         readVec3(on["u"], "on.u"),
-                         readVec3(on["normal"], "on.normal"), alpha);
+
+    LivePlane l;
+    l.origin = readLiveVec(on["origin"], "on.origin");
+    l.u      = readLiveVec(on["u"], "on.u");
+    l.normal = readLiveVec(on["normal"], "on.normal");
+    // three constants make a plane that never moves, so resolve it once
+    if (!l.origin.live() && !l.u.live() && !l.normal.live())
+        return prim->onPlane(l.origin.fixed, l.u.fixed, l.normal.fixed, alpha);
+    return prim->onPlane(l, alpha);
 }
 
 // applies the placement fields of a screen item, at (label, [x,y] or a named

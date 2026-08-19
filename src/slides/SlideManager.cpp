@@ -287,7 +287,9 @@ slope::StateInSlide slope::transition(parameter t, const StateInSlide &sa, const
         const StateInSlide& from = forward ? sa : sb;
 
         St.persistentTransform = to.persistentTransform;
-        St.plane.frame = to.planeTransform();
+        // baking a live plane here would freeze it for the length of the blend
+        St.plane.live = to.plane.live;
+        St.plane.frame = to.plane.live ? std::nullopt : to.planeTransform();
         St.plane.double_sided = to.plane.double_sided;
         St.plane.from = end(from);
         St.plane.blend = forward ? t : 1-t;

@@ -2,6 +2,7 @@
 #define PLANEWARP_H
 
 #include "../polyscope_primitives/Transform.h"
+#include "../LiveVec.h"
 #include <optional>
 
 namespace slope {
@@ -18,9 +19,18 @@ struct Frame3D {
     vec normal() const {return v.cross(u).normalized();}
 };
 
-// the plane is either given here or named by the state's persistentTransform
+// a plane rebuilt every frame from three vectors, u's length being its width
+struct LivePlane {
+    LiveVec origin,u,normal;
+};
+
+// nullopt while the vectors are degenerate, holding the last frame that was not
+std::optional<Transform> EvalLivePlane(const LivePlane& l);
+
+// the plane is given here, driven by snippets, or named by persistentTransform
 struct PlanePlacement {
     std::optional<Transform> frame;
+    std::optional<LivePlane> live;
     bool double_sided = false;
 
     struct End {
@@ -33,8 +43,10 @@ struct PlanePlacement {
     std::optional<End> from;
     scalar blend = 1;
 
-    bool active(const PersistentTransform& id) const {return frame || id.isActive();}
+    bool active(const PersistentTransform& id) const {return frame || live || id.isActive();}
     std::optional<Transform> resolve(const PersistentTransform& id) const {
+        if (live)
+            return EvalLivePlane(*live);
         return frame ? frame : id.stored();
     }
     bool blending() const {return from && blend < 1-1e-6;}
