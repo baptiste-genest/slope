@@ -72,6 +72,7 @@ file(GLOB SRC_lib
      "src/content/screen_primitives/plots/*"
      "src/math/*"
      "src/slides/*"
+     "src/slides/deck_items/*"
      "src/style/*"
      "src/slope.h"
      "src/extern/*"

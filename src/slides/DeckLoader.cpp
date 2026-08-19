@@ -1,15 +1,16 @@
 #include "../content/Snippet.h"
 #include "DeckLoader.h"
+#include "deck_items/DeckItem.h"
+#include "deck_items/ShaderItem.h"
+#include "deck_items/JsonRead.h"
 #include "Slideshow.h"
 #include "../content/screen_primitives/LateX.h"
 #include "../content/screen_primitives/Shape2D.h"
 #include "../content/screen_primitives/Stack2D.h"
 #include "../content/screen_primitives/Shader.h"
-#include "../content/screen_primitives/Video.h"
-#include "../content/screen_primitives/Webcam.h"
 #include "../content/Params.h"
-#include "../content/polyscope_primitives/Mesh.h"
-#include "../content/polyscope_primitives/PolyscopeSnippets.h"
+#include "../content/polyscope_primitives/PolyscopePrimitive.h"
+#include "../content/polyscope_primitives/CameraView.h"
 #include "spdlog/spdlog.h"
 #include "yaml-cpp/yaml.h"
 #include <spdlog/spdlog.h>
@@ -49,8 +50,6 @@ static json yamlToJson(const YAML::Node& node)
         return nullptr;
     }
 }
-
-static void warnUnknownKeys(const json& item);
 
 DeckLoader::DeckLoader() {}
 DeckLoader::~DeckLoader() {}
@@ -250,45 +249,6 @@ PrimitivePtr DeckLoader::resolve(const std::string& name) const
     return it->second;
 }
 
-// "view" is the half-height, a number or a snippet name. Without one a shader
-// has no world space and nothing can follow a point of it.
-void DeckLoader::declareShaderView(const ShaderPtr& shader, const json& item)
-{
-    if (!item.contains("view"))
-        return;
-    const json& v = item["view"];
-
-    auto halfOf = [](const json& h) -> std::function<scalar()> {
-        if (h.is_number()) {
-            scalar x = h.get<scalar>();
-            if (!(x > 0))
-                throw std::runtime_error("\"view\" half-height must be greater than zero");
-            return [x] { return x; };
-        }
-        if (h.is_string()) { std::string n = h; return [n] { return Snippet::get(n).num(); }; }
-        throw std::runtime_error("\"view\" half-height must be a number or a snippet name");
-    };
-    auto centerOf = [](const json& c) -> std::function<vec2()> {
-        if (c.is_array() && c.size() == 2) {
-            vec2 p(c[0].get<scalar>(), c[1].get<scalar>());
-            return [p] { return p; };
-        }
-        if (c.is_string()) { std::string n = c; return [n] { return Snippet::get(n).v2(); }; }
-        throw std::runtime_error("\"view\" center must be [x, y] or a snippet name");
-    };
-    std::function<vec2()> origin = [] { return vec2::Zero(); };
-
-    if (v.is_object()) {
-        if (!v.contains("half"))
-            throw std::runtime_error("\"view\" needs a \"half\" : half the height it "
-                                     "shows, in world units");
-        shader->bindView(v.contains("center") ? centerOf(v["center"]) : origin,
-                         halfOf(v["half"]));
-        return;
-    }
-    shader->bindView(origin, halfOf(v));
-}
-
 // A 3 component value is a world position in the scene. A 2 component one is a
 // screen position, unless an "<item>." prefix names a shader, and then it is a
 // point of that shader's world space. Nothing is ever inferred.
@@ -450,238 +410,6 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
     }
 }
 
-// anchor labels double as .pos filenames, so a title is named after its text,
-// otherwise every title shares one anchor, one position and one scale
-static std::string titleLabel(const std::string& txt)
-{
-    std::string slug;
-    for (char c : txt) {
-        if (std::isalnum(static_cast<unsigned char>(c)))
-            slug += c;
-        else if (!slug.empty() && slug.back() != '_')
-            slug += '_';
-        if (slug.size() >= 40)
-            break;
-    }
-    while (!slug.empty() && slug.back() == '_')
-        slug.pop_back();
-    return slug.empty() ? "title" : "title_" + slug;
-}
-
-static RGBA parseColor(const json& c);
-
-// a uniform name has to survive being pasted into GLSL as-is
-static bool validGLSLName(const std::string& n)
-{
-    if (n.empty() || (!std::isalpha((unsigned char)n[0]) && n[0] != '_'))
-        return false;
-    for (char c : n)
-        if (!std::isalnum((unsigned char)c) && c != '_')
-            return false;
-    return n.compare(0, 3, "gl_") != 0;
-}
-
-static const char* uniform_types = "float/int/bool/vec2/vec3/dir/color";
-
-static vec2 parseVec2(const json& v)
-{
-    if (!v.is_array() || v.size() != 2)
-        throw std::runtime_error("a vec2 uniform default must be [x, y]");
-    return vec2(v[0].get<scalar>(), v[1].get<scalar>());
-}
-
-static vec parseVec3(const json& v)
-{
-    if (!v.is_array() || v.size() != 3)
-        throw std::runtime_error("a vec3 uniform default must be [x, y, z]");
-    return vec(v[0].get<scalar>(), v[1].get<scalar>(), v[2].get<scalar>());
-}
-
-// yaml takes [0.5] as happily as [x, y], and reading past the end of a json
-// array is undefined rather than an error
-static vec2 readVec2(const json& v, const std::string& what)
-{
-    if (!v.is_array() || v.size() != 2)
-        throw std::runtime_error("\"" + what + "\" must be [x, y]");
-    return vec2(v[0].get<scalar>(), v[1].get<scalar>());
-}
-
-// "glsl" is the name the shader sees, "pname" the parameter it is bound to.
-// The two differ only for an array element, "controls[3]".
-static void declareUniform(const ShaderPtr& shader, const std::string& glsl,
-                           const std::string& pname, const std::string& type,
-                           const json& def, scalar mn, scalar mx)
-{
-    if (type == "float") {
-        auto p = Params::Add(pname, def.is_null() ? 0. : def.get<scalar>(), mn, mx);
-        shader->bind(glsl, [p] { return scalar(p); });
-    } else if (type == "int") {
-        auto p = Params::AddInt(pname, def.is_null() ? 0 : def.get<int>(),
-                                int(mn), int(mx));
-        shader->bindInt(glsl, [p] { return int(p); });
-    } else if (type == "bool") {
-        auto p = Params::AddBool(pname, def.is_null() ? false : def.get<bool>());
-        shader->bindInt(glsl, [p] { return bool(p) ? 1 : 0; });
-    } else if (type == "vec2") {
-        auto p = Params::AddVec2(pname, def.is_null() ? vec2::Zero() : parseVec2(def), mn, mx);
-        shader->bind(glsl, [p] { return vec2(p); });
-    } else if (type == "vec3") {
-        auto p = Params::AddVec(pname, def.is_null() ? vec::Zero() : parseVec3(def), mn, mx);
-        shader->bind(glsl, [p] { return vec(p); });
-    } else if (type == "dir") {
-        auto p = Params::AddDir(pname, def.is_null() ? vec(0,0,1) : parseVec3(def));
-        shader->bind(glsl, [p] { return vec(p); });
-    } else if (type == "color") {
-        auto p = Params::AddColor(pname, def.is_null() ? RGBA(1.f,1.f,1.f,1.f)
-                                                       : parseColor(def));
-        shader->bind(glsl, [p] { return RGBA(p); });
-    } else {
-        throw std::runtime_error("uniform \"" + glsl + "\" : unknown type \"" + type
-                                 + "\" (" + uniform_types + ")");
-    }
-}
-
-// the N of a "vec3[8]", or 0 when the type carries no array suffix
-static int arrayCount(const std::string& name, const std::string& type)
-{
-    auto open = type.find('[');
-    if (open == std::string::npos)
-        return 0;
-    if (type.back() != ']')
-        throw std::runtime_error("uniform \"" + name + "\" : malformed array type \""
-                                 + type + "\", write \"<type>[N]\"");
-    int n = 0;
-    try {
-        size_t used = 0;
-        n = std::stoi(type.substr(open + 1, type.size() - open - 2), &used);
-        if (used != type.size() - open - 2)
-            n = 0;
-    } catch (const std::exception&) {
-        n = 0;
-    }
-    if (n < 1 || n > 64)
-        throw std::runtime_error("uniform \"" + name + "\" : an array uniform needs a "
-                                 "size between 1 and 64, got \"" + type + "\"");
-    return n;
-}
-
-// "uniforms:" on a shader item, or on an "object:" naming a shader. Each entry
-// becomes a persistent, runtime tunable Params entry (Tuner panel, saved to
-// views/params.json) bound to the shader uniform of the same name and re-read
-// every frame, so the value a shader reacts to is dragged live and survives
-// the session, with no C++.
-//
-//   uniforms:
-//     sun:      dir                                 # a type name, zero valued
-//     tint:     {type: color, default: "#ffcc88"}   # long form, with a default
-//     speed:    {type: float, default: 1.0, min: 0, max: 5}  # bounds -> slider
-//     controls: vec3[8]                             # an array, one parameter
-//                                                   # per element, controls[i]
-//
-// An array's "default" is a list of one value per element. Quote the type in a
-// flow mapping, {type: "vec3[8]", ...}, where yaml reads brackets itself.
-//
-// The parameter is named "<item>/<uniform>", which is also how the Tuner panel
-// groups it. A uniform the compiled program does not declare is ignored, like
-// every other Shader::bind, so editing the .frag live never breaks the deck.
-//
-// Returns the names it declared. `clear` drops the shader's whole user set
-// first, which only suits a shader the deck created and owns.
-std::vector<std::string> DeckLoader::declareShaderUniforms(const ShaderPtr& shader,
-                                                           const json& item,
-                                                           const std::string& ref, bool clear)
-{
-    std::vector<std::string> declared;
-    // the shader is cached across rebuilds, so a dropped uniform needs this
-    if (clear)
-        shader->clearUniforms();
-    if (!item.contains("uniforms"))
-        return declared;
-    const json& us = item["uniforms"];
-
-    // Two spellings. A list lets a name that needs no type stand on its own,
-    // and a map is the older "name: type" form; entries may be mixed.
-    std::vector<std::pair<std::string, json>> entries;
-    if (us.is_array()) {
-        for (const auto& e : us) {
-            if (e.is_string())
-                entries.emplace_back(e.get<std::string>(), json());
-            else if (e.is_object())
-                for (const auto& [k, v] : e.items())
-                    entries.emplace_back(k, v);
-            else if (e.is_boolean() || e.is_number())
-                // yaml reads y, n, on, off, yes and no as booleans, and "1e5"
-                // and friends as numbers, so such a name arrives already coerced
-                throw std::runtime_error("a \"uniforms\" name was read as " + e.dump()
-                                         + " : yaml treats y, n, on, off, yes and no as "
-                                         "booleans, so quote it, - \"y\"");
-            else
-                throw std::runtime_error("a \"uniforms\" entry is a bare name, or "
-                                         "\"name: <type>\"");
-        }
-    }
-    else if (us.is_object()) {
-        for (const auto& [k, v] : us.items())
-            entries.emplace_back(k, v);
-    }
-    else
-        throw std::runtime_error("\"uniforms\" must be a list of names, or a map of "
-                                 "name: type (or name: {type, default, min, max})");
-
-    for (const auto& [name, spec] : entries) {
-        if (!validGLSLName(name)) {
-            spdlog::warn("deck: \"{}\" is not a usable GLSL uniform name, ignored", name);
-            continue;
-        }
-        // No type, so the name must already exist, as a parameter declared
-        // earlier or as a snippet variable. One namespace, so either works, and
-        // a name that resolves to nothing says so once
-        if (spec.is_null()) {
-            shader->bind(name);
-            declared.push_back(name);
-            continue;
-        }
-
-        json def;
-        std::string type;
-        scalar mn = 0, mx = 0;
-        if (spec.is_string()) {
-            type = spec.get<std::string>();
-        } else if (spec.is_object()) {
-            def = spec.value("default", json());
-            type = spec.value("type", "");
-            mn = spec.value("min", scalar(0));
-            mx = spec.value("max", scalar(0));
-            if (type.empty())
-                throw std::runtime_error("uniform \"" + name + "\" needs a \"type\" ("
-                                         + uniform_types + ")");
-        } else {
-            throw std::runtime_error("uniform \"" + name + "\" : write its type, "
-                                     "\"" + name + ": <" + uniform_types + ">\", or the "
-                                     "long form {type: ..., default: ...}");
-        }
-
-        int count = arrayCount(name, type);
-        if (count == 0) {
-            declareUniform(shader, name, ref + "/" + name, type, def, mn, mx);
-            declared.push_back(name);
-            continue;
-        }
-        if (!def.is_null() && (!def.is_array() || int(def.size()) != count))
-            throw std::runtime_error("uniform \"" + name + "\" : its \"default\" must be "
-                                     "a list of " + std::to_string(count) + " values, one "
-                                     "per element");
-        std::string base = type.substr(0, type.find('['));
-        for (int i = 0; i < count; i++) {
-            std::string idx = "[" + std::to_string(i) + "]";
-            declareUniform(shader, name + idx, ref + "/" + name + idx, base,
-                           def.is_null() ? json() : def[i], mn, mx);
-            declared.push_back(name + idx);
-        }
-    }
-    return declared;
-}
-
 // "uniforms:" and "textures:" on an "object:" item. A shader registered from
 // C++ takes the same declarative inputs as a "shader:" item, with parameters
 // named after the object rather than after the item's id.
@@ -704,186 +432,21 @@ void DeckLoader::declareObjectShaderInputs(const ShaderPtr& shader, const std::s
         declareShaderTextures(shader, item);
 }
 
-// "textures:" on a shader item. Each entry binds an image file to the sampler
-// of the same name, which the shader declares itself :
-//
-//   uniform sampler2D noise;        // in the .frag
-//   uniform vec2      noise_size;   // optional, its size in pixels
-//
-//   textures:
-//     noise: noise.png
-//     grad:  {file: gradient.png, filter: nearest, wrap: repeat}
-//
-// Only image files. A texture fed by another pass needs a streaming order the
-// manifest cannot express, and stays on the C++ side.
-void DeckLoader::declareShaderTextures(const ShaderPtr& shader, const json& item)
-{
-    std::vector<std::string> declared;
-    if (item.contains("textures")) {
-        const json& ts = item["textures"];
-        if (!ts.is_object())
-            throw std::runtime_error("\"textures\" must be a map of "
-                                     "name: file (or name: {file, filter, wrap})");
-        for (const auto& [name, spec] : ts.items()) {
-            if (!validGLSLName(name)) {
-                spdlog::warn("deck: \"{}\" is not a usable GLSL sampler name, ignored", name);
-                continue;
-            }
-            std::string file;
-            auto filter = Shader::Filter::Linear;
-            auto wrap   = Shader::Wrap::Clamp;
-            if (spec.is_object()) {
-                if (!spec.contains("file"))
-                    throw std::runtime_error("texture \"" + name + "\" needs a \"file\"");
-                file = spec["file"];
-                const std::string fs = spec.value("filter", "linear");
-                const std::string ws = spec.value("wrap", "clamp");
-                if      (fs == "nearest") filter = Shader::Filter::Nearest;
-                else if (fs != "linear")
-                    throw std::runtime_error("texture \"" + name + "\" : filter must be "
-                                             "\"nearest\" or \"linear\"");
-                if      (ws == "repeat") wrap = Shader::Wrap::Repeat;
-                else if (ws != "clamp")
-                    throw std::runtime_error("texture \"" + name + "\" : wrap must be "
-                                             "\"clamp\" or \"repeat\"");
-            } else if (spec.is_string()) {
-                file = spec;
-            } else {
-                throw std::runtime_error("texture \"" + name + "\" must be a file name "
-                                         "or {file: ..., filter: ..., wrap: ...}");
-            }
-            // re-setting the same file is a no-op, so a hot reload does not
-            // re-decode every image on every save
-            shader->setTexture(name, file, filter, wrap);
-            declared.push_back(name);
-        }
-    }
-    // whatever the manifest no longer declares is unbound (the shader itself
-    // is cached across rebuilds, so nothing else would drop it)
-    shader->retainTextures(declared);
-}
-
 std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const json& item)
 {
-    PrimitivePtr prim;
-    std::string name;
-    ShaderPtr shader;   // set by the shader branch, its uniforms come last,
-                        // once the item's reference name is known
+    const ItemSpec* spec = findItemSpec(item);
+    if (!spec || spec->kind != ItemSpec::Kind::Screen)
+        throw std::runtime_error("expected a screen item (" + screenItemTypes()
+                                 + "), got: " + item.dump());
+
     // the id is part of the cache key, so two items with the same content
     // but different ids are distinct primitives (shown simultaneously)
-    std::string id = "id=" + item.value("id", "") + ":";
-    if (item.contains("title")) {
-        std::string txt = item["title"];
-        prim = cached(id + "title:" + txt, [&] { return Title(txt); });
-        name = titleLabel(txt);
-    }
-    else if (item.contains("load")) {
-        std::string key = item["load"];
-        prim = cached(id + "load:" + key, [&] { return LatexLoader::Load(key); });
-        name = key;
-    }
-    else if (item.contains("latex")) {
-        std::string txt = item["latex"];
-        scalar scale = item.value("scale", Options::DefaultLatexScale);
-        int width = item.value("width", -1);
-        prim = cached(id + "latex:" + txt + ":" + std::to_string(scale)
-                          + ":" + std::to_string(width),
-                      [&] { return Latex::Add(txt, scale, width); });
-        name = "";
-    }
-    else if (item.contains("formula")) {
-        std::string txt = item["formula"];
-        scalar scale = item.value("scale", Options::DefaultLatexScale);
-        int width = item.value("width", -1);
-        prim = cached(id + "formula:" + txt + ":" + std::to_string(scale)
-                          + ":" + std::to_string(width),
-                      [&] { return Formula::Add(txt, scale, width); });
-        name = "";
-    }
-    else if (item.contains("image")) {
-        std::string file = item["image"];
-        scalar scale = item.value("scale", 1.);
-        prim = cached(id + "image:" + file + ":" + std::to_string(scale),
-                      [&] { return Image::Add(file, scale); });
-        name = std::filesystem::path(file).stem().string();
-    }
-    else if (item.contains("gif")) {
-        std::string file = item["gif"];
-        int fps = item.value("fps", 10);
-        scalar scale = item.value("scale", 1.);
-        bool loop = item.value("loop", true);
-        prim = cached(id + "gif:" + file + ":" + std::to_string(fps) + ":"
-                          + std::to_string(scale) + (loop ? ":loop" : ""),
-                      [&]() -> PrimitivePtr { return Gif::Add(file, fps, scale, loop); });
-        name = std::filesystem::path(file).stem().string();
-    }
-    else if (item.contains("video")) {
-        std::string file = item["video"];
-        int  dw       = item.value("decode_width", 0);
-        bool loop     = item.value("loop", true);
-        bool autoplay = item.value("autoplay", true);
-        // those three shape the decoder and belong in the key, the fields
-        // below are re-applied to the cached primitive on every build
-        prim = cached(id + "video:" + file + ":" + std::to_string(dw)
-                          + (loop ? ":loop" : "") + (autoplay ? ":auto" : ""),
-                      [&]() -> PrimitivePtr {
-                          return Video::Add(file, dw, loop, autoplay);
-                      });
-        auto vid = std::static_pointer_cast<Video>(prim);
-        scalar sp = item.value("speed", 1.);
-        vid->speed = [sp] { return sp; };
-        vid->show_stats = item.value("stats", false);
-        vid->scale = item.value("scale", 1.);
-        name = std::filesystem::path(file).stem().string();
-    }
-    else if (item.contains("webcam")) {
-        // the device is in the key, a camera only opens once
-        std::string dev = item["webcam"];
-        int w   = item.value("width", 1280);
-        int h   = item.value("height", 720);
-        int fps = item.value("fps", 30);
-        std::string fmt = item.value("input_format", "mjpeg");
-        prim = cached(id + "webcam:" + dev + ":" + std::to_string(w) + "x"
-                          + std::to_string(h) + "@" + std::to_string(fps) + ":" + fmt,
-                      [&]() -> PrimitivePtr { return Webcam::Add(dev, w, h, fps, fmt); });
-        auto cam = std::static_pointer_cast<Webcam>(prim);
-        cam->show_stats = item.value("stats", false);
-        cam->scale = item.value("scale", 1.);
-        name = std::filesystem::path(dev).stem().string();
-    }
-    else if (item.contains("shader")) {
-        // a single-pass fragment shader, its uniforms declared right here.
-        // Multi-pass, channels and SSBOs stay on the C++ side.
-        std::string file = item["shader"];
-        int w = 0, h = 0;
-        if (item.contains("resolution")) {
-            const json& r = item["resolution"];
-            if (!r.is_array() || r.size() != 2)
-                throw std::runtime_error("\"resolution\" must be [width, height]");
-            w = r[0].get<int>();
-            h = r[1].get<int>();
-        }
-        // the resolution is part of the key, one .frag at two sizes is two
-        // primitives and a hot reload reuses the GL resources of each
-        prim = cached(id + "shader:" + file + ":" + std::to_string(w) + "x" + std::to_string(h),
-                      [&]() -> PrimitivePtr { return Shader::FromFile(file, w, h); });
-        name = std::filesystem::path(file).stem().string();
-        shader = std::static_pointer_cast<Shader>(prim);
-    }
-    else
-        throw std::runtime_error("expected a screen item "
-                                 "(title/load/latex/formula/image/gif/video/webcam/shader), "
-                                 "got: "
-                                 + item.dump());
+    PrimitivePtr prim = cached("id=" + item.value("id", std::string()) + ":" + spec->key(item),
+                               [&] { return spec->make(item); });
+    std::string name = item.value("id", spec->name(item));
+    if (spec->configure)
+        spec->configure(prim, item, name);
 
-    name = item.value("id", name);
-    // uniforms are named after the item, so two placements of the same .frag
-    // under different ids get their own tunable set
-    if (shader) {
-        declareShaderUniforms(shader, item, name);
-        declareShaderTextures(shader, item);
-        declareShaderView(shader, item);
-    }
     auto sp = std::static_pointer_cast<ScreenPrimitive>(prim);
     if (name != "")
         named[name] = sp;
@@ -1028,65 +591,12 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
     used_primitives.insert(pis.first);
 }
 
-static RGBA parseColor(const json& c)
+// mesh, surface and curve are built from the manifest alone, so one branch
+// serves all three
+static const ItemSpec* sceneSpecOf(const json& item)
 {
-    if (c.is_array()) {
-        if (c.size() < 3 || c.size() > 4)
-            throw std::runtime_error("color must be [r,g,b] or [r,g,b,a]");
-        return RGBA((float)c[0], (float)c[1], (float)c[2],
-                    c.size() > 3 ? (float)c[3] : 1.f);
-    }
-    std::string s = c;
-    if (s.size() < 7 || s[0] != '#')
-        throw std::runtime_error("color must be [r,g,b(,a)] or \"#rrggbb\"");
-    auto hex = [&](int i) { return std::stoi(s.substr(i, 2), nullptr, 16); };
-    return RGBA(hex(1)/255.f, hex(3)/255.f, hex(5)/255.f, 1.f);
-}
-
-// warns about misspelled or misplaced fields, which yaml would otherwise
-// silently ignore (the deck is hand-edited live, so mistakes must be loud)
-static void warnUnknownKeys(const json& item)
-{
-    static const std::set<std::string> placement =
-        {"id","at","follow","offset","alpha","rot","zoom",
-         "below","above","right_of","left_of","padding","group"};
-    auto with = [](std::set<std::string> s, std::initializer_list<std::string> more) {
-        s.insert(more); return s;
-    };
-    static const std::map<std::string, std::set<std::string>> allowed = {
-        {"title",   placement},
-        {"load",    placement},
-        {"latex",   with(placement, {"scale","width"})},
-        {"formula", with(placement, {"scale","width"})},
-        {"image",   with(placement, {"scale"})},
-        {"gif",     with(placement, {"scale","fps","loop"})},
-        {"video",   with(placement, {"scale","decode_width","loop","autoplay","speed","stats"})},
-        {"webcam",  with(placement, {"scale","width","height","fps","input_format","stats"})},
-        {"shader",  with(placement, {"resolution","uniforms","textures","view"})},
-        {"object",  {"id","at","follow","offset","alpha","rot","zoom","view","group",
-                     "uniforms","textures"}},
-        {"mesh",    {"id","at","alpha","smooth","normalize","group"}},
-        {"surface", {"id","at","alpha","smooth","u","v","resolution","closed","group"}},
-        {"curve",   {"id","at","alpha","u","resolution","closed","radius","group"}},
-        {"arrow",   {"id","alpha","group"}},
-        {"box",     {"id","alpha","padding","padx","pady","thickness","color","fill_color","filled","group"}},
-        {"stack",   {"id","at","spacing","align","group"}},
-        {"camera",  {"fly"}},
-        {"pause",   {}},
-        {"keyframe",{}},
-        {"remove",  {}},
-        {"replace", {"with"}},
-        {"set",     {"at","alpha","rot","zoom",
-                     "below","above","right_of","left_of","padding"}},
-    };
-    for (const auto& [type, fields] : allowed) {
-        if (!item.contains(type))
-            continue;
-        for (const auto& [key, val] : item.items())
-            if (key != type && !fields.count(key))
-                spdlog::warn("deck: ignored key \"{}\" on a \"{}\" item", key, type);
-        return;
-    }
+    const ItemSpec* spec = findItemSpec(item);
+    return spec && spec->kind == ItemSpec::Kind::Scene ? spec : nullptr;
 }
 
 void DeckLoader::addItem(SlideManager& show, const json& item)
@@ -1175,85 +685,17 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         show.addToLastSlide(pis);
         used_primitives.insert(pis.first);
     }
-    else if (item.contains("mesh")) {
-        std::string file = item["mesh"];
-        bool smooth = item.value("smooth", true);
-        bool normalize = item.value("normalize", false);
-        auto prim = std::static_pointer_cast<Mesh>(
-            cached("mesh:" + file + (smooth ? ":smooth" : "") + (normalize ? ":norm" : ""),
-                   [&]() -> PrimitivePtr {
-                       auto m = Mesh::Add(file, smooth);
-                       if (normalize)
-                           m->normalize();
-                       return m;
-                   }));
-        named[item.value("id", std::filesystem::path(file).stem().string())] = prim;
+    else if (const ItemSpec* spec = sceneSpecOf(item)) {
+        auto prim = cached(spec->key(item), [&] { return spec->make(item); });
+        std::string name = item.value("id", spec->name(item));
+        if (spec->configure)
+            spec->configure(prim, item, name);
+        named[name] = prim;
         scalar alpha = item.value("alpha", 1.);
+        auto poly = std::static_pointer_cast<PolyscopePrimitive>(prim);
         auto pis = item.contains("at") && item["at"].is_string()
-            ? prim->at(item["at"].get<std::string>(), alpha)
-            : prim->at(alpha);
-        show.addToLastSlide(pis);
-        used_primitives.insert(prim);
-    }
-    else if (item.contains("surface")) {
-        SnippetSurface::Spec spec;
-        spec.fn = item["surface"];
-        spec.name = item.value("id", spec.fn);
-        if (item.contains("u")) spec.u = readVec2(item["u"], "u");
-        if (item.contains("v")) spec.v = readVec2(item["v"], "v");
-        if (item.contains("resolution")) {
-            const json& r = item["resolution"];
-            if (r.is_array()) {
-                vec2 n = readVec2(r, "resolution");
-                spec.res_u = int(n(0));
-                spec.res_v = int(n(1));
-            } else
-                spec.res_u = spec.res_v = r.get<int>();
-        }
-        if (item.contains("closed")) {
-            const json& c = item["closed"];
-            if (c.is_array()) {
-                if (c.size() != 2)
-                    throw std::runtime_error("\"closed\" must be a bool or [u, v]");
-                spec.closed_u = c[0].get<bool>();
-                spec.closed_v = c[1].get<bool>();
-            } else
-                spec.closed_u = spec.closed_v = c.get<bool>();
-        }
-        spec.smooth = item.value("smooth", true);
-
-        // cached on identity alone, so editing the domain or the resolution
-        // reconfigures the surface in place instead of building a second one
-        auto prim = std::static_pointer_cast<SnippetSurface>(
-            cached("surface:" + spec.name + ":" + spec.fn,
-                   [&]() -> PrimitivePtr { return SnippetSurface::Add(spec); }));
-        prim->configure(spec);
-        named[spec.name] = prim;
-        scalar alpha = item.value("alpha", 1.);
-        auto pis = item.contains("at") && item["at"].is_string()
-            ? prim->at(item["at"].get<std::string>(), alpha)
-            : prim->at(alpha);
-        show.addToLastSlide(pis);
-        used_primitives.insert(prim);
-    }
-    else if (item.contains("curve")) {
-        SnippetCurve::Spec spec;
-        spec.fn = item["curve"];
-        spec.name = item.value("id", spec.fn);
-        if (item.contains("u")) spec.u = readVec2(item["u"], "u");
-        spec.resolution = item.value("resolution", 200);
-        spec.closed = item.value("closed", false);
-        spec.radius = item.value("radius", -1.);
-
-        auto prim = std::static_pointer_cast<SnippetCurve>(
-            cached("curve:" + spec.name + ":" + spec.fn,
-                   [&]() -> PrimitivePtr { return SnippetCurve::Add(spec); }));
-        prim->configure(spec);
-        named[spec.name] = prim;
-        scalar alpha = item.value("alpha", 1.);
-        auto pis = item.contains("at") && item["at"].is_string()
-            ? prim->at(item["at"].get<std::string>(), alpha)
-            : prim->at(alpha);
+            ? poly->at(item["at"].get<std::string>(), alpha)
+            : poly->at(alpha);
         show.addToLastSlide(pis);
         used_primitives.insert(prim);
     }
@@ -1261,10 +703,8 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         const json& spec = item["arrow"];
         if (!spec.is_object() || !spec.contains("from") || !spec.contains("to"))
             throw std::runtime_error("\"arrow\" item needs {from: ..., to: ...}");
-        static const std::set<std::string> arrow_keys =
-            {"from","to","from_offset","to_offset","bend","thickness","color","head","margin"};
         for (const auto& [key, val] : spec.items())
-            if (!arrow_keys.count(key))
+            if (!arrowFields().count(key))
                 spdlog::warn("deck: ignored key \"{}\" on an \"arrow\" item", key);
 
         // an endpoint is [x,y], the name of a previous item (attached at its

@@ -335,22 +335,14 @@ private:
     // title/latex/text/formula/image item, and its reference name
     std::pair<ScreenPrimitivePtr,std::string> makeScreenPrimitive(const json& item);
 
-    // declares each uniform as a persistent Params entry named "<ref>/<name>"
-    // and returns those names. clear = false leaves the shader's other binds
-    // alone, for a shader the deck did not create
-    std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader, const json& item,
-                                                   const std::string& ref, bool clear = true);
-    // the same pair of keys on an "object:" naming a shader
+    // the "uniforms"/"textures" pair on an "object:" naming a shader. The
+    // declarations themselves live in deck_items/ShaderItem.h, this only
+    // remembers what it declared
     void declareObjectShaderInputs(const ShaderPtr& shader, const std::string& object,
                                    const json& item);
     // what the last build declared on a C++-registered shader, so a reload
     // drops exactly that and leaves the owner's own binds standing
     std::map<std::string, std::pair<ShaderPtr, std::vector<std::string>>> object_uniforms;
-    // binds an image file to each named sampler, dropping what is no longer
-    // declared
-    void declareShaderTextures(const ShaderPtr& shader, const json& item);
-    // "view", the region of the plane a shader draws
-    void declareShaderView(const ShaderPtr& shader, const json& item);
     // resolves a "follow" spec to a live screen position
     std::function<vec2()> resolveFollow(const std::string& spec);
 
