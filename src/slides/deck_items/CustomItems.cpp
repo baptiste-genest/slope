@@ -20,7 +20,7 @@ std::vector<ItemSpec> customItemSpecs()
     return {
         custom("keyframe", {}),
         custom("remove",   {}),
-        custom("set",      {"at","alpha","rot","zoom",
+        custom("set",      {"at","on","two_sided","alpha","rot","zoom",
                             "below","above","right_of","left_of","padding"}),
         custom("replace",  {"with"}),
         custom("object",   {"id","at","follow","offset","alpha","rot","zoom","view",

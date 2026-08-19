@@ -505,10 +505,30 @@ static void applyStateOptions(StateInSlide& sis, const json& item)
         sis.angle = item["rot"].get<scalar>() * M_PI / 180.;
     if (item.contains("zoom"))
         sis.scale = item["zoom"].get<scalar>();
+    if (item.contains("two_sided"))
+        sis.plane.double_sided = item["two_sided"].get<bool>();
+}
+
+// "on: <id>" names a plane the T gizmo owns, a map is one the deck owns
+static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& on, scalar alpha)
+{
+    if (on.is_boolean())
+        throw std::runtime_error("\"on:\" read as a boolean. Quote plane ids like \"on\", "
+                                 "\"off\", \"yes\" or \"no\"");
+    if (on.is_string())
+        return prim->onPlane(on.get<std::string>(), alpha);
+    if (!on.is_object())
+        throw std::runtime_error("\"on:\" must be a plane id, or {origin, u, normal}");
+    for (const char* k : {"origin", "u", "normal"})
+        if (!on.contains(k))
+            throw std::runtime_error(std::string("\"on:\" as a map needs \"") + k + ":\"");
+    return prim->onPlane(readVec3(on["origin"], "on.origin"),
+                         readVec3(on["u"], "on.u"),
+                         readVec3(on["normal"], "on.normal"), alpha);
 }
 
 // applies the placement fields of a screen item, at (label, [x,y] or a named
-// position) or below/above/right_of/left_of
+// position), on (a world plane) or below/above/right_of/left_of
 void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                                  const json& item, const std::string& default_label,
                                  bool keep_placement)
@@ -523,6 +543,12 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                      "primitive, so the second placement moves the first rather than adding "
                      "a copy. Give them different \"id:\" to show both",
                      default_label.empty() ? item.dump() : default_label);
+
+    if (item.contains("on"))
+        for (const char* k : {"at", "follow", "below", "above", "right_of", "left_of"})
+            if (item.contains(k))
+                throw std::runtime_error(std::string("\"on:\" pastes an item onto a world "
+                    "plane, which leaves no screen position to set with \"") + k + ":\"");
 
     struct { const char* key; placeX X; placeY Y; } relatives[] = {
         {"below",    placeX::SAME_X,    placeY::REL_BOTTOM},
@@ -547,7 +573,9 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
     }
 
     ScreenPrimitiveInSlide pis;
-    if (item.contains("follow")) {
+    if (item.contains("on"))
+        pis = placeOnPlane(prim, item["on"], alpha);
+    else if (item.contains("follow")) {
         if (item.contains("at"))
             throw std::runtime_error("a \"follow:\" item has no \"at:\" (it rides a moving "
                                      "point) : use \"offset: [x, y]\" to shift it from that "

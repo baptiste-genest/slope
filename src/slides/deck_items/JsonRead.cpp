@@ -9,6 +9,13 @@ vec2 readVec2(const json& v, const std::string& what)
     return vec2(v[0].get<scalar>(), v[1].get<scalar>());
 }
 
+vec readVec3(const json& v, const std::string& what)
+{
+    if (!v.is_array() || v.size() != 3)
+        throw std::runtime_error("\"" + what + "\" must be [x, y, z]");
+    return vec(v[0].get<scalar>(), v[1].get<scalar>(), v[2].get<scalar>());
+}
+
 vec2 parseVec2(const json& v)
 {
     if (!v.is_array() || v.size() != 2)
