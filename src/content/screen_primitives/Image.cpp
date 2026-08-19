@@ -76,6 +76,27 @@ std::vector<unsigned char> slope::areaReduceRGBA(const unsigned char *src, int s
     return out;
 }
 
+#ifndef GL_TEXTURE_MAX_ANISOTROPY_EXT
+#define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
+#define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
+#endif
+
+// Mipmaps and anisotropy on the bound texture. Both matter only once a
+// primitive is drawn smaller than it is stored, which is what a plane warp does
+// to everything past its near edge. Shared so the two upload paths below cannot
+// drift apart, which is how the full resolution one ended up without either.
+static void setSamplerForWarps()
+{
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    GLfloat aniso = 0;
+    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &aniso);
+    if (glGetError() == GL_NO_ERROR && aniso > 1)
+        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(aniso,16.f));
+}
+
 slope::ImageData slope::loadImage(path file, double xscale, double yscale)
 {
     if (xscale >= 1 && yscale >= 1)
@@ -102,20 +123,7 @@ slope::ImageData slope::loadImage(path file, double xscale, double yscale)
 
     glGenTextures(1, &data.texture);
     glBindTexture(GL_TEXTURE_2D, data.texture);
-    // mipmaps only matter once a primitive is zoomed out past its stored size
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    // a plane squeezed along one axis needs the other axis to keep its texels
-#ifndef GL_TEXTURE_MAX_ANISOTROPY_EXT
-#define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
-#define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
-#endif
-    GLfloat aniso = 0;
-    glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &aniso);
-    if (glGetError() == GL_NO_ERROR && aniso > 1)
-        glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, std::min(aniso,16.f));
+    setSamplerForWarps();
 #if defined(GL_UNPACK_ROW_LENGTH) && !defined(__EMSCRIPTEN__)
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 #endif
@@ -145,11 +153,7 @@ slope::ImageData slope::loadImage(path file)
     glBindTexture(GL_TEXTURE_2D, data.texture);
 
 
-    // Setup filtering parameters for display
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE); // This is required on WebGL for non power-of-two textures
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE); // Same
+    setSamplerForWarps();
 
 
 // Upload pixels into texture
@@ -157,6 +161,7 @@ slope::ImageData slope::loadImage(path file)
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 #endif
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, data.width, data.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+    glGenerateMipmap(GL_TEXTURE_2D);
     stbi_image_free(image_data);
     return data;
 }
