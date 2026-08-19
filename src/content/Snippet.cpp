@@ -206,6 +206,12 @@ int env_index(lua_State* s) {
             return 1;
         }
     }
+    // a callable section, so one snippet can build on another
+    if (auto it = sections.find(name); it != sections.end()
+        && evaluateSection(it->second.get()) && it->second->call_ref != LUA_NOREF) {
+        lua_rawgeti(s, LUA_REGISTRYINDEX, it->second->call_ref);
+        return 1;
+    }
     if (auto v = fromParams(name); v.valid()) {
         pushValue(s, v);
         return 1;
