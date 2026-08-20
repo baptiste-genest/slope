@@ -335,10 +335,10 @@ return 5
     TimeObject::keyframes = &kf;
     rewrite(R"(
 --- dotted
-return t.during("a")
+return t.duringKeyframe("a")
 
 --- method
-return t:duringKeyframe("a")
+return t.duringKeyframe("a")
 )");
     Snippet::setTime(at(0));
     CHECK((scalar)Snippet::get("method") > 0);
