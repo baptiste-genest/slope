@@ -120,8 +120,8 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *         at: column_handle              # label handle, the id by default,
  *         spacing: 0.02                  # or [x,y] for a fixed block
  *         align: left                    # left | center | right
- *       - camera: view_name
- *         fly: true
+ *       - camera: view_name              # smooth flight by default,
+ *         fly: false                     # fly: false to cut instantly
  *       - pause: 3
  *       - keyframe: pipeline_done        # labels this frame, C++ updaters
  *                                        # branch on t.afterKeyframe("...")
