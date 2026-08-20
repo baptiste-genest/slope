@@ -4,6 +4,21 @@
 
 namespace slope {
 
+/*
+ * The clock every animation reads, and one interface in three languages.
+ *
+ * Whatever is added here is added to all three, under the same name and with
+ * the same argument shapes :
+ *
+ *   C++    t.duringKeyframe("a")        this struct
+ *   Lua    t:duringKeyframe("a")        the bindings in Snippet.cpp
+ *   GLSL   duringKeyframe("a")          the prelude in Shader.cpp
+ *
+ * GLSL has no string type, so a keyframe name there is substituted for its
+ * slide index before the compile. The one allowed divergence is a snippet
+ * having no moment of appearing, which leaves it without inner_time and
+ * relative_frame_number.
+ */
 struct TimeObject
 {
     TimeTypeSec from_begin = 0;

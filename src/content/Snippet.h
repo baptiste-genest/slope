@@ -70,10 +70,12 @@ namespace slope {
  *   fx->bind("z1", [] { return (vec2)Snippet::get("z1"); });
  *
  * ── Built-ins ──────────────────────────────────────────────────────────────
- *   t          from_begin, from_action, delta_time, absolute_frame_number,
+ *   t          the TimeObject, under the names C++ and GLSL use for it :
+ *              from_begin, from_action, delta_time, absolute_frame_number,
  *              transition_parameter (0 to 1 across a slide change, 1 when
  *              settled), and t:afterKeyframe/beforeKeyframe/atKeyframe/
- *              slidesSince("name"). from_begin is the free running clock an
+ *              slidesSinceKeyframe/secondsSinceKeyframe/duringKeyframe("name")
+ *              plus t:slidePosition(). from_begin is the free running clock an
  *              animation usually wants. A snippet has no moment of appearing,
  *              so there is no inner_time and no relative_frame_number (the
  *              shader uniforms of those names are per primitive and do exist)

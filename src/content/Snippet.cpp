@@ -482,17 +482,17 @@ int l_atKeyframe(lua_State* s) {
     lua_pushboolean(s, n && current_time.atKeyframe(n));
     return 1;
 }
-int l_secondsSince(lua_State* s) {
+int l_secondsSinceKeyframe(lua_State* s) {
     const char* n = lua_tostring(s, lua_gettop(s));
     lua_pushnumber(s, n ? current_time.secondsSinceKeyframe(n) : 0);
     return 1;
 }
 
-// t:during("a"), t:during("a", "b"), and either with a trailing true for
-// windows that must not overlap. Like its neighbours it takes the dotted call
-// too, so the names are found from the first string argument rather than from
-// a fixed index the `t` of a method call would shift.
-int l_during(lua_State* s) {
+// t:duringKeyframe("a"), the same with ("a", "b"), and either with a trailing
+// true for windows that must not overlap. Like its neighbours it takes the
+// dotted call too, so the names are found from the first string argument
+// rather than from a fixed index the `t` of a method call would shift.
+int l_duringKeyframe(lua_State* s) {
     const int top = lua_gettop(s);
     int i = 1;
     while (i <= top && lua_type(s, i) != LUA_TSTRING) i++;
@@ -507,7 +507,12 @@ int l_during(lua_State* s) {
     return 1;
 }
 
-int l_slidesSince(lua_State* s) {
+int l_slidePosition(lua_State* s) {
+    lua_pushnumber(s, current_time.slidePosition());
+    return 1;
+}
+
+int l_slidesSinceKeyframe(lua_State* s) {
     const char* n = lua_tostring(s, lua_gettop(s));
     lua_pushnumber(s, n ? current_time.slidesSinceKeyframe(n) : TimeObject::keyframe_unreached);
     return 1;
@@ -587,9 +592,10 @@ void buildBuiltins() {
     setField(L, t, "afterKeyframe", l_afterKeyframe);
     setField(L, t, "beforeKeyframe", l_beforeKeyframe);
     setField(L, t, "atKeyframe", l_atKeyframe);
-    setField(L, t, "slidesSince", l_slidesSince);
-    setField(L, t, "secondsSince", l_secondsSince);
-    setField(L, t, "during", l_during);
+    setField(L, t, "slidesSinceKeyframe", l_slidesSinceKeyframe);
+    setField(L, t, "secondsSinceKeyframe", l_secondsSinceKeyframe);
+    setField(L, t, "duringKeyframe", l_duringKeyframe);
+    setField(L, t, "slidePosition", l_slidePosition);
     lua_pushvalue(L, t);
     time_ref = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_pushstring(L, "t");

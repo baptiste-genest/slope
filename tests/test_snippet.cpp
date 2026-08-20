@@ -338,7 +338,7 @@ return 5
 return t.during("a")
 
 --- method
-return t:during("a")
+return t:duringKeyframe("a")
 )");
     Snippet::setTime(at(0));
     CHECK((scalar)Snippet::get("method") > 0);
