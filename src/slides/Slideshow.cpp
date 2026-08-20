@@ -301,6 +301,8 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
     window_flags |= ImGuiWindowFlags_NoResize;
     window_flags |= ImGuiWindowFlags_NoBackground;
     window_flags |= ImGuiWindowFlags_NoScrollbar;
+    // fullscreen, so focusing it would bury the panels behind it
+    window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
 
     spdlog::set_pattern("[slope] %v ");
 
