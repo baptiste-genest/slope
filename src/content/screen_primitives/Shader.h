@@ -44,6 +44,20 @@ namespace slope {
  *   uniform int   relative_frame_number; // slides since this shader appeared
  *   uniform float transition_parameter;  // 0 -> 1 across the intro / outro
  *
+ * and its queries, under the same names and taking the keyframe's name, as
+ * C++ and Lua do. GLSL has no string type, so the name is replaced by its
+ * slide index before the compile and nothing enters the shader's namespace
+ *
+ *   bool  afterKeyframe("reveal");      beforeKeyframe / atKeyframe
+ *   int   slidesSinceKeyframe("reveal");
+ *   float secondsSinceKeyframe("reveal");  // 0 until reached, never negative
+ *   float slidePosition();                 // continuous, in slides
+ *   float duringKeyframe("a");             // the 0..1..0 blend weight
+ *   float duringKeyframe("a", "b");        // a window spanning two of them
+ *   float duringKeyframe("a", true);       // sequential, no default args
+ *
+ * A name the deck does not have is an error, and every query on it is false
+ *
  * A minimal shader :
  *
  *   void main() {
@@ -498,6 +512,7 @@ private:
         int from_begin = -1, from_action = -1, inner_time = -1, delta_time = -1;
         int absolute_frame_number = -1, relative_frame_number = -1;
         int transition_parameter = -1;
+        int iSlideTime = -1;   // float[KF_SLIDE_COUNT], for secondsSinceKeyframe
         int iView = -1, iViewInv = -1, iProj = -1, iProjInv = -1;
         int iCamPos = -1, iCamFov = -1, iScreenRect = -1, iWindowSize = -1;
         int iViewCenter = -1, iViewHalf = -1;

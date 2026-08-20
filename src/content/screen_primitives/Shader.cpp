@@ -130,6 +130,7 @@ struct GL {
     void (*Uniform3f)(SLGLint, SLGLfloat, SLGLfloat, SLGLfloat) = nullptr;
     void (*Uniform4f)(SLGLint, SLGLfloat, SLGLfloat, SLGLfloat, SLGLfloat) = nullptr;
     void (*Uniform1i)(SLGLint, SLGLint) = nullptr;
+    void (*Uniform1fv)(SLGLint, SLGLsizei, const SLGLfloat*) = nullptr;
     void (*UniformMatrix4fv)(SLGLint, SLGLsizei, unsigned char, const SLGLfloat*) = nullptr;
     // vertex arrays
     void (*GenVertexArrays)(SLGLsizei, SLGLuint*) = nullptr;
@@ -214,6 +215,7 @@ GL& gl()
     L(UseProgram,"glUseProgram"); L(GetUniformLocation,"glGetUniformLocation");
     L(Uniform1f,"glUniform1f"); L(Uniform2f,"glUniform2f");
     L(Uniform3f,"glUniform3f"); L(Uniform4f,"glUniform4f"); L(Uniform1i,"glUniform1i");
+    L(Uniform1fv,"glUniform1fv");
     L(UniformMatrix4fv,"glUniformMatrix4fv");
     L(GenVertexArrays,"glGenVertexArrays"); L(BindVertexArray,"glBindVertexArray");
     L(DeleteVertexArrays,"glDeleteVertexArrays");
@@ -316,10 +318,32 @@ uniform sampler2D iChannel3;
 uniform vec3  iChannelResolution[4]; // (width, height, 1) of each channel
 layout(location = 0) out vec4 fragColor;  // output 0 (MRT: add location=1,2,...)
 // the TimeObject's keyframe queries, same names, taking a KF_<name> constant
-bool afterKeyframe (int kf) { return absolute_frame_number >= kf; }
-bool beforeKeyframe(int kf) { return absolute_frame_number <  kf; }
+bool afterKeyframe (int kf) { return kf >= 0 && absolute_frame_number >= kf; }
+bool beforeKeyframe(int kf) { return kf >= 0 && absolute_frame_number <  kf; }
 bool atKeyframe    (int kf) { return absolute_frame_number == kf; }
-int  slidesSinceKeyframe(int kf) { return absolute_frame_number - kf; }
+const int keyframe_unreached = -(1 << 24);
+int  slidesSinceKeyframe(int kf) { return kf < 0 ? keyframe_unreached : absolute_frame_number - kf; }
+// the TimeObject's continuous queries, under the same names
+float slidePosition() {
+    return float(absolute_frame_number) - 1.0 + transition_parameter;
+}
+// the trapezoid duringKeyframe is built from, in slide position
+float kfWindow(float p, float a, float b, bool sequential) {
+    float k = sequential ? 2.0 : 1.0;
+    float rise = clamp(k*(p - a) + 1.0, 0.0, 1.0);
+    float fall = clamp(k*(b - p) + 1.0, 0.0, 1.0);
+    return smoothstep(0.0, 1.0, min(rise, fall));
+}
+float duringKeyframe(int kf, bool sequential) {
+    if (kf < 0) return 0.0;
+    return kfWindow(slidePosition(), float(kf), float(kf), sequential);
+}
+float duringKeyframe(int kf) { return duringKeyframe(kf, false); }
+float duringKeyframe(int a, int b, bool sequential) {
+    if (a < 0 || b < 0) return 0.0;
+    return kfWindow(slidePosition(), float(min(a, b)), float(max(a, b)), sequential);
+}
+float duringKeyframe(int a, int b) { return duringKeyframe(a, b, false); }
 // This fragment in world coordinates, and the world size of one pixel. The
 // only definition of the mapping. Shader::worldToScreen inverts exactly this,
 // so a label placed at a world point cannot drift from what is drawn.
@@ -332,38 +356,133 @@ vec2 iUV()  { return gl_FragCoord.xy / iResolution; }
 vec2 iUVc() { return 2.0*(gl_FragCoord.xy - 0.5*iResolution)/iResolution.y; }
 )glsl";
 
-// Keyframes are name -> slide index, published to every shader as KF_<name>
-// so it can say afterKeyframe(KF_reveal) instead of a hardcoded slide number.
+// A keyframe reaches a shader as its slide index, substituted into the source
+// wherever a query names it. Nothing is published under the keyframe's own
+// name, so a deck cannot collide with anything the shader declares.
 //
-// A prefixed constant rather than a bare #define, which used to substitute
-// itself into any identifier of the same name.
-//
-// Names that are not valid GLSL identifiers are skipped, warned once, rather
-// than breaking every shader's compile.
-bool usableKeyframeName(const std::string& n)
+
+// far enough ahead that from_begin minus it clamps to 0. A real arrival can be
+// negative, so a negative marker would not do
+constexpr float kSlideUnreached = 1e30f;
+
+// how long iSlideTime has to be. Never 0, an empty array will not compile
+int keyframeSlideCount()
 {
-    if (n.empty()) return false;
-    if (!std::isalpha((unsigned char)n[0]) && n[0] != '_') return false;
-    for (char c : n)
-        if (!std::isalnum((unsigned char)c) && c != '_') return false;
-    return true;
+    int max_slide = -1;
+    if (TimeObject::keyframes)
+        for (const auto& [name, slide] : *TimeObject::keyframes)
+            max_slide = std::max(max_slide, slide);
+    return std::max(max_slide + 1, 1);
 }
 
 std::string keyframeDefines()
 {
+    // when each slide was reached, which the frame number cannot give
+    const int n = keyframeSlideCount();
     std::string out;
-    if (!TimeObject::keyframes)
-        return out;
+    out += "const int iSlideCount = " + std::to_string(n) + ";\n";
+    out += "uniform float iSlideTime[" + std::to_string(n) + "];\n";
+    out += "float secondsSinceKeyframe(int kf) {\n"
+           "    if (kf < 0 || kf >= iSlideCount) return 0.0;\n"
+           "    return max(from_begin - iSlideTime[kf], 0.0);\n"
+           "}\n";
+    return out;
+}
+
+const char* kKeyframeFns[] = {
+    "afterKeyframe", "beforeKeyframe", "atKeyframe",
+    "slidesSinceKeyframe", "secondsSinceKeyframe", "duringKeyframe",
+};
+
+bool identChar(char c) { return std::isalnum((unsigned char)c) || c == '_'; }
+
+bool isKeyframeFn(const std::string& id)
+{
+    for (const char* f : kKeyframeFns)
+        if (id == f) return true;
+    return false;
+}
+
+// -2 for a name the deck does not have, which is what C++ answers with, so
+// every query on it stays false
+int keyframeIndexFor(const std::string& name, const std::string& where)
+{
+    if (TimeObject::keyframes) {
+        auto it = TimeObject::keyframes->find(name);
+        if (it != TimeObject::keyframes->end())
+            return it->second;
+    }
     static std::set<std::string> warned;
-    for (const auto& [name, slide] : *TimeObject::keyframes) {
-        if (!usableKeyframeName(name)) {
-            if (warned.insert(name).second)
-                spdlog::warn("[shader] keyframe \"{}\" is not usable as a GLSL "
-                             "identifier and is not exposed to shaders", name);
+    if (warned.insert(where + "\n" + name).second) {
+        std::string known;
+        if (TimeObject::keyframes)
+            for (const auto& [n, slide] : *TimeObject::keyframes)
+                known += (known.empty() ? "" : ", ") + n;
+        spdlog::error("[shader] {} : unknown keyframe \"{}\", the deck has {}",
+                      where, name, known.empty() ? "none" : known);
+    }
+    return -2;
+}
+
+// GLSL has no string type, so a keyframe query naming one is rewritten to its
+// slide index before the compile. A string literal is illegal in GLSL, so no
+// valid shader can be harmed by this; comments are skipped so one written in
+// prose survives. Substitution stays on its own line, which keeps every
+// compile error pointing where it did.
+void rewriteKeyframeNames(std::string& src, const std::string& where)
+{
+    std::string out;
+    out.reserve(src.size());
+    std::size_t i = 0, n = src.size();
+    int args = 0;   // paren depth inside a keyframe call, 0 when outside one
+    while (i < n) {
+        if (src[i] == '/' && i + 1 < n && src[i + 1] == '/') {
+            std::size_t e = src.find('\n', i);
+            if (e == std::string::npos) e = n;
+            out += src.substr(i, e - i); i = e; continue;
+        }
+        if (src[i] == '/' && i + 1 < n && src[i + 1] == '*') {
+            std::size_t e = src.find("*/", i + 2);
+            e = (e == std::string::npos) ? n : e + 2;
+            out += src.substr(i, e - i); i = e; continue;
+        }
+        if (args > 0) {
+            if (src[i] == '"') {
+                std::size_t e = src.find('"', i + 1);
+                if (e == std::string::npos) { out += src.substr(i); i = n; break; }
+                out += std::to_string(keyframeIndexFor(src.substr(i + 1, e - i - 1), where));
+                i = e + 1;
+                continue;
+            }
+            if (src[i] == '(') args++;
+            else if (src[i] == ')') args--;
+            out += src[i++];
             continue;
         }
-        out += "const int KF_" + name + " = " + std::to_string(slide) + ";\n";
+        if (identChar(src[i])) {
+            std::size_t j = i;
+            while (j < n && identChar(src[j])) j++;
+            std::size_t k = j;
+            while (k < n && std::isspace((unsigned char)src[k])) k++;
+            const bool call = k < n && src[k] == '(' && isKeyframeFn(src.substr(i, j - i));
+            out += src.substr(i, (call ? k + 1 : j) - i);
+            i = call ? k + 1 : j;
+            if (call) args = 1;
+            continue;
+        }
+        out += src[i++];
     }
+    src.swap(out);
+}
+
+// what a shader was built against. The names are not emitted any more, but
+// their indices are baked into its source, so a move still invalidates it
+std::string keyframeSignature()
+{
+    std::string out = std::to_string(keyframeSlideCount()) + ";";
+    if (TimeObject::keyframes)
+        for (const auto& [name, slide] : *TimeObject::keyframes)
+            out += name + "=" + std::to_string(slide) + ";";
     return out;
 }
 
@@ -1253,6 +1372,9 @@ void Shader::recompile()
     const path base = from_file ? source_file.parent_path()
                                 : path(Options::ProjectDataPath);
     auto X = expandIncludes(fragment_src, base, self);
+    rewriteKeyframeNames(X.source, source_file.empty()
+                                       ? std::string("shader")
+                                       : source_file.filename().string());
     include_deps = std::move(X.deps);
     source_units = std::move(X.units);
 
@@ -1345,6 +1467,7 @@ void Shader::cacheUniformLocations()
     uloc.absolute_frame_number = L("absolute_frame_number");
     uloc.relative_frame_number = L("relative_frame_number");
     uloc.transition_parameter  = L("transition_parameter");
+    uloc.iSlideTime            = L("iSlideTime");
 
     uloc.iView       = L("iView");
     uloc.iViewInv    = L("iViewInv");
@@ -1465,6 +1588,15 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     if (int l = U.absolute_frame_number; l >= 0) g.Uniform1i(l, t.absolute_frame_number);
     if (int l = U.relative_frame_number; l >= 0) g.Uniform1i(l, t.relative_frame_number);
     if (int l = U.transition_parameter; l >= 0) g.Uniform1f(l, float(t.transition_parameter));
+    // only uploaded to a shader that asks for it
+    if (int l = U.iSlideTime; l >= 0) {
+        const int n = keyframeSlideCount();
+        std::vector<float> reached(std::size_t(n), kSlideUnreached);
+        if (TimeObject::slide_times)
+            for (const auto& [slide, sec] : *TimeObject::slide_times)
+                if (slide >= 0 && slide < n) reached[std::size_t(slide)] = float(sec);
+        g.Uniform1fv(l, n, reached.data());
+    }
 
     // Latched rather than re-read by worldToScreen, since a label must land on
     // the view that was drawn even though the anchor resolves on another call.
@@ -1930,12 +2062,12 @@ void Shader::HotReloadIfModified()
     last_refresh = Time::now();
 
     // a deck hot reload can move any keyframe's slide index, and those are
-    // baked into every program as constants, so a change invalidates all of
-    // them, not just the file-backed ones
+    // baked into every program, so a change invalidates all of them, not just
+    // the file-backed ones
     {
         static std::string last_defines;
         static bool have_defines = false;
-        std::string defines = keyframeDefines();
+        std::string defines = keyframeSignature();
         if (have_defines && defines != last_defines) {
             spdlog::info("[shader] keyframes changed, recompiling {} shader(s)",
                          all_shaders.size());
