@@ -121,11 +121,9 @@ a dark frame needs `\color{white}` written into every title, formula and latex
 item on it, and again on every frame that inherits the background. `parseColor`
 already exists for boxes and arrows, but there is no deck-level text colour.
 
-The slide number is worse. `HUD::drawSlideNumber` plays a `Text` primitive
-whose colour is fixed, while its neighbours in the same file
-(`drawGizmoMode`, `drawPauseIndicator`) already invert `polyscope::view::bgColor`
-to stay readable. So the corner number turns unreadable on exactly the dark
-backgrounds the feature was added for.
+The slide number was worse and is fixed : `Text` now inverts
+`polyscope::view::bgColor` like `drawGizmoMode` and `drawPauseIndicator` always
+did. Inversion still vanishes on a mid-grey background, as it does for those two.
 
 Would want one place that answers "what colour should ink be on this slide",
 read by the HUD and used as the default for latex items, so a background change
