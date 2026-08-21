@@ -337,6 +337,11 @@ private:
     void parse();
     void loadLatexResources();
     void buildFrame(SlideManager& show, const json& items);
+
+    // top level lists, expanded where their bare name appears in a frame
+    std::map<std::string, json> deck_groups;
+    std::map<std::string, std::vector<PrimitiveInSlide>> built_groups;
+    void expandGroup(SlideManager& show, const std::string& name);
     void addItem(SlideManager& show, const json& item);
     void buildStackChildren(SlideManager& show, const Stack2DPtr& stack, const json& items);
     AnchorPtr makeHandleAnchor(const json& item);
