@@ -407,6 +407,8 @@ void slope::Slideshow::exportPDF()
             when = TimeFrom(from_begin) - settle_time;
         TimeObject T = getTimeObject();
         Snippet::setTime(T);
+        // export renders settled slides, so no lerp out of the previous one
+        updateBackground(1);
         auto& CS = slides[state.current];
         polyscope::options::transparencyMode = polyscope::TransparencyMode::None;
         for (auto& s : CS.getDepthSorted())
