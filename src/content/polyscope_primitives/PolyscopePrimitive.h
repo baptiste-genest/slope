@@ -3,7 +3,7 @@
 
 #include "content/core/primitive.h"
 #include "content/core/StateInSlide.h"
-#include "content/config/color_tools.h"
+#include "content/authoring/color_tools.h"
 #include "content/config/Options.h"
 
 namespace slope {

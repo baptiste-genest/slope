@@ -110,6 +110,9 @@ private:
 
     void renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T);
 
+    // resolves the current slide's background, lerping out of the previous one
+    void updateBackground(parameter transition);
+
     void transformEditor();
     void clearTransformGizmos();
     int gizmo_slide = -1;

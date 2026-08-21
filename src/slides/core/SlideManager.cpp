@@ -84,7 +84,12 @@ int slope::SlideManager::getRelativeSlideNumber(Primitive* p) const
 
 void slope::SlideManager::newFrame() {
     handleCenter();
+    // the background carries over until a frame names another one
+    std::optional<Color> inherited;
+    if (!slides.empty())
+        inherited = slides.back().background;
     addSlide(Slide());
+    slides.back().background = inherited;
     PolyscopePrimitive::resetColorId();
     last_primitive_inserted = nullptr;
     last_screen_primitive_inserted = nullptr;

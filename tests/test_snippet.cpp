@@ -1,7 +1,7 @@
 // the Lua snippet system, headless. Sections, dictionaries, callables, complex
 // arithmetic, C++ derivations, error resilience and hot reload
 #include "slope.h"
-#include "content/scripting/Snippet.h"
+#include "content/authoring/Snippet.h"
 
 #include <chrono>
 #include <filesystem>

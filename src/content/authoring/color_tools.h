@@ -2,7 +2,8 @@
 #include "libslope.h"
 #include "content/config/Options.h"
 #include "content/config/io.h"
-#include "content/config/Params.h"
+#include "content/authoring/Params.h"
+#include "content/authoring/Snippet.h"
 
 namespace slope {
 
@@ -42,6 +43,11 @@ public:
     ColorType getValue() const {
         if (!handle.entry)
             return value;
+        // one namespace with Params, so a snippet of that name shadows it
+        const auto live = Snippet::get(label);
+        if (live.n >= 3)
+            return ColorType(live.v[0], live.v[1], live.v[2],
+                             live.n > 3 ? live.v[3] : 1.f);
         const RGBA c = *handle;
         return ColorType(c.Value.x,c.Value.y,c.Value.z,c.Value.w);
     }

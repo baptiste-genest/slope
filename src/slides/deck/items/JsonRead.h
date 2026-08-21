@@ -2,7 +2,7 @@
 #define DECK_JSONREAD_H
 
 #include "libslope.h"
-#include "content/scripting/Snippet.h"
+#include "content/authoring/Snippet.h"
 #include "extern/json.hpp"
 
 namespace slope {

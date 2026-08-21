@@ -12,7 +12,7 @@
 #include "content/polyscope_primitives/PointCloud.h"
 #include "content/screen_primitives/text/LateX.h"
 #include "content/polyscope_primitives/Mesh.h"
-#include "content/scripting/Snippet.h"
+#include "content/authoring/Snippet.h"
 #include "content/polyscope_primitives/PolyscopeSnippets.h"
 #include "content/polyscope_primitives/quantities/MeshScalarField.h"
 #include "content/polyscope_primitives/quantities/vector_field.h"
@@ -22,12 +22,11 @@
 #include "content/polyscope_primitives/CameraView.h"
 #include "content/screen_primitives/widgets/ImGuiWidgets.h"
 #include "slides/ui/Panel.h"
-#include "content/polyscope_primitives/BackgroundColor.h"
 #include "content/polyscope_primitives/VolumeGrid.h"
 #include "content/screen_primitives/shapes/Box.h"
 #include "content/screen_primitives/shapes/Shape2D.h"
 #include "content/screen_primitives/shapes/Stack2D.h"
 #include "content/screen_primitives/gpu/Shader.h"
-#include "content/config/Params.h"
+#include "content/authoring/Params.h"
 
 #endif // SLOPE_H

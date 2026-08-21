@@ -1,4 +1,4 @@
-#include "content/config/Params.h"
+#include "content/authoring/Params.h"
 #include "content/config/io.h"
 #include "imgui.h"
 #include "spdlog/spdlog.h"

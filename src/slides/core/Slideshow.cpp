@@ -3,10 +3,9 @@
 #include "content/screen_primitives/gpu/Shader.h"
 #include "spdlog/spdlog.h"
 #include "polyscope/pick.h"
-#include "content/config/color_tools.h"
-#include "content/polyscope_primitives/BackgroundColor.h"
-#include "content/config/Params.h"
-#include "content/scripting/Snippet.h"
+#include "content/authoring/color_tools.h"
+#include "content/authoring/Params.h"
+#include "content/authoring/Snippet.h"
 #include "ImGuizmo.h"
 #include <spdlog/spdlog.h>
 
@@ -63,8 +62,6 @@ void slope::Slideshow::play() {
 
     handleGuizmos();
 
-    polyscope::view::bgColor = BackgroundColor::Default.toArray();
-
     Params::NewFrame();
     if (!wm.isOpen(WindowType::Tuner))
         Params::clearGizmos(); // no panel, no sync
@@ -87,6 +84,8 @@ void slope::Slideshow::play() {
     TimeObject ST = T;
     ST.transition_parameter = transitionProgress(t);
     Snippet::setTime(ST);
+
+    updateBackground(ST.transition_parameter);
 
     // Depth peeling costs a full scene pass per layer, and alpha only drops
     // during transitions. Dropping it here lets polyscope turn it back on by
@@ -131,6 +130,23 @@ void slope::Slideshow::play() {
 
     // polyscope aims the gizmos at a window drawn first, hence under everything
     ImGuizmo::SetDrawlist(ImGui::GetForegroundDrawList());
+}
+
+void slope::Slideshow::updateBackground(parameter transition)
+{
+    if (slides.empty())
+        return;
+    // the deck-wide default, a palette entry like any other
+    static Color fallback("background", ColorType(1,1,1,1));
+    auto resolve = [&](const Slide& s) -> Color {
+        return s.background ? *s.background : fallback;
+    };
+    const Color current = resolve(slides[state.current]);
+    // lerping from the slide being left, which a primitive could never see
+    polyscope::view::bgColor =
+        (state.current > 0 && transition < 1)
+            ? Lerp(resolve(slides[state.current-1]), current, transition).toArray()
+            : current.toArray();
 }
 
 void slope::Slideshow::renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T)

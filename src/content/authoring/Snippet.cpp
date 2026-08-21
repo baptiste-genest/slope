@@ -1,5 +1,5 @@
-#include "content/scripting/Snippet.h"
-#include "content/config/Params.h"
+#include "content/authoring/Snippet.h"
+#include "content/authoring/Params.h"
 #include "content/config/io.h"
 #include "math/kernels.h"
 

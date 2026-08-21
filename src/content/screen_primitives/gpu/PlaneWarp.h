@@ -2,7 +2,7 @@
 #define PLANEWARP_H
 
 #include "content/polyscope_primitives/Transform.h"
-#include "content/scripting/Snippet.h"
+#include "content/authoring/Snippet.h"
 #include <optional>
 
 namespace slope {

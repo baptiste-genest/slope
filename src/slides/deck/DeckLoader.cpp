@@ -1,4 +1,4 @@
-#include "content/scripting/Snippet.h"
+#include "content/authoring/Snippet.h"
 #include "slides/deck/DeckLoader.h"
 #include "slides/deck/items/DeckItem.h"
 #include "slides/deck/items/ShaderItem.h"
@@ -8,7 +8,7 @@
 #include "content/screen_primitives/shapes/Shape2D.h"
 #include "content/screen_primitives/shapes/Stack2D.h"
 #include "content/screen_primitives/gpu/Shader.h"
-#include "content/config/Params.h"
+#include "content/authoring/Params.h"
 #include "content/polyscope_primitives/PolyscopePrimitive.h"
 #include "content/polyscope_primitives/CameraView.h"
 #include "spdlog/spdlog.h"
@@ -865,6 +865,16 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             camera_cache[key] = entry;
         }
         show << camera_cache[key].cam;
+    }
+    else if (item.contains("background")) {
+        const auto& b = item["background"];
+        if (b.is_string())
+            show << Background(b.get<std::string>());
+        else if (b.is_array() && (b.size() == 3 || b.size() == 4))
+            show << Background(b[0].get<float>(), b[1].get<float>(), b[2].get<float>(),
+                               b.size() == 4 ? b[3].get<float>() : 1.f);
+        else
+            spdlog::warn("[deck] background wants a palette name or [r,g,b(,a)]");
     }
     else if (item.contains("pause")) {
         show << Pause::Add(item["pause"].get<TimeTypeSec>());

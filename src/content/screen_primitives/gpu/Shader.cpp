@@ -1,5 +1,5 @@
 #include "content/screen_primitives/gpu/Shader.h"
-#include "content/scripting/Snippet.h"   // bind(name), one namespace with Params
+#include "content/authoring/Snippet.h"   // bind(name), one namespace with Params
 #include "GLFW/glfw3.h"
 #include "polyscope/view.h"
 #include "polyscope/polyscope.h"

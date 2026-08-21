@@ -1,8 +1,8 @@
 #include "slides/deck/items/ShaderItem.h"
 #include "slides/deck/items/DeckItem.h"
 #include "slides/deck/items/JsonRead.h"
-#include "content/config/Params.h"
-#include "content/scripting/Snippet.h"
+#include "content/authoring/Params.h"
+#include "content/authoring/Snippet.h"
 #include "content/screen_primitives/gpu/Shader.h"
 #include "spdlog/spdlog.h"
 #include <filesystem>

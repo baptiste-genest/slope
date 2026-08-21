@@ -65,8 +65,8 @@ configure_file(${PROJECT_SOURCE_DIR}/src/content/config/Options.cpp.in
 
 file(GLOB SRC_lib
      "src/content/config/*"
+     "src/content/authoring/*"
      "src/content/core/*"
-     "src/content/scripting/*"
      "src/content/screen_primitives/*"
      "src/content/screen_primitives/text/*"
      "src/content/screen_primitives/media/*"

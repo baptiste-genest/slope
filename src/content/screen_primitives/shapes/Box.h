@@ -1,7 +1,7 @@
 #pragma once
 
 #include "content/screen_primitives/ScreenPrimitive.h"
-#include "content/config/color_tools.h"
+#include "content/authoring/color_tools.h"
 
 
 namespace slope {

@@ -3,7 +3,7 @@
 
 #include "libslope.h"
 #include "content/screen_primitives/media/Image.h"
-#include "content/config/color_tools.h"
+#include "content/authoring/color_tools.h"
 #include "content/config/io.h"
 #include "content/config/Options.h"
 #include "content/screen_primitives/text/LateXMacros.h"

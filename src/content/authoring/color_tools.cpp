@@ -1,4 +1,4 @@
-#include "content/config/color_tools.h"
+#include "content/authoring/color_tools.h"
 #include "content/config/Options.h"
 #include <spdlog/spdlog.h>
 

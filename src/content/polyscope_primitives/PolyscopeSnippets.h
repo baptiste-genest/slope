@@ -3,7 +3,7 @@
 
 #include "content/polyscope_primitives/Mesh.h"
 #include "content/polyscope_primitives/Curve3D.h"
-#include "content/scripting/Snippet.h"
+#include "content/authoring/Snippet.h"
 
 namespace slope {
 

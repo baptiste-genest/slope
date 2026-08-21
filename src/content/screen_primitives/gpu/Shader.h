@@ -2,7 +2,7 @@
 #define SHADER_H
 
 #include "content/screen_primitives/ScreenPrimitive.h"
-#include "content/scripting/Snippet.h"
+#include "content/authoring/Snippet.h"
 #include <filesystem>
 #include <functional>
 #include "extern/json.hpp"

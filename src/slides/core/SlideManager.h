@@ -186,6 +186,11 @@ inline SlideManager& operator<<(SlideManager& SM,CameraViewPtr cam) {
     return SM;
 }
 
+inline SlideManager& operator<<(SlideManager& SM,const Background& bg) {
+    SM.getLastSlide().background = bg.color;
+    return SM;
+}
+
 inline SlideManager& operator<<(SlideManager& SM,OverrideUpdater update) {
     auto& S = SM.getCurrentSlide();
     auto primitive = Primitive::get(update.pid);
