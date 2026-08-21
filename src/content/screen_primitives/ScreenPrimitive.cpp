@@ -117,7 +117,11 @@ slope::Primitive::Size slope::ScreenPrimitive::getRelativeSize() const {
 }
 
 void slope::ScreenPrimitive::getBoundingBox(vec2 &lo, vec2 &hi) const {
-    vec2 c = anchor->getPos();
+    vec2 o = getDrawOffset();
+    // the offset is in pixels, the box in relative coords
+    vec2 c = anchor->getPos()
+             + vec2(o(0)/Options::ScreenResolutionWidth,
+                    o(1)/Options::ScreenResolutionHeight)*drawn_scale;
     vec2 h = getRelativeSize()*0.5*drawn_scale;
     lo = c - h;
     hi = c + h;

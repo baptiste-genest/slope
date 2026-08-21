@@ -214,7 +214,7 @@ public:
         }
         DisplayImage(data,sis,s,
                      tintable ? color.getImColor() : RGBA(1.f,1.f,1.f,1.f),
-                     baselineOffset()*s);
+                     getDrawOffset()(1)*sis.getScale());
     }
 
     virtual void draw(const TimeObject &time, const StateInSlide &sis) override {
@@ -230,6 +230,13 @@ public:
     // ScreenPrimitive interface
 public:
     bool canRotate() const override {return true;}
+
+    // a formula is drawn on its baseline instead of on the centre of its ink,
+    // so that e and e^{a^{b^{c}}} placed at the same label sit on the same line
+    virtual vec2 getDrawOffset() const override {
+        FlushPending();
+        return vec2(0,baselineOffset()*scale*getNormalizationFactor());
+    }
 
     virtual vec2 getSize() const override {
         FlushPending();

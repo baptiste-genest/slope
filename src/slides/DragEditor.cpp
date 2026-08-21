@@ -21,7 +21,9 @@ std::vector<slope::PrimitivePtr> slope::DragEditor::getPrimitivesUnderMouse(Slid
         auto sp = std::static_pointer_cast<ScreenPrimitive>(ptr);
         auto p = sis.getPosition();
         auto prim_size = sp->getSize() * sis.getScale();
-        if (std::abs(p(0) - x) < prim_size(0)/2/S.x && std::abs(p(1) - y) < prim_size(1)/2/S.y)
+        auto off = sp->getDrawOffset() * sis.getScale(); // the ink, not the anchor
+        if (std::abs(p(0) + off(0)/S.x - x) < prim_size(0)/2/S.x
+         && std::abs(p(1) + off(1)/S.y - y) < prim_size(1)/2/S.y)
             hits.push_back(ptr);
     }
     return hits;
@@ -173,7 +175,9 @@ void slope::DragEditor::drawSelectionBox(const PrimitivePtr& prim, const StateIn
     // outlined by its edges rather than by a larger upright rectangle
     const float a = float(sis.getAngle());
     const float ca = std::cos(a), sa = std::sin(a);
-    const float px = cx * S.x, py = cy * S.y;
+    // a formula is drawn off its anchor, on its baseline, so outlining it from
+    // the anchor alone leaves the box hanging under the ink
+    const float px = cx * S.x, py = cy * S.y + float(sp->getDrawOffset()(1) * sis.getScale());
     ImVec2 corner[4];
     const float ox[4] = {-hw, hw, hw, -hw};
     const float oy[4] = {-hh, -hh, hh, hh};
@@ -424,8 +428,11 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
     auto drag_sp = std::static_pointer_cast<ScreenPrimitive>(selected_primitive);
     float dhw = drag_sp->getRelativeSize()(0) * float(pis.getScale()) * 0.5f;
     float dhh = drag_sp->getRelativeSize()(1) * float(pis.getScale()) * 0.5f;
-    float d_ax[3] = { cx - dhw, cx, cx + dhw };
-    float d_ay[3] = { cy - dhh, cy, cy + dhh };
+    // guides line up what is drawn, which for a formula is not the anchor
+    float dcx = cx + float(drag_sp->getDrawOffset()(0) * pis.getScale()) / S.x;
+    float dcy = cy + float(drag_sp->getDrawOffset()(1) * pis.getScale()) / S.y;
+    float d_ax[3] = { dcx - dhw, dcx, dcx + dhw };
+    float d_ay[3] = { dcy - dhh, dcy, dcy + dhh };
 
     constexpr float snap_thr = 0.005f;
     float snap_dx = snap_thr, snap_dy = snap_thr;
@@ -436,8 +443,10 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
         auto op = sis.getPosition();
         float ohw = pptr->getRelativeSize()(0) * float(sis.getScale()) * 0.5f;
         float ohh = pptr->getRelativeSize()(1) * float(sis.getScale()) * 0.5f;
-        float o_ax[3] = { float(op(0))-ohw, float(op(0)), float(op(0))+ohw };
-        float o_ay[3] = { float(op(1))-ohh, float(op(1)), float(op(1))+ohh };
+        float ocx = float(op(0) + pptr->getDrawOffset()(0) * sis.getScale() / S.x);
+        float ocy = float(op(1) + pptr->getDrawOffset()(1) * sis.getScale() / S.y);
+        float o_ax[3] = { ocx-ohw, ocx, ocx+ohw };
+        float o_ay[3] = { ocy-ohh, ocy, ocy+ohh };
         for (int di = 0; di < 3; ++di)
             for (int oi = 0; oi < 3; ++oi) {
                 float dx = o_ax[oi] - d_ax[di];

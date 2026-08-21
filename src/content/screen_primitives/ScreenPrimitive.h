@@ -68,6 +68,11 @@ public:
 
     Size getRelativeSize() const;
 
+    // pixels a primitive is drawn away from its anchor, applied to the centre
+    // before rotation. A formula sits on its baseline, not on the centre of
+    // its ink, so the editor cannot outline it from the anchor alone
+    virtual vec2 getDrawOffset() const {return vec2::Zero();}
+
     // bounding box in relative [0,1]² coords, centered on the anchor unless a
     // primitive's geometry does not follow it (arrows, boxes)
     virtual void getBoundingBox(vec2& lo, vec2& hi) const;
