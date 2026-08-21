@@ -1,4 +1,4 @@
-#include "PolyscopeSnippets.h"
+#include "content/polyscope_primitives/PolyscopeSnippets.h"
 
 namespace slope {
 

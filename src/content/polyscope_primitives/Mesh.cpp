@@ -1,4 +1,4 @@
-#include "Mesh.h"
+#include "content/polyscope_primitives/Mesh.h"
 
 
 slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,bool smooth)

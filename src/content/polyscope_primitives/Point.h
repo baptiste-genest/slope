@@ -1,8 +1,7 @@
 #ifndef POINT_H
 #define POINT_H
 
-#include "PolyscopePrimitive.h"
-#include "../../math/Parametrization.h"
+#include "content/polyscope_primitives/PolyscopePrimitive.h"
 
 namespace slope {
 

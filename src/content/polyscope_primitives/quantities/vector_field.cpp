@@ -1,4 +1,4 @@
-#include "vector_field.h"
+#include "content/polyscope_primitives/quantities/vector_field.h"
 #include <spdlog/spdlog.h>
 
 

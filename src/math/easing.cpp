@@ -1,5 +1,5 @@
-#include "easing.h"
-#include "kernels.h"
+#include "math/easing.h"
+#include "math/kernels.h"
 
 #include <array>
 #include <cmath>

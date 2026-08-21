@@ -1,4 +1,4 @@
-#include "Point.h"
+#include "content/polyscope_primitives/Point.h"
 
 slope::Point::PointPtr slope::Point::Add(const curve_param &phi,scalar r)
 {

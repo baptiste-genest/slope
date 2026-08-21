@@ -1,4 +1,4 @@
-#include "VolumeGrid.h"
+#include "content/polyscope_primitives/VolumeGrid.h"
 
 namespace slope {
 

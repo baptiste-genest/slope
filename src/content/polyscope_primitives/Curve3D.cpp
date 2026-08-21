@@ -1,4 +1,4 @@
-#include "Curve3D.h"
+#include "content/polyscope_primitives/Curve3D.h"
 
 slope::Curve3D::Curve3DPtr slope::Curve3D::Add(const vecs &nodes, bool loop,scalar r)
 {

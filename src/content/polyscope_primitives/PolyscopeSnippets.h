@@ -1,9 +1,9 @@
 #ifndef POLYSCOPESNIPPETS_H
 #define POLYSCOPESNIPPETS_H
 
-#include "Mesh.h"
-#include "Curve3D.h"
-#include "../Snippet.h"
+#include "content/polyscope_primitives/Mesh.h"
+#include "content/polyscope_primitives/Curve3D.h"
+#include "content/scripting/Snippet.h"
 
 namespace slope {
 

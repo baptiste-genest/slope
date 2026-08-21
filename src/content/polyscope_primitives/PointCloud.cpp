@@ -1,4 +1,4 @@
-#include "PointCloud.h"
+#include "content/polyscope_primitives/PointCloud.h"
 
 slope::PointCloud::PointCloud(const vecs &P,scalar r) : points(P),original_points(P),radius(r)
 {

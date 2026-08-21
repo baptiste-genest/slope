@@ -1,7 +1,7 @@
 #ifndef MESHSCALARFIELD_H
 #define MESHSCALARFIELD_H
 
-#include "../Mesh.h"
+#include "content/polyscope_primitives/Mesh.h"
 
 namespace polyscope {
 class SurfaceVertexScalarQuantity;

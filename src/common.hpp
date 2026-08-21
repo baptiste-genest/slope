@@ -57,7 +57,7 @@
 #include <unistd.h>
 #endif
 
-#include "polyscope/screenshot.h"
+#include "slides/capture/screenshot.h"
 #include <cstdint>
 #include <cstring>
 #include <vector>

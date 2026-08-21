@@ -59,21 +59,30 @@ message(STATUS "pdflatex compiler: ${SLOPE_PDFLATEX}")
 message(STATUS "convert tool: ${SLOPE_CONVERT}")
 message(STATUS "ffmpeg: ${SLOPE_FFMPEG}")
 message(STATUS "shader stdlib: ${SLOPE_SHADER_PATH}")
-configure_file(${PROJECT_SOURCE_DIR}/src/content/Options.cpp.in
-               ${PROJECT_SOURCE_DIR}/src/content/Options.cpp)
+configure_file(${PROJECT_SOURCE_DIR}/src/content/config/Options.cpp.in
+               ${PROJECT_SOURCE_DIR}/src/content/config/Options.cpp)
 
 
 file(GLOB SRC_lib
-     "src/content/*"
+     "src/content/config/*"
+     "src/content/core/*"
+     "src/content/scripting/*"
      "src/content/screen_primitives/*"
+     "src/content/screen_primitives/text/*"
+     "src/content/screen_primitives/media/*"
+     "src/content/screen_primitives/shapes/*"
+     "src/content/screen_primitives/layout/*"
+     "src/content/screen_primitives/gpu/*"
+     "src/content/screen_primitives/widgets/*"
      "src/content/polyscope_primitives/*"
      "src/content/polyscope_primitives/quantities/*"
-     "src/content/Graphics2D/*"
-     "src/content/screen_primitives/plots/*"
      "src/math/*"
-     "src/slides/*"
-     "src/slides/deck_items/*"
-     "src/style/*"
+     "src/slides/core/*"
+     "src/slides/deck/*"
+     "src/slides/deck/items/*"
+     "src/slides/ui/*"
+     "src/slides/capture/*"
+     "src/slides/prompter/*"
      "src/slope.h"
      "src/extern/*"
 )

@@ -1,4 +1,4 @@
-#include "MeshScalarField.h"
+#include "content/polyscope_primitives/quantities/MeshScalarField.h"
 
 #include "polyscope/surface_mesh.h"
 #include "polyscope/render/engine.h"

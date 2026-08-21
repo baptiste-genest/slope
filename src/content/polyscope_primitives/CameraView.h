@@ -1,8 +1,8 @@
 #ifndef CAMERAVIEW_H
 #define CAMERAVIEW_H
 
-#include "PolyscopePrimitive.h"
-#include "../Options.h"
+#include "content/polyscope_primitives/PolyscopePrimitive.h"
+#include "content/config/Options.h"
 #include <fstream>
 #include "extern/json.hpp"
 

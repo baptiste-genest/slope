@@ -58,13 +58,6 @@ struct Vertex {
 using Face = std::vector<size_t>;
 using Faces = std::vector<Face>;
 
-using FontID = int;
-using FontSize = int;
-struct Font {
-    FontID id = -1;
-    FontSize size = 16;
-};
-
 struct Primitive;
 using PrimitivePtr = std::shared_ptr<Primitive>;
 using PrimitiveID = long;

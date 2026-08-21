@@ -1,7 +1,7 @@
 #ifndef SLOPE_VOLUMEGRID_H
 #define SLOPE_VOLUMEGRID_H
 
-#include "PolyscopePrimitive.h"
+#include "content/polyscope_primitives/PolyscopePrimitive.h"
 #include "polyscope/volume_grid.h"
 
 

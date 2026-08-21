@@ -1,6 +1,6 @@
 #ifndef UTILS_H
 #define UTILS_H
-#include "../libslope.h"
+#include "libslope.h"
 
 namespace slope {
 

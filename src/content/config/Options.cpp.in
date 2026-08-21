@@ -1,0 +1,35 @@
+#include "content/config/Options.h"
+
+namespace slope
+{
+
+std::string Options::ProjectName;
+std::string Options::ProjectPath;
+std::string Options::CachePath;
+std::string Options::ProjectDataPath;
+std::string Options::ProjectViewsPath;
+std::string Options::LogPath = "/tmp/slope.log";
+
+size_t Options::ScreenResolutionWidth = 1920;
+size_t Options::ScreenResolutionHeight = 1080;
+
+std::string Options::PathToPDFLATEX = "@SLOPE_PDFLATEX@";
+std::string Options::PathToCONVERT = "@SLOPE_CONVERT@";
+std::string Options::PathToFFMPEG = "@SLOPE_FFMPEG@";
+std::string Options::PathToFFPROBE = "@SLOPE_FFPROBE@";
+std::string Options::ShaderPath = "@SLOPE_SHADER_PATH@";
+
+size_t Options::PDFtoPNGDensity = 1440;
+
+double Options::TitleScale = 1.5;
+double Options::DefaultLatexScale = 1.;
+
+bool Options::ignore_cache = false;
+bool Options::ExportMode = false;
+bool Options::CheckLabels = false;
+bool Options::Rehearse = false;
+bool Options::HideSlideNumbers = false;
+
+float Options::DefaultBoxRoundness = 1.f;
+
+}

@@ -1,5 +1,5 @@
-#include "ScreenPrimitive.h"
-#include "PlaneWarp.h"
+#include "content/screen_primitives/ScreenPrimitive.h"
+#include "content/screen_primitives/gpu/PlaneWarp.h"
 
 slope::ScreenPrimitive::ScreenPrimitive() {
     anchor = AbsoluteAnchor::Add(vec2(0,0));

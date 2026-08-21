@@ -1,9 +1,9 @@
 #ifndef BACKGROUDCOLOR_H
 #define BACKGROUDCOLOR_H
 
-#include "../color_tools.h"
-#include "PolyscopePrimitive.h"
-#include "../../math/utils.h"
+#include "content/config/color_tools.h"
+#include "content/polyscope_primitives/PolyscopePrimitive.h"
+#include "math/utils.h"
 
 namespace slope {
 

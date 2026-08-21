@@ -1,7 +1,7 @@
 #ifndef KERNELS_H
 #define KERNELS_H
 
-#include "../libslope.h"
+#include "libslope.h"
 
 namespace slope {
 template <typename T> int sgn(T val) {

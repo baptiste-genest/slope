@@ -1,8 +1,8 @@
 #ifndef TRANSFORM_H
 #define TRANSFORM_H
 
-#include "../io.h"
-#include "../Options.h"
+#include "content/config/io.h"
+#include "content/config/Options.h"
 #include <optional>
 #include <unordered_map>
 

@@ -2,8 +2,8 @@
 // declares the inputs of a shader it did not create, and a reload of the
 // manifest must not silence the binds that shader's C++ owner set.
 #include "slope.h"
-#include "slides/DeckLoader.h"
-#include "content/screen_primitives/Shader.h"
+#include "slides/deck/DeckLoader.h"
+#include "content/screen_primitives/gpu/Shader.h"
 
 #include <filesystem>
 #include <fstream>

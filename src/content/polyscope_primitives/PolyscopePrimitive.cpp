@@ -1,4 +1,4 @@
-#include "PolyscopePrimitive.h"
+#include "content/polyscope_primitives/PolyscopePrimitive.h"
 
 size_t slope::PolyscopePrimitive::count = 0;
 std::vector<glm::vec3>  slope::PolyscopePrimitive::colors = {};

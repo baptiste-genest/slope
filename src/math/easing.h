@@ -1,7 +1,7 @@
 #ifndef EASING_H
 #define EASING_H
 
-#include "../libslope.h"
+#include "libslope.h"
 #include <string_view>
 
 namespace slope {
