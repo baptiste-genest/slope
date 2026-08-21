@@ -360,15 +360,32 @@ void DeckLoader::build(SlideManager& show)
             declared.first->unset(name);
     object_uniforms.clear();
 
+    const json* tmpl = nullptr;
+    if (source.contains("template")) {
+        if (!source["template"].is_array())
+            throw std::runtime_error("\"template\" must be a list of items, like a frame");
+        for (const auto& it : source["template"])
+            if (it.is_string() && it == "step")
+                throw std::runtime_error("a template cannot contain \"step\", it is "
+                                         "added to the first step of every frame");
+        tmpl = &source["template"];
+    }
+    // built once, then the same primitives are re-added : a template rebuilt
+    // per frame would make new ones, and every slide change would cross-fade
+    std::vector<PrimitiveInSlide> template_items;
+    bool template_built = false;
+
     bool first = true;
     for (const auto& frame : source["slides"]) {
         const json* items = nullptr;
         bool same_title = false;
+        bool no_template = false;
         if (frame.is_array())
             items = &frame;
         else if (frame.is_object() && frame.contains("frame") && frame["frame"].is_array()) {
             items = &frame["frame"];
             same_title = frame.value("same_title", false);
+            no_template = frame.value("no_template", false);
         }
         else
             throw std::runtime_error("each element of \"slides\" must be \"- frame:\" "
@@ -377,6 +394,16 @@ void DeckLoader::build(SlideManager& show)
             show << (same_title ? newFrameSameTitle : newFrame);
         first = false;
         step_primitives.clear();
+        if (tmpl && !no_template) {
+            if (!template_built) {
+                buildFrame(show, *tmpl);
+                template_items = show.getLastSlide().getDepthSorted();
+                template_built = true;
+            } else {
+                for (const auto& [ptr, sis] : template_items)
+                    show.addToLastSlide(ptr, sis);
+            }
+        }
         buildFrame(show, *items);
     }
     if (show.getNumberSlides() == 0)

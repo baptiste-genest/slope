@@ -147,6 +147,16 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *   - frame:
  *       - ...
  *     same_title: true                   # keep previous frame's title
+ *     no_template: true                  # and skip the deck template
+ *
+ * A "template:" list beside "slides:" is added to the first step of every
+ * frame, behind its own items. It is built once and the same primitives are
+ * reused, so a footer or a logo stays put across a slide change instead of
+ * cross-fading. It cannot contain "step". A frame opts out with no_template.
+ *
+ *   template:
+ *     - latex: \color{gray} my talk
+ *       at: footer
  *
  * Placement of a screen item is one of
  *   at: label                # persistent, drag-editable LabelAnchor
