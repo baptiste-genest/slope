@@ -344,9 +344,25 @@ void DeckLoader::build(SlideManager& show)
 {
     if (!source.contains("slides") || !source["slides"].is_array())
         throw std::runtime_error("deck file must contain a top-level \"slides\" array");
-    for (const auto& [key, val] : source.items())
-        if (key != "slides" && key != "commands" && key != "latex" && key != "snippets")
+    static const std::set<std::string> reserved =
+        {"slides", "commands", "latex", "snippets", "template"};
+    deck_groups.clear();
+    built_groups.clear();
+    for (const auto& [key, val] : source.items()) {
+        if (reserved.count(key))
+            continue;
+        // any other top level list is a named group, expanded wherever the
+        // bare "- key" appears in a frame
+        if (!val.is_array()) {
             spdlog::warn("deck: ignored top-level key \"{}\"", key);
+            continue;
+        }
+        for (const auto& it : val)
+            if (it.is_string() && it == "step")
+                throw std::runtime_error("group \"" + key + "\" cannot contain \"step\", "
+                                         "it is expanded inside one step");
+        deck_groups[key] = val;
+    }
 
     used_primitives.clear();
     named.clear();
@@ -410,6 +426,32 @@ void DeckLoader::build(SlideManager& show)
         show.addSlide(Slide());
 }
 
+// A group is built the first time it is used and re-added afterwards, like a
+// C++ registered one, so reusing it keeps the same primitives across slides.
+void DeckLoader::expandGroup(SlideManager& show, const std::string& name)
+{
+    auto it = deck_groups.find(name);
+    if (it == deck_groups.end())
+        throw std::runtime_error("deck references unknown group \"" + name + "\", declare it "
+                                 "as a top level list beside \"slides\"");
+    if (auto built = built_groups.find(name); built != built_groups.end()) {
+        for (const auto& [ptr, sis] : built->second) {
+            show.addToLastSlide(ptr, sis);
+            used_primitives.insert(ptr);
+        }
+        return;
+    }
+    std::set<PrimitivePtr> before;
+    for (const auto& [ptr, sis] : show.getLastSlide())
+        before.insert(ptr);
+    buildFrame(show, it->second);
+    std::vector<PrimitiveInSlide> made;
+    for (const auto& pis : show.getLastSlide().getDepthSorted())
+        if (!before.count(pis.first))
+            made.push_back(pis);
+    built_groups[name] = made;
+}
+
 void DeckLoader::buildFrame(SlideManager& show, const json& items)
 {
     for (const auto& item : items) {
@@ -419,8 +461,13 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
             step_primitives.clear();
             continue;
         }
+        if (item.is_string()) {
+            expandGroup(show, item.get<std::string>());
+            continue;
+        }
         if (!item.is_object())
-            throw std::runtime_error("deck items must be yaml maps (or the bare \"- step\" marker)");
+            throw std::runtime_error("deck items must be yaml maps, the bare \"- step\" marker, "
+                                     "or the bare name of a top level group");
         if (item.contains("step"))
             throw std::runtime_error("\"step:\" subtrees were replaced by the flat "
                                      "\"- step\" marker : items after it belong to the next step");
