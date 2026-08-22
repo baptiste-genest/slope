@@ -45,7 +45,8 @@ struct Slide : public std::map<PrimitivePtr,StateInSlide> {
 
     std::string getTitle() const;
 
-    void setCam() const;
+    void setCam(bool allow_fly = true, bool default_fly = false) const;
+    bool hasCamera() const {return camera != nullptr;}
 
     bool sameCamera(const Slide& other) const;
 

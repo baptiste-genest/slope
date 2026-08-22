@@ -108,6 +108,8 @@ constexpr SLGLenum SL_MAJOR_VERSION              = 0x821B;
 constexpr SLGLenum SL_MINOR_VERSION              = 0x821C;
 constexpr SLGLenum SL_MAX_TEXTURE_IMAGE_UNITS    = 0x8872;
 constexpr SLGLenum SL_COLOR_CLEAR_VALUE          = 0x0C22;
+constexpr SLGLenum SL_ACTIVE_UNIFORMS            = 0x8B86;
+constexpr SLGLenum SL_ACTIVE_UNIFORM_MAX_LENGTH  = 0x8B87;
 
 struct GL {
     // shaders / programs
@@ -131,6 +133,10 @@ struct GL {
     void (*Uniform4f)(SLGLint, SLGLfloat, SLGLfloat, SLGLfloat, SLGLfloat) = nullptr;
     void (*Uniform1i)(SLGLint, SLGLint) = nullptr;
     void (*Uniform1fv)(SLGLint, SLGLsizei, const SLGLfloat*) = nullptr;
+    void (*Uniform2fv)(SLGLint, SLGLsizei, const SLGLfloat*) = nullptr;
+    void (*Uniform3fv)(SLGLint, SLGLsizei, const SLGLfloat*) = nullptr;
+    void (*GetActiveUniform)(SLGLuint, SLGLuint, SLGLsizei, SLGLsizei*, SLGLint*,
+                             SLGLenum*, SLGLchar*) = nullptr;
     void (*UniformMatrix4fv)(SLGLint, SLGLsizei, unsigned char, const SLGLfloat*) = nullptr;
     // vertex arrays
     void (*GenVertexArrays)(SLGLsizei, SLGLuint*) = nullptr;
@@ -215,7 +221,8 @@ GL& gl()
     L(UseProgram,"glUseProgram"); L(GetUniformLocation,"glGetUniformLocation");
     L(Uniform1f,"glUniform1f"); L(Uniform2f,"glUniform2f");
     L(Uniform3f,"glUniform3f"); L(Uniform4f,"glUniform4f"); L(Uniform1i,"glUniform1i");
-    L(Uniform1fv,"glUniform1fv");
+    L(Uniform1fv,"glUniform1fv"); L(Uniform2fv,"glUniform2fv");
+    L(Uniform3fv,"glUniform3fv"); L(GetActiveUniform,"glGetActiveUniform");
     L(UniformMatrix4fv,"glUniformMatrix4fv");
     L(GenVertexArrays,"glGenVertexArrays"); L(BindVertexArray,"glBindVertexArray");
     L(DeleteVertexArrays,"glDeleteVertexArrays");
@@ -909,6 +916,119 @@ void Shader::bindDynamic(const std::string& n, std::function<int(scalar*)> f)
     };
 }
 
+int Shader::uniformLocation(const std::string& name)
+{
+    auto it = user_uniform_loc.find(name);
+    if (it == user_uniform_loc.end())
+        it = user_uniform_loc.emplace(
+            name, gl().GetUniformLocation(program, name.c_str())).first;
+    return it->second;
+}
+
+// arrays are reported as "name[0]", and their size is the declared length
+int Shader::arrayCapacity(const std::string& name)
+{
+    auto it = array_capacity.find(name);
+    if (it != array_capacity.end())
+        return it->second;
+
+    auto& g = gl();
+    SLGLint count = 0, max_len = 0;
+    g.GetProgramiv(program, SL_ACTIVE_UNIFORMS, &count);
+    g.GetProgramiv(program, SL_ACTIVE_UNIFORM_MAX_LENGTH, &max_len);
+    std::vector<char> buf(std::max(max_len, 1) + 1, 0);
+
+    int cap = 0;
+    for (SLGLint i = 0; i < count && cap == 0; i++) {
+        SLGLsizei len = 0;
+        SLGLint size = 0;
+        SLGLenum type = 0;
+        g.GetActiveUniform(program, SLGLuint(i), SLGLsizei(buf.size()), &len, &size, &type,
+                           buf.data());
+        std::string u(buf.data(), len > 0 ? std::size_t(len) : 0);
+        auto bracket = u.find('[');
+        if (bracket != std::string::npos)
+            u.resize(bracket);
+        if (u == name)
+            cap = size;
+    }
+    array_capacity[name] = cap;
+    return cap;
+}
+
+void Shader::uploadArray(const std::string& name, int loc, const float* v, int count, int comps)
+{
+    const int cap = arrayCapacity(name);
+    if (cap > 0 && count > cap) {
+        if (array_overflow_said.insert(name).second)
+            spdlog::warn("[shader] {} : \"{}\" is declared [{}], {} values given, the rest is "
+                         "dropped",
+                         source_file.empty() ? std::string("shader")
+                                             : source_file.filename().string(),
+                         name, cap, count);
+        count = cap;
+    }
+    auto& g = gl();
+    switch (comps) {
+    case 1: g.Uniform1fv(loc, count, v); break;
+    case 2: g.Uniform2fv(loc, count, v); break;
+    case 3: g.Uniform3fv(loc, count, v); break;
+    default: return;
+    }
+    if (int l = uniformLocation(name + "_count"); l >= 0)
+        g.Uniform1i(l, count);
+}
+
+// flattens whatever the caller holds into the float buffer GL wants
+template<class T>
+static std::vector<float> flattenArray(const std::vector<T>& v, int comps)
+{
+    std::vector<float> out(v.size() * std::size_t(comps));
+    for (std::size_t i = 0; i < v.size(); i++)
+        for (int c = 0; c < comps; c++)
+            out[i * std::size_t(comps) + std::size_t(c)] = float(v[i](c));
+    return out;
+}
+
+void Shader::setArray(const std::string& n, std::vector<float> data, int comps)
+{
+    const int count = comps > 0 ? int(data.size()) / comps : 0;
+    uniforms[n] = [this, n, data = std::move(data), count, comps](int l, const TimeObject&) {
+        uploadArray(n, l, data.data(), count, comps);
+    };
+}
+
+void Shader::set(const std::string& n, const std::vector<float>& v)
+{ setArray(n, v, 1); }
+void Shader::set(const std::string& n, const std::vector<vec2>& v)
+{ setArray(n, flattenArray(v, 2), 2); }
+void Shader::set(const std::string& n, const std::vector<vec>& v)
+{ setArray(n, flattenArray(v, 3), 3); }
+
+void Shader::bindArray(const std::string& n, std::function<std::vector<float>()> f)
+{
+    uniforms[n] = [this, n, f](int l, const TimeObject&) {
+        auto v = f();
+        uploadArray(n, l, v.data(), int(v.size()), 1);
+    };
+}
+
+void Shader::bindArray(const std::string& n, std::function<std::vector<vec2>()> f)
+{
+    uniforms[n] = [this, n, f](int l, const TimeObject&) {
+        auto v = flattenArray(f(), 2);
+        uploadArray(n, l, v.data(), int(v.size()) / 2, 2);
+    };
+}
+
+void Shader::bindArray(const std::string& n, std::function<std::vector<vec>()> f)
+{
+    uniforms[n] = [this, n, f](int l, const TimeObject&) {
+        auto v = flattenArray(f(), 3);
+        uploadArray(n, l, v.data(), int(v.size()) / 3, 3);
+    };
+}
+
 void Shader::bind(const std::string& name)
 {
     // said once, and only after the first frame, nothing is published before it
@@ -1501,6 +1621,8 @@ void Shader::cacheUniformLocations()
         t.loc_program = 0;
 
     user_uniform_loc.clear();
+    array_capacity.clear();
+    array_overflow_said.clear();
 }
 
 void Shader::setTexture(const std::string &name, const SnippetTexture::Spec &spec,
@@ -1782,12 +1904,9 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
 
     // unknown names resolve to -1 and are skipped, resolved on first use
     for (auto& [name, setter] : uniforms) {
-        auto it = user_uniform_loc.find(name);
-        if (it == user_uniform_loc.end())
-            it = user_uniform_loc.emplace(
-                name, g.GetUniformLocation(program, name.c_str())).first;
-        if (it->second >= 0)
-            setter(it->second, t);
+        const int loc = uniformLocation(name);
+        if (loc >= 0)
+            setter(loc, t);
     }
 
     g.ClearColor(0.f, 0.f, 0.f, 0.f);

@@ -1,12 +1,13 @@
 #include "content/polyscope_primitives/CameraView.h"
 #include "extern/json.hpp"
 
-slope::CameraViewPtr slope::CameraView::Add(const vec& f,const vec& t, const vec &up,bool flyTo)
+slope::CameraViewPtr slope::CameraView::Add(const vec& f,const vec& t, const vec &up,
+                                            std::optional<bool> flyTo)
 {
     return std::make_shared<CameraView>(toVec3(f),toVec3(t),toVec3(up),flyTo);
 }
 
-slope::CameraViewPtr slope::CameraView::Add(std::string file, bool flyTo)
+slope::CameraViewPtr slope::CameraView::Add(std::string file, std::optional<bool> flyTo)
 {
     file = formatCameraFilename(file);
     std::ifstream camfile(file);
