@@ -245,9 +245,8 @@ void slope::Slideshow::handleTransition()
     for (auto& s : uniqueNext(transitions[state.current-1]))
         s->enable();
 
-    // a camera replacing another glides, the first one of a sequence cuts
     if (!slides[state.current-1].sameCamera(slides[state.current]))
-        slides[state.current].setCam(true, slides[state.current-1].hasCamera());
+        slides[state.current].setCam();
 }
 
 

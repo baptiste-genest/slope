@@ -927,12 +927,8 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
     }
     else if (item.contains("camera")) {
         std::string name = item["camera"];
-        // no "fly" leaves it to the show, which cuts to a first camera and
-        // glides to one replacing another
-        std::optional<bool> fly;
-        if (item.contains("fly"))
-            fly = item["fly"].get<bool>();
-        std::string key = name + (fly ? (*fly ? ":fly" : ":cut") : "");
+        bool fly = item.value("fly", false); // a camera cuts unless asked to fly
+        std::string key = name + (fly ? ":fly" : "");
         if (!camera_cache.count(key)) {
             CameraEntry entry;
             entry.cam = CameraView::Add(name, fly);

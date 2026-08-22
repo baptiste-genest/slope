@@ -82,9 +82,9 @@ std::string slope::Slide::getTitle() const {
     return title_primitive->content;
 }
 
-void slope::Slide::setCam(bool allow_fly, bool default_fly) const {
+void slope::Slide::setCam(bool fly) const {
     if (camera)
-        camera->enable(allow_fly, default_fly);
+        camera->enable(fly);
     /*
         else
             polyscope::view::resetCameraToHomeView();
