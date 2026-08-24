@@ -351,6 +351,13 @@ float duringKeyframe(int a, int b, bool sequential) {
     return kfWindow(slidePosition(), float(min(a, b)), float(max(a, b)), sequential);
 }
 float duringKeyframe(int a, int b) { return duringKeyframe(a, b, false); }
+// rises the same as duringKeyframe(kf) but never falls back
+float sinceKeyframe(int kf, bool sequential) {
+    if (kf < 0) return 0.0;
+    float k = sequential ? 2.0 : 1.0;
+    return smoothstep(0.0, 1.0, clamp(k*(slidePosition() - float(kf)) + 1.0, 0.0, 1.0));
+}
+float sinceKeyframe(int kf) { return sinceKeyframe(kf, false); }
 // This fragment in world coordinates, and the world size of one pixel. The
 // only definition of the mapping. Shader::worldToScreen inverts exactly this,
 // so a label placed at a world point cannot drift from what is drawn.
@@ -399,6 +406,7 @@ std::string keyframeDefines()
 const char* kKeyframeFns[] = {
     "afterKeyframe", "beforeKeyframe", "atKeyframe",
     "slidesSinceKeyframe", "secondsSinceKeyframe", "duringKeyframe",
+    "sinceKeyframe",
 };
 
 bool identChar(char c) { return std::isalnum((unsigned char)c) || c == '_'; }

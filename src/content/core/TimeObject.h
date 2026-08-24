@@ -76,6 +76,11 @@ struct TimeObject
     parameter duringKeyframe(const std::string& from, const std::string& to,
                              bool sequential = false) const;
 
+    // Rises the same as duringKeyframe("a") but never falls back, so a value
+    // stays put once its keyframe is reached.
+    //   opacity = t.sinceKeyframe("reveal");
+    parameter sinceKeyframe(const std::string& name, bool sequential = false) const;
+
     TimeObject() {}
     TimeObject(TimeTypeSec it,parameter transition) : inner_time(it),transition_parameter(transition) {}
 
