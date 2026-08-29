@@ -120,8 +120,8 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *         at: column_handle              # label handle, the id by default,
  *         spacing: 0.02                  # or [x,y] for a fixed block
  *         align: left                    # left | center | right
- *       - camera: view_name              # smooth flight by default,
- *         fly: false                     # fly: false to cut instantly
+ *       - camera: view_name              # cuts to the view,
+ *         fly: true                      # fly: true to glide there
  *       - pause: 3
  *       - keyframe: pipeline_done        # labels this frame, C++ updaters
  *                                        # branch on t.afterKeyframe("...")
@@ -190,10 +190,14 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *       steps: 64                               # int   /
  *       speed: {default: 1.0, min: 0, max: 5}   # bounded, so a slider
  *       mode:  {type: int, default: 0}          # explicit type
+ *       grab:  {type: vec3, visible: handle}    # shown without the panel
  *
  * Types are float, int, bool, vec2, vec3 and color (vec4); bounds are optional
  * (unbounded parameters are dragged rather than slid) and apply to every
- * component of a vector at once. Parameters are named "<item>/<uniform>", so
+ * component of a vector at once. "visible" puts a parameter on screen while the
+ * slide reading it is up, with no panel open : "handle" is its manipulator (a
+ * gizmo for a vec3, a screen handle for a vec2), "panel" its widget in a small
+ * window, "both" the two of them. Parameters are named "<item>/<uniform>", so
  * two placements of the same .frag under different ids are tuned separately.
  * A uniform absent from the compiled shader is ignored, like Shader::bind, so
  * an unfinished .frag never breaks the deck.

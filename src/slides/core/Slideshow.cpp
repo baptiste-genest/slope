@@ -37,7 +37,7 @@ void slope::Slideshow::previousFrame()
         t.absolute_frame_number = state.current;
         p->intro(t,s.second);
     }
-    slides[state.current].setCam();
+    slides[state.current].setCam(false); // going back is a jump too
 }
 
 void slope::Slideshow::forceNextFrame()
@@ -55,7 +55,7 @@ void slope::Slideshow::forceNextFrame()
         t.absolute_frame_number = state.current;
         p->intro(t,s.second);
     }
-    slides[state.current].setCam();
+    slides[state.current].setCam(false); // skipping, so no flight either
 }
 
 void slope::Slideshow::play() {
@@ -69,7 +69,9 @@ void slope::Slideshow::play() {
     ImGuiWindowConfig();
     // this window's active id would block ImGuizmo from grabbing the gizmo
     ImGuiWindowFlags flags = window_flags;
-    if (inGizmoMode())
+    // ImGuizmo cannot grab a handle while this window holds an active id, so
+    // the mouse is given up in gizmo mode, and under a shown handle
+    if (inGizmoMode() || Params::cursorOnGizmo())
         flags |= ImGuiWindowFlags_NoMouseInputs;
     ImGui::Begin("Slope",NULL,flags);
 
@@ -126,6 +128,7 @@ void slope::Slideshow::play() {
 
 
     ImGui::End();
+    Params::DrawVisible(wm.isOpen(WindowType::Tuner));
     displayPopUps();
 
     // polyscope aims the gizmos at a window drawn first, hence under everything
@@ -347,7 +350,7 @@ void slope::Slideshow::goToSlide(int slide_nb)
     state.jumpTo(slide_nb);
     for (auto& p : slides[state.current])
         p.first->enable();
-    slides[state.current].setCam();
+    slides[state.current].setCam(false); // a jump lands, it does not fly
 }
 
 void slope::Slideshow::run()
@@ -656,8 +659,11 @@ void slope::Slideshow::addKeyboardInputs()
 
 bool slope::Slideshow::inGizmoMode() const
 {
-    return Params::hasLiveGizmo() || wm.isOpen(WindowType::Transform);
+    // a mode is something you enter, a visible parameter's handle is not one
+    return wm.isOpen(WindowType::Transform)
+           || (wm.isOpen(WindowType::Tuner) && Params::hasLiveGizmo());
 }
+
 
 void slope::Slideshow::handleGuizmos()
 {

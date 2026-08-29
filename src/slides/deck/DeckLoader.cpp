@@ -927,7 +927,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
     }
     else if (item.contains("camera")) {
         std::string name = item["camera"];
-        bool fly = item.value("fly", true);
+        bool fly = item.value("fly", false); // a camera cuts unless asked to fly
         std::string key = name + (fly ? ":fly" : "");
         if (!camera_cache.count(key)) {
             CameraEntry entry;

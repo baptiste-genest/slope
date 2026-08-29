@@ -26,7 +26,7 @@ static const char* uniform_types = "float/int/bool/vec2/vec3/dir/color";
 // The two differ only for an array element, "controls[3]".
 static void declareUniform(const ShaderPtr& shader, const std::string& glsl,
                            const std::string& pname, const std::string& type,
-                           const json& def, scalar mn, scalar mx)
+                           const json& def, scalar mn, scalar mx, Params::Visible vis)
 {
     if (type == "float") {
         auto p = Params::Add(pname, def.is_null() ? 0. : def.get<scalar>(), mn, mx);
@@ -54,6 +54,26 @@ static void declareUniform(const ShaderPtr& shader, const std::string& glsl,
     } else {
         throw std::runtime_error("uniform \"" + glsl + "\" : unknown type \"" + type
                                  + "\" (" + uniform_types + ")");
+    }
+    if (vis != Params::Visible::None)
+        Params::setVisible(pname, vis);
+}
+
+// "visible: handle", or true for both the widget and the manipulator
+static Params::Visible readVisible(const std::string& name, const json& spec)
+{
+    if (!spec.contains("visible"))
+        return Params::Visible::None;
+    const json& v = spec["visible"];
+    if (v.is_boolean())
+        return v.get<bool>() ? Params::Visible::Both : Params::Visible::None;
+    if (!v.is_string())
+        throw std::runtime_error("uniform \"" + name + "\" : \"visible\" is none, panel, "
+                                 "handle or both");
+    try {
+        return Params::parseVisible(v.get<std::string>());
+    } catch (const std::exception& e) {
+        throw std::runtime_error("uniform \"" + name + "\" : " + e.what());
     }
 }
 
@@ -93,9 +113,15 @@ static int arrayCount(const std::string& name, const std::string& type)
 //     speed:    {type: float, default: 1.0, min: 0, max: 5}  # bounds -> slider
 //     controls: vec3[8]                             # an array, one parameter
 //                                                   # per element, controls[i]
+//     grab:     {type: vec3, visible: handle}       # its manipulator is on as
+//                                                   # soon as the slide is, no
+//                                                   # panel needed. none, panel,
+//                                                   # handle or both
 //
 // An array's "default" is a list of one value per element. Quote the type in a
-// flow mapping, {type: "vec3[8]", ...}, where yaml reads brackets itself.
+// flow mapping, {type: "vec3[8]", ...}, where yaml reads brackets itself. This
+// is a row of knobs, one parameter each ; an array of values computed in C++
+// goes through Shader::set/bindArray instead.
 //
 // The parameter is named "<item>/<uniform>", which is also how the Tuner panel
 // groups it. A uniform the compiled program does not declare is ignored, like
@@ -161,9 +187,11 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
         json def;
         std::string type;
         scalar mn = 0, mx = 0;
+        Params::Visible vis = Params::Visible::None;
         if (spec.is_string()) {
             type = spec.get<std::string>();
         } else if (spec.is_object()) {
+            vis = readVisible(name, spec);
             def = spec.value("default", json());
             type = spec.value("type", "");
             mn = spec.value("min", scalar(0));
@@ -179,7 +207,7 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
 
         int count = arrayCount(name, type);
         if (count == 0) {
-            declareUniform(shader, name, ref + "/" + name, type, def, mn, mx);
+            declareUniform(shader, name, ref + "/" + name, type, def, mn, mx, vis);
             declared.push_back(name);
             continue;
         }
@@ -191,7 +219,7 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
         for (int i = 0; i < count; i++) {
             std::string idx = "[" + std::to_string(i) + "]";
             declareUniform(shader, name + idx, ref + "/" + name + idx, base,
-                           def.is_null() ? json() : def[i], mn, mx);
+                           def.is_null() ? json() : def[i], mn, mx, vis);
             declared.push_back(name + idx);
         }
     }

@@ -4,7 +4,11 @@
 #include "spdlog/spdlog.h"
 #include "polyscope/transformation_gizmo.h"
 #include "polyscope/view.h"
+#include "polyscope/options.h"
 #include <spdlog/spdlog.h>
+#include <algorithm>
+#include <cmath>
+#include <cfloat>
 
 namespace slope {
 
@@ -34,6 +38,7 @@ static std::shared_ptr<polyscope::TransformationGizmo> makeVecGizmo(const std::s
 
 std::map<std::string, Params::EntryPtr> Params::registry;
 std::set<std::string> Params::dirty;
+std::set<std::string> Params::auto_manipulators;
 std::set<std::string> Params::edited;
 json Params::file_values = json::object();
 bool Params::file_loaded = false;
@@ -136,6 +141,57 @@ int Params::read(const std::string& name, scalar* out4)
     return 0;
 }
 
+int Params::write(const std::string& name, const scalar* in, int n)
+{
+    auto it = registry.find(name);
+    if (it == registry.end())
+        return 0;
+    const EntryPtr& e = it->second;
+    const int comps = components(name);
+    if (n < comps) {
+        spdlog::warn("parameter \"{}\" has {} components, {} given", name, comps, n);
+        return 0;
+    }
+    // a driven parameter is a used one, the Tuner shows it like a read does
+    e->last_read = frame;
+
+    auto written = [&]{ e->onWritten(); return comps; };
+    if (auto p = std::dynamic_pointer_cast<Vec2Entry>(e))  { p->value = vec2(in[0], in[1]); return written(); }
+    if (auto p = std::dynamic_pointer_cast<VecEntry>(e))   { p->value = vec(in[0], in[1], in[2]); return written(); }
+    if (auto p = std::dynamic_pointer_cast<DirEntry>(e))   { p->value = vec(in[0], in[1], in[2]); return written(); }
+    if (auto p = std::dynamic_pointer_cast<ColorEntry>(e)) {
+        p->value = RGBA(float(in[0]), float(in[1]), float(in[2]), float(in[3]));
+        return written();
+    }
+    if (auto p = std::dynamic_pointer_cast<ScalarEntry>(e)) { p->value = in[0]; return written(); }
+    if (auto p = std::dynamic_pointer_cast<IntEntry>(e))    { p->value = int(std::lround(in[0])); return written(); }
+    if (auto p = std::dynamic_pointer_cast<BoolEntry>(e))   { p->value = in[0] != 0; return written(); }
+    return 0;
+}
+
+bool Params::write(const std::string& name, scalar v)
+{
+    return write(name, &v, 1) > 0;
+}
+
+bool Params::write(const std::string& name, const vec2& v)
+{
+    const scalar in[2] = {v(0), v(1)};
+    return write(name, in, 2) > 0;
+}
+
+bool Params::write(const std::string& name, const vec& v)
+{
+    const scalar in[3] = {v(0), v(1), v(2)};
+    return write(name, in, 3) > 0;
+}
+
+bool Params::write(const std::string& name, const RGBA& v)
+{
+    const scalar in[4] = {v.Value.x, v.Value.y, v.Value.z, v.Value.w};
+    return write(name, in, 4) > 0;
+}
+
 Params::ScalarParam Params::Add(const std::string& name, scalar def, scalar min, scalar max)
 {
     auto e = addEntry<ScalarEntry>(name);
@@ -228,6 +284,11 @@ scalar Params::get(const std::string& name, scalar def, scalar min, scalar max)
 
 // ------------------------------------------------------------------ widgets
 
+static scalar clampToBounds(scalar v, scalar min, scalar max)
+{
+    return min < max ? std::min(std::max(v, min), max) : v;
+}
+
 bool Params::ScalarEntry::drawUI(const char* label)
 {
     float f = value;
@@ -239,11 +300,22 @@ bool Params::ScalarEntry::drawUI(const char* label)
     return changed;
 }
 
+void Params::ScalarEntry::onWritten()
+{
+    value = clampToBounds(value, min, max);
+}
+
 bool Params::IntEntry::drawUI(const char* label)
 {
     return (min < max)
         ? ImGui::SliderInt(label, &value, min, max)
         : ImGui::DragInt(label, &value);
+}
+
+void Params::IntEntry::onWritten()
+{
+    if (min < max)
+        value = std::min(std::max(value, min), max);
 }
 
 bool Params::BoolEntry::drawUI(const char* label)
@@ -284,6 +356,12 @@ bool Params::Vec2Entry::drawUI(const char* label)
     return changed;
 }
 
+void Params::Vec2Entry::onWritten()
+{
+    for (int i = 0; i < 2; i++)
+        value(i) = clampToBounds(value(i), min, max);
+}
+
 json Params::Vec2Entry::toJson() const
 {
     return {value(0), value(1)};
@@ -303,6 +381,16 @@ bool Params::VecEntry::drawUI(const char* label)
     if (changed)
         value = vec(f[0], f[1], f[2]);
     return changed;
+}
+
+void Params::VecEntry::onWritten()
+{
+    for (int i = 0; i < 3; i++)
+        value(i) = clampToBounds(value(i), min, max);
+    // the 3D manipulator only follows the value when the panel moves it
+    auto g = vec_gizmos.find(name);
+    if (g != vec_gizmos.end())
+        g->second->setPosition(glm::vec3(float(value(0)), float(value(1)), float(value(2))));
 }
 
 json Params::VecEntry::toJson() const
@@ -333,26 +421,27 @@ static vec2 handleValue(const ImVec2& p)
                 std::clamp(scalar(1.f - p.y / d.y), scalar(0), scalar(1)));
 }
 
-// toggle and drag, true when the handle moved the value
-static bool drawVec2Handle(const std::string& name, vec2& value)
+// the panel's toggle, the handle itself is drawn by DrawVisible
+static void vec2HandleButton(const std::string& name)
 {
     auto it = vec2_handles.find(name);
     bool active = it != vec2_handles.end();
 
     ImGui::SameLine();
-    if (ImGui::SmallButton(active ? "2D*" : "2D")) {
-        if (active) {
-            vec2_handles.erase(it);
-            if (dragged_handle == name)
-                dragged_handle.clear();
-        } else {
-            vec2_handles.insert(name);
-        }
-        return false;
+    if (!ImGui::SmallButton(active ? "2D*" : "2D"))
+        return;
+    if (active) {
+        vec2_handles.erase(it);
+        if (dragged_handle == name)
+            dragged_handle.clear();
+    } else {
+        vec2_handles.insert(name);
     }
-    if (!active)
-        return false;
+}
 
+// drag and draw, true when the handle moved the value
+static bool dragVec2Handle(const std::string& name, vec2& value)
+{
     const ImVec2 c = handlePixel(value);
     const ImVec2 m = ImGui::GetIO().MousePos;
     const float  r = 9.f;
@@ -385,36 +474,55 @@ static bool drawVec2Handle(const std::string& name, vec2& value)
     return changed;
 }
 
+// where the manipulator sits on screen, so the mouse is yielded to it there
+// and nowhere else
+static bool cursorNearGizmo(const vec& world)
+{
+    glm::mat4 VP = polyscope::view::getCameraPerspectiveMatrix()
+                   * polyscope::view::getCameraViewMatrix();
+    glm::vec4 clip = VP * glm::vec4(float(world(0)), float(world(1)), float(world(2)), 1.f);
+    if (clip.w <= 0)
+        return false;
+    const ImVec2 d = ImGui::GetIO().DisplaySize;
+    const ImVec2 p((clip.x / clip.w * 0.5f + 0.5f) * d.x,
+                   (0.5f - clip.y / clip.w * 0.5f) * d.y);
+    const ImVec2 m = ImGui::GetIO().MousePos;
+    // the arrows reach about a tenth of the height, times polyscope's ui scale
+    const float r = std::clamp(0.1f * d.y * float(polyscope::options::uiScale), 60.f, 160.f);
+    return (m.x - p.x) * (m.x - p.x) + (m.y - p.y) * (m.y - p.y) < r * r;
+}
+
+static bool cursor_on_gizmo = false;
+
 static void enableGizmo(const std::string& name, const vec& value)
 {
     if (!vec_gizmos.count(name))
         vec_gizmos[name] = makeVecGizmo("param " + name, value);
 }
 
-// gizmo toggle and two way sync, true when the gizmo moved the value
-static bool drawVecGizmoLine(const std::string& name, vec& value, bool value_changed)
+// the panel's toggle, the widget is polyscope's and lives until it is dropped
+static void vecGizmoButton(const std::string& name, const vec& value)
 {
     auto it = vec_gizmos.find(name);
     bool active = it != vec_gizmos.end();
 
     ImGui::SameLine();
-    if (ImGui::SmallButton(active ? "3D*" : "3D")) {
-        if (active) {
-            vec_gizmos.erase(it); // the deleter disables and deregisters it
-            return false;
-        }
+    if (!ImGui::SmallButton(active ? "3D*" : "3D"))
+        return;
+    if (active)
+        vec_gizmos.erase(it); // the deleter disables and deregisters it
+    else
         vec_gizmos[name] = makeVecGizmo("param " + name, value);
-        return false;
-    }
-    if (!active)
+}
+
+// reads the manipulator back, true when it moved the value
+static bool syncVecGizmo(const std::string& name, vec& value)
+{
+    auto it = vec_gizmos.find(name);
+    if (it == vec_gizmos.end())
         return false;
 
     auto& g = it->second;
-    if (value_changed) {
-        g->setPosition(glm::vec3(float(value(0)), float(value(1)), float(value(2))));
-        return false;
-    }
-
     glm::vec3 p = g->getPosition();
     vec moved((scalar)p.x, (scalar)p.y, (scalar)p.z);
     if ((moved - value).norm() < 1e-6) // float round trip is not an edit
@@ -502,6 +610,11 @@ bool Params::DirEntry::drawUI(const char* label)
     return changed;
 }
 
+void Params::DirEntry::onWritten()
+{
+    value = value.norm() > 1e-9 ? vec(value.normalized()) : vec(0,0,1);
+}
+
 json Params::DirEntry::toJson() const
 {
     return {value(0), value(1), value(2)};
@@ -511,6 +624,107 @@ void Params::DirEntry::fromJson(const json& j)
 {
     vec v((scalar)j[0], (scalar)j[1], (scalar)j[2]);
     value = v.norm() > 1e-9 ? vec(v.normalized()) : vec(0,0,1);
+}
+
+// ------------------------------------------------------------------ visible
+
+void Params::setVisible(const std::string& name, Visible v)
+{
+    auto it = registry.find(name);
+    if (it == registry.end()) {
+        spdlog::warn("parameter \"{}\" is not registered, nothing to show", name);
+        return;
+    }
+    it->second->vis = v;
+}
+
+Params::Visible Params::getVisible(const std::string& name)
+{
+    auto it = registry.find(name);
+    return it == registry.end() ? Visible::None : it->second->vis;
+}
+
+Params::Visible Params::parseVisible(const std::string& mode)
+{
+    if (mode == "none")   return Visible::None;
+    if (mode == "panel")  return Visible::Panel;
+    if (mode == "handle") return Visible::Handle;
+    if (mode == "both")   return Visible::Both;
+    throw std::runtime_error("unknown visibility \"" + mode
+                             + "\" (none/panel/handle/both)");
+}
+
+void Params::DrawVisible(bool panel_open)
+{
+    std::vector<std::pair<std::string, EntryPtr>> rows;
+    bool near_gizmo = false;
+
+    for (auto& [name, e] : registry) {
+        // same reading as the panel's, an updater read it in the last frames
+        const bool used = e->last_read >= frame - 2;
+        const bool wants_handle = used && (e->vis == Visible::Handle || e->vis == Visible::Both);
+        auto v  = std::dynamic_pointer_cast<VecEntry>(e);
+        auto v2 = std::dynamic_pointer_cast<Vec2Entry>(e);
+        const bool manipulable = v || v2;
+
+        if (wants_handle && manipulable) {
+            if (auto_manipulators.insert(name).second) {
+                if (v)  enableGizmo(name, v->value);
+                if (v2) vec2_handles.insert(name);
+            }
+        } else if (auto_manipulators.erase(name)) {
+            vec_gizmos.erase(name);
+            vec2_handles.erase(name);
+            if (dragged_handle == name)
+                dragged_handle.clear();
+        }
+
+        // every manipulator on screen is read here, the panel only toggles them
+        bool changed = false;
+        if (v) {
+            if (vec_gizmos.count(name))
+                near_gizmo |= cursorNearGizmo(v->value);
+            changed = syncVecGizmo(name, v->value);
+        }
+        else if (v2 && vec2_handles.count(name))
+            changed = dragVec2Handle(name, v2->value);
+        if (changed) {
+            dirty.insert(name);
+            edited.insert(name);
+        }
+
+        // a type with no manipulator falls back to its widget
+        if (used && (e->vis == Visible::Panel || e->vis == Visible::Both
+                     || (e->vis == Visible::Handle && !manipulable)))
+            rows.emplace_back(name, e);
+    }
+
+    // a drag that wanders off the gizmo keeps the mouse until it is released
+    cursor_on_gizmo = near_gizmo || (cursor_on_gizmo && ImGui::IsMouseDown(0));
+
+    if (panel_open || rows.empty())
+        return;
+
+    // wide enough for the title, a row of one narrow widget is not
+    ImGui::SetNextWindowSizeConstraints(ImVec2(190, 0), ImVec2(FLT_MAX, FLT_MAX));
+    ImGui::Begin("slide parameters", nullptr, ImGuiWindowFlags_AlwaysAutoResize
+                                              | ImGuiWindowFlags_NoFocusOnAppearing);
+    for (auto& [name, e] : rows) {
+        auto slash = name.find('/');
+        std::string label = slash == std::string::npos ? name : name.substr(slash + 1);
+        ImGui::PushID(name.c_str());
+        if (e->drawUI(label.c_str())) {
+            e->onWritten();
+            dirty.insert(name);
+            edited.insert(name);
+        }
+        ImGui::PopID();
+    }
+    // keep the camera still while tweaking, as the panel does
+    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)
+        || ImGui::IsAnyItemActive())
+        ImGui::SetNextFrameWantCaptureMouse(true);
+    ImGui::End();
 }
 
 // -------------------------------------------------------------------- panel
@@ -558,13 +772,14 @@ void Params::DrawPanel()
         if (auto v = std::dynamic_pointer_cast<VecEntry>(e)) {
             if (handles_on)
                 enableGizmo(name, v->value);
-            changed |= drawVecGizmoLine(name, v->value, changed);
+            vecGizmoButton(name, v->value);
         } else if (auto v2 = std::dynamic_pointer_cast<Vec2Entry>(e)) {
             if (handles_on)
                 vec2_handles.insert(name);
-            changed |= drawVec2Handle(name, v2->value);
+            vec2HandleButton(name);
         }
         if (changed) {
+            e->onWritten(); // the manipulator follows the widget
             dirty.insert(name);
             edited.insert(name);
         }
@@ -595,6 +810,11 @@ bool Params::hasDirty()
     return !dirty.empty();
 }
 
+bool Params::cursorOnGizmo()
+{
+    return cursor_on_gizmo;
+}
+
 bool Params::hasLiveGizmo()
 {
     return !vec_gizmos.empty() || !vec2_handles.empty();
@@ -602,9 +822,15 @@ bool Params::hasLiveGizmo()
 
 void Params::clearGizmos()
 {
-    vec_gizmos.clear(); // the deleters disable and deregister the widgets
-    vec2_handles.clear();
-    dragged_handle.clear();
+    // the panel only governs what it turned on, a visible parameter keeps its
+    // manipulator wherever the panel is
+    for (auto it = vec_gizmos.begin(); it != vec_gizmos.end();)
+        it = auto_manipulators.count(it->first) ? std::next(it)
+                                                : vec_gizmos.erase(it);
+    for (auto it = vec2_handles.begin(); it != vec2_handles.end();)
+        it = auto_manipulators.count(*it) ? std::next(it) : vec2_handles.erase(it);
+    if (!vec2_handles.count(dragged_handle))
+        dragged_handle.clear();
 }
 
 void Params::saveAllDirty()

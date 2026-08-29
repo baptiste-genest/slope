@@ -74,9 +74,10 @@ namespace slope {
  *              from_begin, from_action, delta_time, absolute_frame_number,
  *              transition_parameter (0 to 1 across a slide change, 1 when
  *              settled), and t:afterKeyframe/beforeKeyframe/atKeyframe/
- *              slidesSinceKeyframe/secondsSinceKeyframe/duringKeyframe("name")
- *              plus t:slidePosition(). from_begin is the free running clock an
- *              animation usually wants. A snippet has no moment of appearing,
+ *              slidesSinceKeyframe/secondsSinceKeyframe/duringKeyframe/
+ *              sinceKeyframe("name") plus t:slidePosition(). from_begin is
+ *              the free running clock an animation usually wants. A snippet
+ *              has no moment of appearing,
  *              so there is no inner_time and no relative_frame_number (the
  *              shader uniforms of those names are per primitive and do exist)
  *   param      param("x", def, min, max) declares a parameter with its slider

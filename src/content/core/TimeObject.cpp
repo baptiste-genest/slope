@@ -81,6 +81,13 @@ parameter TimeObject::duringKeyframe(const std::string& from, const std::string&
     return window(slidePosition(), parameter(a), parameter(b), sequential);
 }
 
+parameter TimeObject::sinceKeyframe(const std::string& name, bool sequential) const {
+    int k = keyframeIndex(keyframes, name);
+    if (k < 0) return 0;
+    const parameter kk = sequential ? 2 : 1;
+    return smoothstep(std::clamp<parameter>(kk*(slidePosition() - parameter(k)) + 1, 0, 1));
+}
+
 int TimeObject::slidesSinceKeyframe(const std::string& name) const {
     int k = keyframeIndex(keyframes, name);
     if (k < 0)

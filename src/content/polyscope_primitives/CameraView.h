@@ -20,7 +20,8 @@ public:
     static glm::vec3 toVec3(const vec& x) {
         return glm::vec3(x(0),x(1),x(2));
     }
-    CameraView(const glm::vec3 &from, const glm::vec3 &to, const glm::vec3 &up,bool fly = false) : from(from),to(to),up(up),flyTo(fly) {
+    CameraView(const glm::vec3 &from, const glm::vec3 &to, const glm::vec3 &up,
+               bool fly = false) : from(from),to(to),up(up),flyTo(fly) {
         fromFile = false;
     }
 
@@ -29,14 +30,17 @@ public:
     }
 
     CameraView() {}
-    static CameraViewPtr Add(const vec& from,const vec& to,const vec& up = vec(0,1,0),bool flyTo = false);
+    static CameraViewPtr Add(const vec& from,const vec& to,const vec& up = vec(0,1,0),
+                             bool flyTo = false);
     static CameraViewPtr Add(std::string json_file,bool flyTo = false);
 
 public:
-    void enable() {
+    // allow_fly is false where the view must be reached at once, a jump
+    // through the slide menu or a skipped frame
+    void enable(bool allow_fly = true) {
         // a flight animates over several frames, an export would catch it
         // mid-flight, so jump to the view instead
-        bool fly = flyTo && !Options::ExportMode;
+        bool fly = flyTo && allow_fly && !Options::ExportMode;
         if (fromFile) {
             // polyscope 2.6.1's setViewFromJson never restores "fov" (its
             // key check is inverted), so apply the saved fov beforehand, both

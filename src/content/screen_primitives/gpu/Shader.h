@@ -5,6 +5,7 @@
 #include "content/authoring/Snippet.h"
 #include <filesystem>
 #include <functional>
+#include <set>
 #include "extern/json.hpp"
 
 namespace slope {
@@ -85,6 +86,10 @@ namespace slope {
  * set/bind accept float, int, vec2, vec (vec3) and RGBA (vec4). Unknown names
  * are silently ignored, so this never throws while you are editing live.
  * bind() uploads every scalar as a float, an "uniform int" wants bindInt().
+ *
+ * A "uniform float w[64];" is fed from a vector by set/bindArray, up to the
+ * length it declares. Past a few hundred values a texture or a buffer is the
+ * right shape, uniform storage is small and shared by the whole shader.
  *
  * From a deck manifest, "uniforms:" on a shader item declares them instead,
  * each backed by a persistent Params entry (Tuner panel, params.json) :
@@ -203,6 +208,28 @@ public:
     // resolves to nothing uploads nothing, and says so once.
     void bind(const std::string& name);
     void bind(std::initializer_list<const char*> names);
+    // An array uniform, declared with a compile time length in the shader
+    //
+    //   uniform float energies[64];   // in the .frag
+    //   uniform int   energies_count; // optional, how many are live
+    //   fx->set("energies", e);
+    //
+    // The upload is clamped to the declared length, and <name>_count receives
+    // how many elements were written when the shader asks for it. Uniform
+    // storage is a few thousand floats shared by the whole shader, so this is
+    // for a few hundred values at most ; a grid wants setTexture and bigger
+    // data setBuffer.
+    //
+    // This is data, not knobs. A deck's "controls: vec3[8]" is the other half,
+    // one tunable parameter per element, uploaded element by element ; the two
+    // must not name the same uniform, the per element writes land last.
+    void set(const std::string& name, const std::vector<float>& v);
+    void set(const std::string& name, const std::vector<vec2>& v);
+    void set(const std::string& name, const std::vector<vec>& v);
+    // the same, re-read every frame like bind()
+    void bindArray(const std::string& name, std::function<std::vector<float>()> f);
+    void bindArray(const std::string& name, std::function<std::vector<vec2>()> f);
+    void bindArray(const std::string& name, std::function<std::vector<vec>()> f);
     void unset(const std::string& name) { uniforms.erase(name); }
     // whether a value is currently attached to that name, which a declarative
     // owner checks before dropping a bind it may not own
@@ -409,6 +436,12 @@ private:
     using UniformSetter = std::function<void(int /*location*/, const TimeObject&)>;
     std::map<std::string, UniformSetter> uniforms;
 
+    // array uniforms, clamped to the length the shader declared
+    void setArray(const std::string& name, std::vector<float> data, int comps);
+    void uploadArray(const std::string& name, int loc, const float* v, int count, int comps);
+    int  arrayCapacity(const std::string& name);
+    int  uniformLocation(const std::string& name);
+
     // .cpp-side helpers building the GL upload closures for bind()
     void bindF (const std::string& name, std::function<float(const TimeObject&)> f);
     void bindV2(const std::string& name, std::function<vec2(const TimeObject&)> f);
@@ -525,6 +558,9 @@ private:
     BuiltinLocs uloc;
     // user uniforms are named at runtime, so these fill in lazily
     std::map<std::string, int> user_uniform_loc;
+    // declared length of an array uniform, resolved per link
+    std::map<std::string, int> array_capacity;
+    std::set<std::string> array_overflow_said;
     void cacheUniformLocations();
 
     int res_x = int(Options::ScreenResolutionWidth), res_y = int(Options::ScreenResolutionHeight);

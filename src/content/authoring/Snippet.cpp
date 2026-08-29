@@ -507,6 +507,19 @@ int l_duringKeyframe(lua_State* s) {
     return 1;
 }
 
+// t:sinceKeyframe("a"), with an optional trailing true for a steeper rise.
+// Same shape as t:duringKeyframe with one name, minus the fall.
+int l_sinceKeyframe(lua_State* s) {
+    const int top = lua_gettop(s);
+    int i = 1;
+    while (i <= top && lua_type(s, i) != LUA_TSTRING) i++;
+    if (i > top) { lua_pushnumber(s, 0); return 1; }
+    const char* a = lua_tostring(s, i);
+    const bool seq = lua_isboolean(s, i + 1) && lua_toboolean(s, i + 1);
+    lua_pushnumber(s, current_time.sinceKeyframe(a, seq));
+    return 1;
+}
+
 int l_slidePosition(lua_State* s) {
     lua_pushnumber(s, current_time.slidePosition());
     return 1;
@@ -595,6 +608,7 @@ void buildBuiltins() {
     setField(L, t, "slidesSinceKeyframe", l_slidesSinceKeyframe);
     setField(L, t, "secondsSinceKeyframe", l_secondsSinceKeyframe);
     setField(L, t, "duringKeyframe", l_duringKeyframe);
+    setField(L, t, "sinceKeyframe", l_sinceKeyframe);
     setField(L, t, "slidePosition", l_slidePosition);
     lua_pushvalue(L, t);
     time_ref = luaL_ref(L, LUA_REGISTRYINDEX);

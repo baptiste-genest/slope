@@ -14,9 +14,18 @@ add_executable(test_snippet test_snippet.cpp)
 target_link_libraries(test_snippet PRIVATE slope)
 add_test(NAME lua_snippets COMMAND test_snippet)
 
+add_executable(test_params test_params.cpp)
+target_link_libraries(test_params PRIVATE slope)
+add_test(NAME params_write COMMAND test_params)
+
 add_executable(test_deck_shader test_deck_shader.cpp)
 target_link_libraries(test_deck_shader PRIVATE slope)
 add_test(NAME deck_shader_inputs COMMAND test_deck_shader)
+
+add_executable(test_shader_array test_shader_array.cpp)
+target_link_libraries(test_shader_array PRIVATE slope)
+add_test(NAME shader_array_uniforms COMMAND test_shader_array)
+set_tests_properties(shader_array_uniforms PROPERTIES SKIP_RETURN_CODE 125)
 
 add_executable(test_export test_export.cpp)
 target_link_libraries(test_export PRIVATE slope)
