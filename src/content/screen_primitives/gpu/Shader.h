@@ -44,6 +44,7 @@ namespace slope {
  *   uniform int   absolute_frame_number; // current slide index in the deck
  *   uniform int   relative_frame_number; // slides since this shader appeared
  *   uniform float transition_parameter;  // 0 -> 1 across the intro / outro
+ *   uniform float slide_progress;        // 0 -> 1 across the whole slide change
  *
  * and its queries, under the same names and taking the keyframe's name, as
  * C++ and Lua do. GLSL has no string type, so the name is replaced by its
@@ -544,7 +545,7 @@ private:
         int iFrame = -1, iFrameRate = -1;
         int from_begin = -1, from_action = -1, inner_time = -1, delta_time = -1;
         int absolute_frame_number = -1, relative_frame_number = -1;
-        int transition_parameter = -1;
+        int transition_parameter = -1, slide_progress = -1;
         int iSlideTime = -1;   // float[KF_SLIDE_COUNT], for secondsSinceKeyframe
         int iView = -1, iViewInv = -1, iProj = -1, iProjInv = -1;
         int iCamPos = -1, iCamFov = -1, iScreenRect = -1, iWindowSize = -1;

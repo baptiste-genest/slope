@@ -83,11 +83,13 @@ void slope::Slideshow::play() {
     setInnerTime();
     noteSlideArrival();
     TimeObject T = getTimeObject();
+    // the deck wide reading, shared by every primitive whatever path draws it
+    T.slide_progress = transitionProgress(t);
     TimeObject ST = T;
-    ST.transition_parameter = transitionProgress(t);
+    ST.transition_parameter = T.slide_progress;
     Snippet::setTime(ST);
 
-    updateBackground(ST.transition_parameter);
+    updateBackground(T.slide_progress);
 
     // Depth peeling costs a full scene pass per layer, and alpha only drops
     // during transitions. Dropping it here lets polyscope turn it back on by

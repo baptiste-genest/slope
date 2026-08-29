@@ -27,7 +27,10 @@ struct TimeObject
     TimeTypeSec delta_time = 0;
     int absolute_frame_number = 0;
     int relative_frame_number = 0;
+    // 0 -> 1 across this primitive's own intro or outro, shaped by its animator
     parameter transition_parameter = 1;
+    // 0 -> 1 across the whole slide change, the same for every primitive
+    parameter slide_progress = 1;
 
     // static, so the TimeObjects built outside the main play path answer
     // keyframe queries too
@@ -35,6 +38,9 @@ struct TimeObject
     // when each slide was first reached, in seconds from the start of the show.
     // Going back drops the later entries, so re-entering a slide restarts it.
     static const std::map<int, TimeTypeSec>* slide_times;
+
+    // the slide the boolean queries answer about, stepping at the midpoint
+    int shownFrame() const;
 
     bool afterKeyframe(const std::string& name) const;
     bool beforeKeyframe(const std::string& name) const;
@@ -82,7 +88,8 @@ struct TimeObject
     parameter sinceKeyframe(const std::string& name, bool sequential = false) const;
 
     TimeObject() {}
-    TimeObject(TimeTypeSec it,parameter transition) : inner_time(it),transition_parameter(transition) {}
+    TimeObject(TimeTypeSec it,parameter transition)
+        : inner_time(it),transition_parameter(transition),slide_progress(transition) {}
 
     TimeObject operator()(Primitive* p) const ;
 

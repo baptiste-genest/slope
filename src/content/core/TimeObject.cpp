@@ -2,6 +2,7 @@
 #include "spdlog/spdlog.h"
 #include <set>
 #include <algorithm>
+#include <cmath>
 #include "math/kernels.h"
 #include <spdlog/spdlog.h>
 
@@ -25,19 +26,23 @@ static int keyframeIndex(const std::map<std::string, int>* keyframes,
     return -2;
 }
 
+int TimeObject::shownFrame() const {
+    return (int)std::floor(slidePosition() + 0.5);
+}
+
 bool TimeObject::afterKeyframe(const std::string& name) const {
     int k = keyframeIndex(keyframes, name);
-    return k >= 0 && absolute_frame_number >= k;
+    return k >= 0 && shownFrame() >= k;
 }
 
 bool TimeObject::beforeKeyframe(const std::string& name) const {
     int k = keyframeIndex(keyframes, name);
-    return k >= 0 && absolute_frame_number < k;
+    return k >= 0 && shownFrame() < k;
 }
 
 bool TimeObject::atKeyframe(const std::string& name) const {
     int k = keyframeIndex(keyframes, name);
-    return absolute_frame_number == k;
+    return shownFrame() == k;
 }
 
 TimeTypeSec TimeObject::secondsSinceKeyframe(const std::string& name) const {
@@ -53,7 +58,7 @@ TimeTypeSec TimeObject::secondsSinceKeyframe(const std::string& name) const {
 parameter TimeObject::slidePosition() const {
     // during a transition into slide N the parameter runs 0 to 1, and the
     // index is already N, so this leaves the previous slide and arrives at N
-    return parameter(absolute_frame_number) - 1 + transition_parameter;
+    return parameter(absolute_frame_number) - 1 + slide_progress;
 }
 
 // The trapezoid, in slide position. Overlapping, a ramp spans a whole slide
@@ -92,7 +97,7 @@ int TimeObject::slidesSinceKeyframe(const std::string& name) const {
     int k = keyframeIndex(keyframes, name);
     if (k < 0)
         return keyframe_unreached;
-    return absolute_frame_number - k;
+    return shownFrame() - k;
 }
 
 }

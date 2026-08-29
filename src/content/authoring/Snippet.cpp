@@ -635,6 +635,7 @@ void refreshTime() {
     num("delta_time", current_time.delta_time);
     num("absolute_frame_number", current_time.absolute_frame_number);
     num("transition_parameter", current_time.transition_parameter);
+    num("slide_progress", current_time.slide_progress);
     lua_pop(L, 1);
 }
 

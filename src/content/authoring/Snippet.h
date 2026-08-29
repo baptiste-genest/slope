@@ -72,8 +72,9 @@ namespace slope {
  * ── Built-ins ──────────────────────────────────────────────────────────────
  *   t          the TimeObject, under the names C++ and GLSL use for it :
  *              from_begin, from_action, delta_time, absolute_frame_number,
- *              transition_parameter (0 to 1 across a slide change, 1 when
- *              settled), and t:afterKeyframe/beforeKeyframe/atKeyframe/
+ *              slide_progress and transition_parameter, the same thing here
+ *              (0 to 1 across a slide change), t:afterKeyframe/beforeKeyframe/
+ *              atKeyframe/
  *              slidesSinceKeyframe/secondsSinceKeyframe/duringKeyframe/
  *              sinceKeyframe("name") plus t:slidePosition(). from_begin is
  *              the free running clock an animation usually wants. A snippet

@@ -297,6 +297,7 @@ uniform float delta_time;             // seconds since last frame (= iTimeDelta)
 uniform int   absolute_frame_number;  // current slide index in the deck
 uniform int   relative_frame_number;  // slides elapsed since this shader appeared
 uniform float transition_parameter;   // 0 -> 1 across the current intro / outro
+uniform float slide_progress;         // 0 -> 1 across the whole slide change
 // polyscope's camera. iScreenRect is this shader's rect in the window (x, y,
 // w, h, ImGui display units, y down), letting a fragment map back to a pixel.
 uniform mat4  iView;         // world -> camera
@@ -324,16 +325,17 @@ uniform sampler2D iChannel2; //   sample with texture(iChannelN, uv).
 uniform sampler2D iChannel3;
 uniform vec3  iChannelResolution[4]; // (width, height, 1) of each channel
 layout(location = 0) out vec4 fragColor;  // output 0 (MRT: add location=1,2,...)
-// the TimeObject's keyframe queries, same names, taking a KF_<name> constant
-bool afterKeyframe (int kf) { return kf >= 0 && absolute_frame_number >= kf; }
-bool beforeKeyframe(int kf) { return kf >= 0 && absolute_frame_number <  kf; }
-bool atKeyframe    (int kf) { return absolute_frame_number == kf; }
-const int keyframe_unreached = -(1 << 24);
-int  slidesSinceKeyframe(int kf) { return kf < 0 ? keyframe_unreached : absolute_frame_number - kf; }
 // the TimeObject's continuous queries, under the same names
 float slidePosition() {
-    return float(absolute_frame_number) - 1.0 + transition_parameter;
+    return float(absolute_frame_number) - 1.0 + slide_progress;
 }
+// the TimeObject's keyframe queries, same names, taking a KF_<name> constant
+int shownFrame() { return int(floor(slidePosition() + 0.5)); }
+bool afterKeyframe (int kf) { return kf >= 0 && shownFrame() >= kf; }
+bool beforeKeyframe(int kf) { return kf >= 0 && shownFrame() <  kf; }
+bool atKeyframe    (int kf) { return shownFrame() == kf; }
+const int keyframe_unreached = -(1 << 24);
+int  slidesSinceKeyframe(int kf) { return kf < 0 ? keyframe_unreached : shownFrame() - kf; }
 // the trapezoid duringKeyframe is built from, in slide position
 float kfWindow(float p, float a, float b, bool sequential) {
     float k = sequential ? 2.0 : 1.0;
@@ -1595,6 +1597,7 @@ void Shader::cacheUniformLocations()
     uloc.absolute_frame_number = L("absolute_frame_number");
     uloc.relative_frame_number = L("relative_frame_number");
     uloc.transition_parameter  = L("transition_parameter");
+    uloc.slide_progress        = L("slide_progress");
     uloc.iSlideTime            = L("iSlideTime");
 
     uloc.iView       = L("iView");
@@ -1718,6 +1721,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     if (int l = U.absolute_frame_number; l >= 0) g.Uniform1i(l, t.absolute_frame_number);
     if (int l = U.relative_frame_number; l >= 0) g.Uniform1i(l, t.relative_frame_number);
     if (int l = U.transition_parameter; l >= 0) g.Uniform1f(l, float(t.transition_parameter));
+    if (int l = U.slide_progress; l >= 0) g.Uniform1f(l, float(t.slide_progress));
     // only uploaded to a shader that asks for it
     if (int l = U.iSlideTime; l >= 0) {
         const int n = keyframeSlideCount();

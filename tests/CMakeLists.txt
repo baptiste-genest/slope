@@ -27,6 +27,10 @@ target_link_libraries(test_shader_array PRIVATE slope)
 add_test(NAME shader_array_uniforms COMMAND test_shader_array)
 set_tests_properties(shader_array_uniforms PROPERTIES SKIP_RETURN_CODE 125)
 
+add_executable(test_keyframe_phase test_keyframe_phase.cpp)
+target_link_libraries(test_keyframe_phase PRIVATE slope)
+add_test(NAME keyframe_phase COMMAND test_keyframe_phase)
+
 add_executable(test_export test_export.cpp)
 target_link_libraries(test_export PRIVATE slope)
 target_compile_definitions(test_export PRIVATE SLOPE_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
