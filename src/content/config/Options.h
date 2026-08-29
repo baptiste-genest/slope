@@ -21,6 +21,9 @@ static   std::string LogPath;
 
 static bool ExportMode;
 
+/// Samples per slide change for --export_transitions, 0 for one still per slide
+static int ExportTransitionSamples;
+
 /// Report unused/duplicated/defaulted anchor labels at startup (--check_labels)
 static bool CheckLabels;
 

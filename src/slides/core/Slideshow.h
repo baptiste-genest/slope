@@ -99,6 +99,9 @@ private:
 
     void exportPDF();
 
+    // stills sampled through every slide change, not only at its endpoints
+    void exportTransitions();
+
     void loadSlides();
 
     PlaybackState state;

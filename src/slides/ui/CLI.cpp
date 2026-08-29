@@ -43,6 +43,10 @@ int slope::parseCLI(int argc,char** argv) {
         else if (arg == "--export") {
             Options::ExportMode = true;
         }
+        else if (arg == "--export_transitions" && i + 1 < argc) {
+            Options::ExportMode = true;
+            Options::ExportTransitionSamples = std::stoi(argv[++i]);
+        }
         else if (arg == "--check_labels") {
             Options::CheckLabels = true;
         }

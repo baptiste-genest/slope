@@ -8,6 +8,7 @@
 #include "content/authoring/Snippet.h"
 #include "ImGuizmo.h"
 #include <spdlog/spdlog.h>
+#include <cstdio>
 
 // X11 comes in through GLFW and defines None, which eats TransparencyMode::None
 #ifdef None
@@ -364,6 +365,8 @@ void slope::Slideshow::run()
             play();
         };
         polyscope::show();
+    } else if (Options::ExportTransitionSamples > 0) {
+        exportTransitions();
     } else {
         exportPDF();
     }
@@ -452,6 +455,117 @@ void slope::Slideshow::exportPDF()
         spdlog::error("PDF generation failed, ImageMagick `convert` returned non-zero");
     else
         spdlog::info("PDF saved to {}", out);
+}
+
+// Replays each slide change by back dating state.from_action, the clock
+// renderSlide measures a transition by. Camera flights do not replay.
+void slope::Slideshow::exportTransitions()
+{
+    if (!initialized)
+        initializeSlides();
+
+    const int samples = Options::ExportTransitionSamples;
+    const TimeTypeSec settle_time = 10;
+
+    // keyed by project, so exporting two decks does not overwrite one another
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path() / ("slope_transitions_" + Options::ProjectName);
+    std::filesystem::create_directories(dir);
+
+    auto backdate = [](TimeTypeSec s) {
+        return Time::now() - std::chrono::duration_cast<TimeStamp::duration>(DurationSec(s));
+    };
+
+    // the sample being drawn, read by the callback below
+    TimeTypeSec dt = 0;
+    TimeTypeSec step_dt = 0;
+    std::set<PrimitivePtr> appearing;
+
+    polyscope::state::userCallback = [&]() {
+        ImGuiWindowConfig();
+        ImGui::Begin("Slope", NULL, window_flags);
+
+        // the clock renderSlide reads, so t is exactly the sample time
+        state.from_action = backdate(dt);
+        // every arrival, since noteSlideArrival only knows the current slide
+        const TimeTypeSec now = TimeFrom(from_begin);
+        for (int k = 0; k <= (int)state.current; k++)
+            slide_times[k] = now - (k == (int)state.current ? dt : settle_time);
+
+        // one arriving on this very change enters at the midpoint, not before
+        for (auto& p : slides[state.current])
+            p.first->settleInnerTime(appearing.count(p.first)
+                                     ? std::max<TimeTypeSec>(0, dt - transitionTime)
+                                     : settle_time);
+
+        TimeObject T = getTimeObject();
+        // the wall clock delta is microseconds here, and nothing could integrate it
+        T.delta_time = step_dt;
+        T.slide_progress = transitionProgress(dt);
+        TimeObject ST = T;
+        ST.transition_parameter = T.slide_progress;
+        Snippet::setTime(ST);
+
+        updateBackground(T.slide_progress);
+        polyscope::options::transparencyMode = polyscope::TransparencyMode::None;
+
+        auto& CS = slides[state.current];
+        renderSlide(dt, CS, T);
+
+        if (display_slide_number)
+            hud.drawSlideNumber(state.current);
+        ImGui::End();
+    };
+
+    polyscope::ScreenshotOptions opts;
+    opts.includeUI = true;
+    opts.transparentBackground = false;
+
+    // zero padded on both axes, so a lexical sort is the order they play in
+    auto shot = [&](size_t i, int k) {
+        char name[64];
+        std::snprintf(name, sizeof(name), "slide_%03zu_step_%02d.png", i, k);
+        polyscope::screenshot((dir / name).string(), opts);
+    };
+
+    for (size_t i = 0; i < slides.size(); i++) {
+        spdlog::info("exporting transition into slide {} / {}", i+1, slides.size());
+
+        // what a key press leaves behind: previous slide up, change unhandled
+        state.current = i;
+        state.locked = true;
+        state.done = false;
+        state.backward = false;
+        state.visited = (int)i;   // inner times are set per sample below
+        slide_times.clear();      // rebuilt per sample, up to the current slide
+
+        // slide 0 comes from nothing, so all of it arrives, over one transitionTime
+        appearing.clear();
+        if (i > 0) {
+            auto& fresh = uniqueNext(transitions[i-1]);
+            appearing.insert(fresh.begin(), fresh.end());
+        } else {
+            for (auto& p : slides[0])
+                appearing.insert(p.first);
+        }
+
+        const TimeTypeSec span = (i > 0 ? 2 : 1) * transitionTime;
+        step_dt = span / samples;
+        for (int k = 0; k < samples; k++) {
+            dt = k * step_dt;
+            shot(i, k);
+        }
+
+        // the settled still, guarded so it only acts if no sample crossed the swap
+        handleTransition();
+        state.settle();
+        slides[i].setCam(false);
+        dt = settle_time;
+        shot(i, samples);
+    }
+
+    polyscope::state::userCallback = nullptr;
+    spdlog::info("{} stills written to {}", slides.size()*(samples+1), dir.string());
 }
 
 void slope::Slideshow::recompose(const std::function<void(SlideManager&)>& composer,

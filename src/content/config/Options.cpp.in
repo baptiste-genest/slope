@@ -26,6 +26,7 @@ double Options::DefaultLatexScale = 1.;
 
 bool Options::ignore_cache = false;
 bool Options::ExportMode = false;
+int Options::ExportTransitionSamples = 0;
 bool Options::CheckLabels = false;
 bool Options::Rehearse = false;
 bool Options::HideSlideNumbers = false;
