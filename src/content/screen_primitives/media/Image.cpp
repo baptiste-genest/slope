@@ -76,6 +76,34 @@ std::vector<unsigned char> slope::areaReduceRGBA(const unsigned char *src, int s
     return out;
 }
 
+void slope::bleedRGB(unsigned char *rgba, int w, int h, int radius)
+{
+    const size_t N = size_t(w)*h;
+    std::vector<int> from(N,-1);
+    std::vector<int> front,next;
+    for (size_t i = 0; i < N; i++)
+        if (rgba[i*4+3]){
+            from[i] = int(i);
+            front.push_back(int(i));
+        }
+    for (int r = 0; r < radius && !front.empty(); r++){
+        next.clear();
+        for (int i : front){
+            const int x = i%w, y = i/w;
+            const int nb[4] = {x ? i-1 : -1, x+1 < w ? i+1 : -1,
+                               y ? i-w : -1, y+1 < h ? i+w : -1};
+            for (int j : nb){
+                if (j < 0 || from[j] >= 0) continue;
+                from[j] = from[i];
+                const unsigned char* s = rgba + size_t(from[i])*4;
+                rgba[size_t(j)*4] = s[0]; rgba[size_t(j)*4+1] = s[1]; rgba[size_t(j)*4+2] = s[2];
+                next.push_back(j);
+            }
+        }
+        front.swap(next);
+    }
+}
+
 #ifndef GL_TEXTURE_MAX_ANISOTROPY_EXT
 #define GL_TEXTURE_MAX_ANISOTROPY_EXT 0x84FE
 #define GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT 0x84FF
@@ -114,6 +142,7 @@ slope::ImageData slope::loadImage(path file, double xscale, double yscale)
     const int dh = std::max(1,(int)std::lround(h*std::min(1.,yscale)));
     auto reduced = areaReduceRGBA(image_data,w,h,dw,dh);
     stbi_image_free(image_data);
+    bleedRGB(reduced.data(),dw,dh);
 
     ImageData data;
     // the logical size stays the source one, so placement and baseline maths
@@ -143,6 +172,8 @@ slope::ImageData slope::loadImage(path file)
         spdlog::error("[image] couldn't load image {}", filename);
         throw std::runtime_error("could not load image " + filename);
     }
+
+    bleedRGB(image_data,w,h);
 
     ImageData data;
     data.width = w;

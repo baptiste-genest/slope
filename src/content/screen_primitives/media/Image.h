@@ -40,6 +40,10 @@ bool PlaneScreenExtent(const StateInSlide& sis,const ImageData& data,scalar draw
 /// transparent border cannot bleed into the ink
 std::vector<unsigned char> areaReduceRGBA(const unsigned char* src,int sw,int sh,int dw,int dh);
 
+/// pushes the nearest ink colour into the transparent texels, GPU filters
+/// average RGB unweighted and would ring the ink with black
+void bleedRGB(unsigned char* rgba,int w,int h,int radius = 16);
+
 /// same as loadImage, but stores the texture at the size it will be drawn at.
 /// A 2x2 bilinear tap only covers its footprint up to a 2:1 minification, so
 /// anything smaller has to be filtered here rather than by the sampler
