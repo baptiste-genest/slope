@@ -85,17 +85,8 @@ void slope::Latex::loadTexture(const path &png)
     data = loadImage(png,tex_sx,tex_sy);
 }
 
-void slope::Latex::ensureTexelsFor(double sx, double sy)
+void slope::Latex::reloadTexels(double k)
 {
-    const double have = std::max(tex_sx,tex_sy);
-    const double need = std::min(1.0,std::max(sx,sy));
-    if (have >= 1 || need <= have*1.05)
-        return;
-
-    // jump straight to a power of 1.5 above what is asked, so that a zoom drag
-    // costs a handful of reloads instead of one per frame
-    const double k = std::min(1.0/have,
-                              std::pow(1.5,std::ceil(std::log(need/have)/std::log(1.5))));
     try {
         ImageData fresh = loadImage(GetLatexPath(full_content),tex_sx*k,tex_sy*k);
         if (data.texture && glfwGetCurrentContext())
@@ -106,6 +97,40 @@ void slope::Latex::ensureTexelsFor(double sx, double sy)
     } catch (const std::exception& e) {
         spdlog::error("[latex] {}",e.what());
     }
+}
+
+void slope::Latex::ensureTexelsFor(double sx, double sy)
+{
+    const double have = std::max(tex_sx,tex_sy);
+    const double need = std::min(1.0,std::max(sx,sy));
+
+    if (need > have*1.05 && have < 1) {
+        // a 1.5 ladder, so a zoom drag costs a few reloads, not one a frame
+        reloadTexels(std::min(1.0/have,
+                              std::pow(1.5,std::ceil(std::log(need/have)/std::log(1.5)))));
+        settling_need = -1;
+        return;
+    }
+
+    // shrinking only softens, so refill once the size stops moving
+    if (need >= have*0.9 || need*data.width < 8) {
+        settling_need = -1;
+        return;
+    }
+    // an export draws each slide once, nothing to wait for
+    if (Options::ExportMode) {
+        reloadTexels(need/have);
+        return;
+    }
+    if (settling_need < 0 || std::abs(need - settling_need) > settling_need*0.02) {
+        settling_need = need;
+        settling_since = Time::now();
+        return;
+    }
+    if (TimeFrom(settling_since) < 0.25)
+        return;
+    reloadTexels(need/have);
+    settling_need = -1;
 }
 
 void slope::Latex::ensureRendered()

@@ -145,6 +145,10 @@ struct Latex : public TextualPrimitive {
     // fraction of the png the texture actually holds, one per axis
     double tex_sx = 1, tex_sy = 1;
 
+    // the shrink ensureTexelsFor is waiting on, and since when
+    double settling_need = -1;
+    TimeStamp settling_since = Time::now();
+
     double baselineOffset() const {
         if (baseline < 0 || !isFormula || !alignOnBaseline)
             return 0;
@@ -187,9 +191,11 @@ public:
         return {sx,sy};
     }
 
-    // refills from the png when a zoom asks for more texels than the texture
-    // holds. It only ever grows, and in steps, so a drag settles quickly
+    // refills from the png when the draw size and the texel count drift apart
     void ensureTexelsFor(double sx,double sy);
+
+    // refills the texture from the png, reduced k times more than now
+    void reloadTexels(double k);
 
     // uploads the png at the size it will be drawn at
     void loadTexture(const path& png);
