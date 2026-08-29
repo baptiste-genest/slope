@@ -75,7 +75,11 @@ public:
     T* q;
     void draw(const TimeObject &time, const StateInSlide &sis) override {q->setEnabled(true);}
     void playIntro(const TimeObject& t, const StateInSlide &sis) override {q->setEnabled(true);}
-    void playOutro(const TimeObject& t, const StateInSlide &sis) override {q->setEnabled(false);}
+    // a quantity cannot fade, so it is held to the end of the outro instead
+    void playOutro(const TimeObject& t, const StateInSlide &sis) override {
+        if (t.transition_parameter > 0.95)
+            q->setEnabled(false);
+    }
     void forceDisable() override {q->setEnabled(false);}
     bool isScreenSpace() const override {return false;}
 };
