@@ -9,7 +9,7 @@ if(POLICY CMP0091)
 endif()
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
-project(slope LANGUAGES CXX)
+project(slope LANGUAGES C CXX)   # C for the tree-sitter grammars
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -23,6 +23,7 @@ include(spdlog)
 include(fmt)
 include(yamlcpp)
 include(luajit)
+include(treesitter)
 
 find_package(OpenGL REQUIRED)
 
@@ -59,6 +60,10 @@ message(STATUS "pdflatex compiler: ${SLOPE_PDFLATEX}")
 message(STATUS "convert tool: ${SLOPE_CONVERT}")
 message(STATUS "ffmpeg: ${SLOPE_FFMPEG}")
 message(STATUS "shader stdlib: ${SLOPE_SHADER_PATH}")
+# the highlight queries assembled by cmake/treesitter.cmake
+set(SLOPE_QUERY_PATH "${SLOPE_QUERY_BUILD_DIR}/" CACHE PATH
+    "where Code looks for the tree-sitter highlight queries")
+message(STATUS "highlight queries: ${SLOPE_QUERY_PATH}")
 configure_file(${PROJECT_SOURCE_DIR}/src/content/config/Options.cpp.in
                ${PROJECT_SOURCE_DIR}/src/content/config/Options.cpp)
 
@@ -89,8 +94,9 @@ file(GLOB SRC_lib
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "src/*.h*")
 
 ## The library
-add_library(slope STATIC ${SRC_lib})
-target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog OpenGL::GL fmt yaml-cpp luajit)
+add_library(slope STATIC ${SRC_lib} ${SLOPE_GENERATED_SOURCES})
+target_link_libraries(slope PUBLIC polyscope Eigen3::Eigen spdlog OpenGL::GL fmt yaml-cpp luajit
+                                  tree-sitter ${SLOPE_GRAMMAR_TARGETS})
 target_compile_features(slope PUBLIC cxx_std_20)
 # MSVC's <cmath> only defines M_PI etc. when this is set, unlike glibc/libc++
 target_compile_definitions(slope PUBLIC $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>)
@@ -109,6 +115,9 @@ install(TARGETS slope
 
 install(DIRECTORY src/shaders/ DESTINATION share/slope/shaders
         FILES_MATCHING PATTERN "*.glsl")
+
+install(DIRECTORY ${SLOPE_QUERY_BUILD_DIR}/ DESTINATION share/slope/queries
+        FILES_MATCHING PATTERN "*.scm")
 
 option(BUILD_SLOPE_TESTS "Build the slope test suite" OFF)
 

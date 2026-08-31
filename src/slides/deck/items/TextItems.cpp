@@ -1,6 +1,8 @@
 #include "slides/deck/items/DeckItem.h"
+#include <filesystem>
 #include "content/config/Options.h"
 #include "content/screen_primitives/text/LateX.h"
+#include "content/screen_primitives/text/Code.h"
 
 namespace slope {
 
@@ -30,9 +32,80 @@ static std::string latexKey(const char* type, const json& item)
          + std::to_string(item.value("width", -1));
 }
 
+// the file and the slice make the listing, everything else is restyling
+static std::string codeKey(const json& i)
+{
+    std::string k = "code:" + i["code"].get<std::string>();
+    if (i.contains("lines"))
+        k += ":" + i["lines"].dump();
+    return k;
+}
+
+// without the dot, as CodeLanguage::ForExtension wants it
+static std::string codeExtension(const json& i)
+{
+    auto e = std::filesystem::path(i["code"].get<std::string>()).extension().string();
+    if (!e.empty() && e.front() == '.')
+        e.erase(0, 1);
+    return e;
+}
+
+static CodePtr makeCode(const json& i)
+{
+    const std::string file = i["code"].get<std::string>();
+    if (i.contains("lines")) {
+        const json& l = i["lines"];
+        if (!l.is_array() || l.size() != 2 || !l[0].is_number_integer())
+            throw std::runtime_error("\"lines\" must be [first, last], 1 based");
+        return Code::FromFile(file, l[0].get<int>(), l[1].get<int>());
+    }
+    return Code::FromFile(file);
+}
+
 std::vector<ItemSpec> textItemSpecs()
 {
     std::vector<ItemSpec> specs;
+
+    specs.push_back({
+        "code", ItemSpec::Kind::Screen,
+        {"lines","language","font","line_numbers","font_scale","tracking",
+         "line_spacing","padding","dim","reveal","focus"},
+        codeKey,
+        [](const json& i) -> PrimitivePtr { return makeCode(i); },
+        [](const PrimitivePtr& p, const json& i, const std::string&) {
+            auto c = std::static_pointer_cast<Code>(p);
+            const CodeStyle d;   // cached primitive, so a dropped field reverts
+            c->style.font         = i.contains("font")
+                                  ? Code::LoadFont(i["font"].get<std::string>()) : d.font;
+            c->setLanguage(i.contains("language")
+                           ? CodeLanguage::ForName(i["language"].get<std::string>())
+                           : CodeLanguage::ForExtension(codeExtension(i)));
+            // line_numbers: true | false | absolute, the last one numbering a
+            // slice by the file it came from
+            c->style.line_numbers          = d.line_numbers;
+            c->style.absolute_line_numbers = d.absolute_line_numbers;
+            if (i.contains("line_numbers")) {
+                const json& n = i["line_numbers"];
+                if (n.is_boolean())
+                    c->style.line_numbers = n.get<bool>();
+                else if (n.is_string() && n.get<std::string>() == "absolute")
+                    c->style.line_numbers = c->style.absolute_line_numbers = true;
+                else if (n.is_string() && n.get<std::string>() == "relative")
+                    c->style.line_numbers = true;
+                else
+                    throw std::runtime_error("\"line_numbers\" takes true, false, "
+                                             "absolute or relative");
+            }
+            c->style.font_scale   = i.value("font_scale", d.font_scale);
+            c->style.tracking     = i.value("tracking", d.tracking);
+            c->style.line_spacing = i.value("line_spacing", d.line_spacing);
+            c->style.padding      = i.value("padding", d.padding);
+            c->style.dim_factor   = i.value("dim", d.dim_factor);
+        },
+        [](const json& i) {
+            return std::filesystem::path(i["code"].get<std::string>()).stem().string();
+        },
+    });
 
     specs.push_back({
         "title", ItemSpec::Kind::Screen, {},

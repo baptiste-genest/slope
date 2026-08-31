@@ -1,5 +1,6 @@
 #include "slides/core/Slideshow.h"
 #include "content/screen_primitives/text/LateX.h"
+#include "content/screen_primitives/text/Code.h"
 #include "content/screen_primitives/gpu/Shader.h"
 #include "spdlog/spdlog.h"
 #include "polyscope/pick.h"
@@ -118,6 +119,7 @@ void slope::Slideshow::play() {
     Latex::HotReloadPrefixIfModified();
     Params::HotReloadIfModified();
     Shader::HotReloadIfModified();
+    Code::HotReloadIfModified();
     Snippet::HotReloadIfModified();
 
     if (onFrame)

@@ -191,6 +191,12 @@ inline SlideManager& operator<<(SlideManager& SM,const Background& bg) {
     return SM;
 }
 
+// nothing is inserted, a cue tunes a primitive the frame already carries
+inline SlideManager& operator<<(SlideManager& SM,const SlideCue& cue) {
+    cue.apply(SM.getNumberSlides()-1);
+    return SM;
+}
+
 inline SlideManager& operator<<(SlideManager& SM,OverrideUpdater update) {
     auto& S = SM.getCurrentSlide();
     auto primitive = Primitive::get(update.pid);

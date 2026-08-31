@@ -1,5 +1,6 @@
 #include "content/authoring/Snippet.h"
 #include "slides/deck/DeckLoader.h"
+#include "content/screen_primitives/text/Code.h"
 #include "slides/deck/items/DeckItem.h"
 #include "slides/deck/items/ShaderItem.h"
 #include "slides/deck/items/JsonRead.h"
@@ -368,6 +369,7 @@ void DeckLoader::build(SlideManager& show)
     named.clear();
     show.clearGroups();
     show.clearKeyframes();
+    Code::ClearAllCues();
 
     // drop what an "object:" item no longer declares, and only that, the rest
     // of that shader's binds belong to its C++ owner
@@ -610,11 +612,54 @@ static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& 
 
 // applies the placement fields of a screen item, at (label, [x,y] or a named
 // position), on (a world plane) or below/above/right_of/left_of
+// "reveal" and "focus" are slide state, so they are streamed for the frame
+// being composed rather than set on the primitive
+static void applyCodeCues(SlideManager& show, const ScreenPrimitivePtr& prim,
+                          const json& item)
+{
+    if (!item.contains("reveal") && !item.contains("focus"))
+        return;
+    auto code = std::dynamic_pointer_cast<Code>(prim);
+    if (!code)
+        throw std::runtime_error("\"reveal\" and \"focus\" belong to a \"code\" item");
+
+    if (item.contains("reveal")) {
+        const json& r = item["reveal"];
+        if (r.is_number_integer())
+            show << code->reveal(r.get<int>());
+        else if (r.is_string()) {
+            const std::string v = r.get<std::string>();
+            if (v == "START")      show << code->reveal(START);
+            else if (v == "END")   show << code->reveal(END);
+            else                   show << code->reveal(v);
+        }
+        else
+            throw std::runtime_error("\"reveal\" takes START, END, a label or a line");
+    }
+    if (item.contains("focus")) {
+        const json& f = item["focus"];
+        if (f.is_string())
+            show << code->focus(f.get<std::string>());
+        else if (f.is_array() && f.size() == 2 && f[0].is_number_integer())
+            show << code->focus(f[0].get<int>(), f[1].get<int>());
+        else if (f.is_array() && f.size() == 2 && f[0].is_string())
+            show << code->focus(f[0].get<std::string>(), f[1].get<std::string>());
+        else if (f.is_null())
+            show << code->unfocus();
+        else
+            throw std::runtime_error("\"focus\" takes a region, [label, label] or "
+                                     "[first, last]");
+    }
+}
+
 void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                                  const json& item, const std::string& default_label,
                                  bool keep_placement)
 {
     scalar alpha = item.value("alpha", 1.);
+    // recorded against the slide being composed, so it happens before any of
+    // the placement branches return
+    applyCodeCues(show, prim, item);
 
     // Two items of the same content are one cached primitive, and a slide holds
     // each once, so the second placement would move the first rather than show a

@@ -41,8 +41,13 @@ static std::string PathToCONVERT;
 static std::string PathToFFMPEG;
 static std::string PathToFFPROBE;
 
+/// TTF a Code listing is drawn with, empty for polyscope's monospace font
+static std::string CodeFont;
+
 /// Where a shader's "#include <...>" finds the shader stdlib
 static std::string ShaderPath;
+// one <language>.scm per declared language
+static std::string QueryPath;
 
 ///Window size
 static size_t ScreenResolutionWidth;

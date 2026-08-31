@@ -17,7 +17,9 @@ std::string Options::PathToPDFLATEX = "@SLOPE_PDFLATEX@";
 std::string Options::PathToCONVERT = "@SLOPE_CONVERT@";
 std::string Options::PathToFFMPEG = "@SLOPE_FFMPEG@";
 std::string Options::PathToFFPROBE = "@SLOPE_FFPROBE@";
+std::string Options::CodeFont;
 std::string Options::ShaderPath = "@SLOPE_SHADER_PATH@";
+std::string Options::QueryPath = "@SLOPE_QUERY_PATH@";
 
 size_t Options::PDFtoPNGDensity = 1440;
 

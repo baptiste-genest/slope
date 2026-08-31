@@ -11,6 +11,7 @@
 #include "slides/deck/DeckLoader.h"
 #include "content/polyscope_primitives/PointCloud.h"
 #include "content/screen_primitives/text/LateX.h"
+#include "content/screen_primitives/text/Code.h"
 #include "content/polyscope_primitives/Mesh.h"
 #include "content/authoring/Snippet.h"
 #include "content/polyscope_primitives/PolyscopeSnippets.h"

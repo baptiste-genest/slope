@@ -20,6 +20,13 @@ struct OverrideUpdater {
     Updater func;
 };
 
+// Per-slide state a primitive keeps itself. transition() does not carry
+// StateInSlide fields it cannot interpolate, so a cue is applied when the
+// slide is composed and read back from t.slidePosition() at draw time.
+struct SlideCue {
+    std::function<void(int slide)> apply;
+};
+
 struct Primitive {
 
     using Size = vec2;
