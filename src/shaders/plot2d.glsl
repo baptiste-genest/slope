@@ -1,4 +1,6 @@
 #pragma once
+// Superseded by <plot.glsl>, which measures off the shader's own view instead
+// of taking the x range as an argument. Kept for shaders written against it.
 // ─────────────────────────────────────────────────────────────────────────────
 // Drawing graphs and grids in plot coordinates, with line widths that stay put
 // in pixels however the plot is scaled.

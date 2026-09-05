@@ -318,7 +318,8 @@ uniform vec4  iDate;         // year, month(1-12), day(1-31), seconds since midn
 // the shader's own world space, declared from C++ with setView/bindView.
 // Defaults to (0,0) and 1, which makes iWorld() the y-normalised uv.
 uniform vec2  iViewCenter;   // world point at the middle of the rect
-uniform float iViewHalf;     // half of the rect's height, in world units
+uniform vec2  iViewHalf;     // half of the rect's extent, in world units. The
+                             //   scalar setView fills x from the aspect ratio
 uniform sampler2D iChannel0; // texture inputs, image, another shader, or
 uniform sampler2D iChannel1; //   this shader's previous frame (feedback).
 uniform sampler2D iChannel2; //   sample with texture(iChannelN, uv).
@@ -363,8 +364,11 @@ float sinceKeyframe(int kf) { return sinceKeyframe(kf, false); }
 // This fragment in world coordinates, and the world size of one pixel. The
 // only definition of the mapping. Shader::worldToScreen inverts exactly this,
 // so a label placed at a world point cannot drift from what is drawn.
-vec2  iWorld() { return iViewCenter + 2.0*(gl_FragCoord.xy - 0.5*iResolution)/iResolution.y * iViewHalf; }
-float iPixel() { return 2.0*iViewHalf/iResolution.y; }
+vec2  iWorld() { return iViewCenter + 2.0*(gl_FragCoord.xy - 0.5*iResolution)/iResolution * iViewHalf; }
+// one pixel in world units. iPixel() is the vertical one, a plot with two
+// scales wants both.
+vec2  iPixelXY() { return 2.0*iViewHalf/iResolution; }
+float iPixel() { return iPixelXY().y; }
 // this pixel across the rect, 0 to 1 with y up, and the same centred on the
 // middle and normalised by height, so x carries the aspect and a distance from
 // the centre means the same in both directions
@@ -751,12 +755,30 @@ SLGLuint loadImageTexture(const std::string& file, SLGLenum filter, SLGLenum wra
 
 } // namespace
 
+void Shader::setFragmentSource(std::string src)
+{
+    fragment_src = std::move(src);
+    needs_recompile = true;
+}
+
+void Shader::setFragmentFile(const path& file)
+{
+    source_path = file;
+    from_file = true;
+    reloadFromFile();
+}
+
+void Shader::registerLive()
+{
+    if (std::find(all_shaders.begin(), all_shaders.end(), this) == all_shaders.end())
+        all_shaders.push_back(this);
+}
+
 ShaderPtr Shader::Add(const std::string& fragment_source, int w, int h)
 {
     auto s = NewPrimitive<Shader>();
-    s->fragment_src = fragment_source;
-    s->needs_recompile = true;
-    all_shaders.push_back(s.get());
+    s->setFragmentSource(fragment_source);
+    s->registerLive();
     if (w > 0 && h > 0)
         s->setResolution(w, h);
     return s;
@@ -1735,18 +1757,20 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     // Latched rather than re-read by worldToScreen, since a label must land on
     // the view that was drawn even though the anchor resolves on another call.
     drawn_view_center = view_center ? view_center() : vec2::Zero();
-    drawn_view_half   = view_half   ? view_half()   : scalar(1);
-    // a half-height of zero collapses every world point onto the centre, which
+    drawn_view_half   = resolveViewHalf();
+    // a half-extent of zero collapses every world point onto the centre, which
     // is a flat picture and stacked labels rather than anything readable
-    if (view_half && !(std::abs(drawn_view_half) > 1e-12) && !bad_view_reported) {
+    if (view_half && !(std::abs(drawn_view_half(0)) > 1e-12
+                    && std::abs(drawn_view_half(1)) > 1e-12) && !bad_view_reported) {
         bad_view_reported = true;
-        spdlog::error("shader \"{}\" has a view half-height of {}, so its world space "
-                      "is degenerate; nothing declared it, or its name is misspelt",
-                      source_path.string(), drawn_view_half);
+        spdlog::error("shader \"{}\" has a view half-extent of ({}, {}), so its world "
+                      "space is degenerate; nothing declared it, or its name is misspelt",
+                      source_path.string(), drawn_view_half(0), drawn_view_half(1));
     }
     if (int l = U.iViewCenter; l >= 0)
         g.Uniform2f(l, float(drawn_view_center(0)), float(drawn_view_center(1)));
-    if (int l = U.iViewHalf; l >= 0) g.Uniform1f(l, float(drawn_view_half));
+    if (int l = U.iViewHalf; l >= 0)
+        g.Uniform2f(l, float(drawn_view_half(0)), float(drawn_view_half(1)));
 
     // cursor mapped into the shader rect, in rect pixels with y up (ShaderToy).
     // Deferred renders run from an ImGui draw callback with an empty window
@@ -1914,12 +1938,10 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
         if (sb && sb->id)
             g.BindBufferBase(SL_SHADER_STORAGE_BUFFER, SLGLuint(binding), sb->id);
 
-    // unknown names resolve to -1 and are skipped, resolved on first use
-    for (auto& [name, setter] : uniforms) {
-        const int loc = uniformLocation(name);
-        if (loc >= 0)
-            setter(loc, t);
-    }
+    // Every bound value is evaluated, used by the program or not, since a
+    // closure is what declares a setting. GL ignores an upload to -1.
+    for (auto& [name, setter] : uniforms)
+        setter(uniformLocation(name), t);
 
     g.ClearColor(0.f, 0.f, 0.f, 0.f);
     g.Clear(SL_COLOR_BUFFER_BIT);
@@ -1986,14 +2008,46 @@ void Shader::screenRect(const StateInSlide& sis, ImVec2& pmin, ImVec2& pmax) con
 
 void Shader::setView(const vec2& center, scalar half_height)
 {
-    view_center = [center]{ return center; };
-    view_half   = [half_height]{ return half_height; };
+    bindView([center]{ return center; }, [half_height]{ return half_height; });
 }
 
 void Shader::bindView(std::function<vec2()> center, std::function<scalar()> half_height)
 {
     view_center = center;
-    view_half   = half_height;
+    view_half   = [half_height]{ return vec2(0, half_height ? half_height() : 1); };
+    view_x_from_aspect = true;   // x follows the render aspect, as it always has
+}
+
+void Shader::setView(const vec2& center, const vec2& half)
+{
+    bindView([center]{ return center; }, [half]{ return half; });
+}
+
+void Shader::bindView(std::function<vec2()> center, std::function<vec2()> half)
+{
+    view_center = center;
+    view_half   = half;
+    view_x_from_aspect = false;
+}
+
+void Shader::setViewRect(const vec2& lo, const vec2& hi)
+{
+    setView((lo + hi)*0.5, (hi - lo)*0.5);
+}
+
+void Shader::bindViewRect(std::function<std::pair<vec2,vec2>()> rect)
+{
+    bindView([rect]{ auto [lo, hi] = rect(); return vec2((lo + hi)*0.5); },
+             [rect]{ auto [lo, hi] = rect(); return vec2((hi - lo)*0.5); });
+}
+
+// The half-extent uploaded. A scalar view takes its width from the aspect.
+vec2 Shader::resolveViewHalf() const
+{
+    vec2 h = view_half ? view_half() : vec2(1, 1);
+    if (view_x_from_aspect)
+        h(0) = h(1) * scalar(res_x) / std::max(res_y, 1);
+    return h;
 }
 
 vec2 Shader::worldToScreen(const vec2& w) const
@@ -2006,13 +2060,12 @@ vec2 Shader::worldToScreen(const vec2& w) const
         hi = lo + s;
     }
     const vec2 mid = (lo + hi)*0.5;
-    if (std::abs(drawn_view_half) < 1e-12)
+    if (std::abs(drawn_view_half(0)) < 1e-12 || std::abs(drawn_view_half(1)) < 1e-12)
         return mid;
 
-    // exactly iWorld() inverted, y-normalised, so x carries the aspect
-    const scalar aspect = scalar(res_x) / std::max(res_y, 1);
-    const vec2 n = (w - drawn_view_center) / drawn_view_half;
-    const scalar u = 0.5 + n(0)*0.5/aspect;
+    // exactly iWorld() inverted, per axis
+    const vec2 n = (w - drawn_view_center).cwiseQuotient(drawn_view_half);
+    const scalar u = 0.5 + n(0)*0.5;
     const scalar v = 0.5 + n(1)*0.5;                    // y up, like gl_FragCoord
     return vec2(lo(0) + u*(hi(0) - lo(0)),
                 lo(1) + (1 - v)*(hi(1) - lo(1)));       // y down, like anchors
@@ -2030,10 +2083,10 @@ vec2 Shader::screenToWorld(const vec2& s) const
     if (std::abs(dx) < 1e-12 || std::abs(dy) < 1e-12)
         return drawn_view_center;
 
-    const scalar aspect = scalar(res_x) / std::max(res_y, 1);
     const scalar u = (s(0) - lo(0))/dx;
     const scalar v = 1 - (s(1) - lo(1))/dy;
-    return drawn_view_center + vec2((u - 0.5)*2*aspect, (v - 0.5)*2) * drawn_view_half;
+    return drawn_view_center
+         + vec2((u - 0.5)*2, (v - 0.5)*2).cwiseProduct(drawn_view_half);
 }
 
 std::function<vec2()> Shader::tracker(std::function<vec2()> world, vec2 offset)

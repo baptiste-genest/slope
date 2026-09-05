@@ -641,14 +641,16 @@ void refreshTime() {
 
 // ── loading ─────────────────────────────────────────────────────────────────
 // "--- name" opens a section; the body keeps its line numbers so a Lua error
-// points into the original file
+// points into the original file. A name may be grouped with "/", so a section
+// can own "fig/xrange" outright.
 bool sectionHeader(const std::string& line, std::string& name) {
     size_t i = line.find_first_not_of(" \t");
     if (i == std::string::npos || line.compare(i, 3, "---") != 0) return false;
     i = line.find_first_not_of(" \t", i + 3);
     if (i == std::string::npos) return false;
     size_t j = i;
-    while (j < line.size() && (std::isalnum((unsigned char)line[j]) || line[j] == '_')) j++;
+    while (j < line.size() && (std::isalnum((unsigned char)line[j])
+                               || line[j] == '_' || line[j] == '/')) j++;
     if (j == i) return false;
     if (line.find_first_not_of(" \t\r", j) != std::string::npos) return false;
     name = line.substr(i, j - i);

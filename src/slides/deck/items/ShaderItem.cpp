@@ -367,10 +367,29 @@ void declareShaderView(const ShaderPtr& shader, const json& item)
     };
     std::function<vec2()> origin = [] { return vec2::Zero(); };
 
+    // an interval per axis, so neither scale follows the aspect ratio
+    auto spanOf = [](const json& s, const char* axis) {
+        if (!s.is_array() || s.size() != 2)
+            throw std::runtime_error(std::string("\"view\" ") + axis
+                                     + " must be [min, max]");
+        scalar a = s[0].get<scalar>(), b = s[1].get<scalar>();
+        if (!(b > a))
+            throw std::runtime_error(std::string("\"view\" ") + axis
+                                     + " must be increasing");
+        return vec2(a, b);
+    };
+
     if (v.is_object()) {
+        if (v.contains("x") || v.contains("y")) {
+            if (!(v.contains("x") && v.contains("y")))
+                throw std::runtime_error("a rectangular \"view\" needs both \"x\" and \"y\"");
+            const vec2 x = spanOf(v["x"], "x"), y = spanOf(v["y"], "y");
+            shader->setViewRect(vec2(x(0), y(0)), vec2(x(1), y(1)));
+            return;
+        }
         if (!v.contains("half"))
             throw std::runtime_error("\"view\" needs a \"half\" : half the height it "
-                                     "shows, in world units");
+                                     "shows, in world units, or an \"x\" and \"y\" span");
         shader->bindView(v.contains("center") ? centerOf(v["center"]) : origin,
                          halfOf(v["half"]));
         return;

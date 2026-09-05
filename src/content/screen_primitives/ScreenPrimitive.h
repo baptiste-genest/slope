@@ -62,6 +62,11 @@ public:
 
     virtual vec2 getSize() const = 0;
 
+    // A primitive that lands somewhere of its own accord, a Plot on the
+    // rectangle of its Board. It is given no default label anchor, so it mints
+    // no views/*.pos for a placement it ignores.
+    virtual bool placesItself() const {return false;}
+
     // only texture-backed primitives go through ImageRotated, the others would
     // silently ignore an angle, so the editor refuses to rotate them
     virtual bool canRotate() const {return false;}

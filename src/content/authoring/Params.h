@@ -52,6 +52,7 @@ public:
 
     struct ScalarEntry : Entry {
         scalar value = 0, min = 0, max = 0;
+        bool open_max = false;   // dragged, but never below min
         bool drawUI(const char* label) override;
         void onWritten() override;
         json toJson() const override {return value;}
@@ -69,6 +70,17 @@ public:
         bool drawUI(const char* label) override;
         json toJson() const override {return value;}
         void fromJson(const json& j) override {value = j;}
+    };
+    // One of a fixed list of names, drawn as a dropdown. Saved by the name it
+    // holds, so reordering the options does not change what a file means.
+    struct EnumEntry : Entry {
+        int value = 0;
+        std::vector<std::string> options;
+        bool drawUI(const char* label) override;
+        void onWritten() override;
+        json toJson() const override;
+        void fromJson(const json& j) override;
+        const std::string& choice() const;
     };
     struct ColorEntry : Entry {
         RGBA value = RGBA(1.f,1.f,1.f,1.f);
@@ -113,20 +125,63 @@ public:
         void set(const T& v) const {entry->value = v; entry->onWritten();}
         // shows the parameter without the panel, chained onto Add
         Handle show(Visible v) const {entry->vis = v; return *this;}
+        // for an enum, whether it currently holds that option
+        bool is(const std::string& option) const {
+            entry->last_read = frame;
+            if constexpr (std::is_same_v<E, EnumEntry>)
+                return entry->choice() == option;
+            else
+                return false;
+        }
+        // for an enum, the option it holds. Reading through the handle is
+        // what stamps the entry, and what puts it in the Tuner.
+        const std::string& choice() const {
+            entry->last_read = frame;
+            static const std::string none;
+            if constexpr (std::is_same_v<E, EnumEntry>)
+                return entry->choice();
+            else
+                return none;
+        }
     };
     using ScalarParam = Handle<ScalarEntry, scalar>;
     using IntParam    = Handle<IntEntry, int>;
     using BoolParam   = Handle<BoolEntry, bool>;
     using ColorParam  = Handle<ColorEntry, RGBA>;
+    // reads as the index of the chosen option
+    using EnumParam   = Handle<EnumEntry, int>;
     using Vec2Param   = Handle<Vec2Entry, vec2>;
     using VecParam    = Handle<VecEntry, vec>;
     using DirParam    = Handle<DirEntry, vec>;
 
     // min == max means unconstrained (drag instead of slider)
     static ScalarParam Add(const std::string& name, scalar def, scalar min = 0, scalar max = 0);
+    // dragged like an unconstrained one, but held at or above `min`
+    static ScalarParam AddAtLeast(const std::string& name, scalar def, scalar min = 0);
     static IntParam    AddInt(const std::string& name, int def, int min = 0, int max = 0);
     static BoolParam   AddBool(const std::string& name, bool def);
     static ColorParam  AddColor(const std::string& name, const RGBA& def);
+    // A choice among names, the default named too.
+    //   auto side = Params::AddEnum("fig/yticks", {"left","right","none"}, "left");
+    //   if (side.is("none")) ...
+    // Re-declaring keeps the option held when the new list still has it.
+    static EnumParam   AddEnum(const std::string& name,
+                               std::vector<std::string> options,
+                               const std::string& def);
+    // the chosen option, for callers holding no handle. Empty when unknown.
+    static std::string choice(const std::string& name);
+
+    // What a parameter falls back to when nothing has edited it, its type and
+    // bounds left alone. A saved or edited value still outranks it. The value
+    // takes the shape that type is saved in, and a wrong shape throws.
+    // False when no parameter of that name is registered.
+    static bool setDefault(const std::string& name, const json& value);
+
+    // Drives a parameter from a value of that shape, like write() does from
+    // numbers. Never saved, and it outranks what the Tuner holds.
+    static bool drive(const std::string& name, const json& value);
+    // its value in the shape it is saved in, null when unknown
+    static json valueOf(const std::string& name);
     static Vec2Param   AddVec2(const std::string& name, const vec2& def,
                                scalar min = 0, scalar max = 0);
     static VecParam    AddVec(const std::string& name, const vec& def,

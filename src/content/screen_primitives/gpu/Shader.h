@@ -331,6 +331,20 @@ public:
     void bindView(std::function<vec2()> center, std::function<scalar()> half_height);
     bool hasView() const { return bool(view_half); }
 
+    // The same, with the two axes scaled independently, for a plot whose x
+    // and y are not the same quantity.
+    //
+    //   fx->setViewRect({0, -1}, {10, 3});   // x in 0..10, y in -1..3
+    //
+    // iPixelXY() then gives the two pixel sizes, iPixel() the vertical one.
+    void setView(const vec2& center, const vec2& half);
+    void bindView(std::function<vec2()> center, std::function<vec2()> half);
+    void setViewRect(const vec2& lo, const vec2& hi);
+    void bindViewRect(std::function<std::pair<vec2,vec2>()> rect);
+    // the half-extent as uploaded, x from the aspect for a scalar view
+    vec2 viewHalf() const { return resolveViewHalf(); }
+    vec2 viewCenter() const { return view_center ? view_center() : vec2::Zero(); }
+
     // World to window position, relative [0,1]^2 with y down, the space anchors
     // live in. Uses the view and rect the shader was last drawn with, so a
     // tracked label agrees with the pixels under it. Before the first draw,
@@ -430,6 +444,21 @@ public:
     void draw(const TimeObject& t, const StateInSlide& sis) override;
     void playIntro(const TimeObject& t, const StateInSlide& sis) override;
     void playOutro(const TimeObject& t, const StateInSlide& sis) override;
+
+protected:
+    // ── for subclasses that generate their own source (see Plot) ────────────
+    // Installs a source and schedules the recompile, the non-static half of
+    // Add(). registerLive() joins the list HotReloadIfModified walks, and a
+    // subclass factory calls both.
+    void setFragmentSource(std::string src);
+    // the same from a file, then watched like any other file-backed shader
+    void setFragmentFile(const path& file);
+    void registerLive();
+    // where this shader is drawn, in ImGui display units (y down). A subclass
+    // painting over the blit needs the rect the blit used.
+    void screenRect(const StateInSlide& sis, ImVec2& pmin, ImVec2& pmax) const;
+    // the offscreen texture onto the slide, the base class's whole draw
+    void display(const StateInSlide& sis, float global_alpha);
 
 private:
     // a uniform is a closure that, given its resolved location, pushes its
@@ -602,25 +631,24 @@ private:
     std::vector<std::string> source_units;
 
     // ── world space (setView) ───────────────────────────────────────────────
-    std::function<vec2()>   view_center;
-    std::function<scalar()> view_half;
+    std::function<vec2()> view_center;
+    std::function<vec2()> view_half;
+    // set by the scalar setView/bindView, whose width comes from the aspect
+    bool view_x_from_aspect = true;
+    vec2 resolveViewHalf() const;
     // What was last uploaded to iViewCenter/iViewHalf, and the rect it was
     // drawn into (window relative, y down). worldToScreen inverts these rather
     // than re-reading the callables, so it cannot disagree with the image.
     mutable vec2   drawn_view_center = vec2::Zero();
-    mutable scalar drawn_view_half   = 1;
+    mutable vec2   drawn_view_half   = vec2(1, 1);
     mutable vec2   drawn_rect_min = vec2::Zero(), drawn_rect_max = vec2(1, 1);
     mutable bool   rect_recorded  = false;
     bool bad_view_reported = false;   // a degenerate view is said once, not per frame
 
-    // where this shader is drawn, in ImGui display units (y down). Shared by
-    // the blit and the camera uniforms, which must agree exactly.
-    void screenRect(const StateInSlide& sis, ImVec2& pmin, ImVec2& pmax) const;
 
     void ensureResources();     // lazy GL init, on first draw
     void recompile();
     void renderToTexture(const TimeObject& t, const StateInSlide& sis);
-    void display(const StateInSlide& sis, float global_alpha);
     void reloadFromFile();
 
     // the shared body of draw/playIntro/playOutro, which differ only in alpha

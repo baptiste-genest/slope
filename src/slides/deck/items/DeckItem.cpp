@@ -19,7 +19,8 @@ const std::vector<ItemSpec>& itemSpecs()
     static const std::vector<ItemSpec> specs = [] {
         std::vector<ItemSpec> all;
         for (auto* family : {customItemSpecs, sceneItemSpecs,
-                             textItemSpecs, mediaItemSpecs, shaderItemSpecs})
+                             textItemSpecs, mediaItemSpecs, shaderItemSpecs,
+                             plotItemSpecs})
             for (auto& spec : family()) {
                 // screen items share the placement keys rather than repeat them
                 if (spec.kind == ItemSpec::Kind::Screen)

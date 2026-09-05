@@ -78,6 +78,7 @@ file(GLOB SRC_lib
      "src/content/screen_primitives/shapes/*"
      "src/content/screen_primitives/layout/*"
      "src/content/screen_primitives/gpu/*"
+     "src/content/screen_primitives/plots/*"
      "src/content/screen_primitives/widgets/*"
      "src/content/polyscope_primitives/*"
      "src/content/polyscope_primitives/quantities/*"

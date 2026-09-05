@@ -724,7 +724,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         else if (at == "BOTTOM") pis = prim->at(BOTTOM, alpha);
         else pis = prim->at(at, alpha);
     }
-    else if (default_label != "")
+    else if (default_label != "" && !prim->placesItself())
         pis = prim->at(default_label, alpha);
     else if (keep_placement) {
         // a "set" that only changes state keeps wherever the item already is

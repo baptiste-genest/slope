@@ -35,6 +35,12 @@ namespace slope {
  *     return p + vec3(0, 0, envelope * math.exp(-20*p:norm()^2))
  *   end
  *
+ * A section name may be grouped with "/", so it can own a parameter another
+ * object publishes.
+ *
+ *   --- fig/xrange                     -- the board reads its view from here
+ *   return vec2(-3.15 + 3.75*t:sinceKeyframe("zoom"), 3.15)
+ *
  * Sections see `t` (the current slide's TimeObject), the built-ins below, and
  * every other name in the snippet namespace, which is shared with Params.
  * Reading another section evaluates it, so order in the file does not matter.

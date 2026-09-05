@@ -63,6 +63,8 @@ std::string screenItemTypes();
 // silently ignore (the deck is hand-edited live, so mistakes must be loud)
 void warnUnknownKeys(const json& item);
 
+std::vector<ItemSpec> plotItemSpecs();
+
 // the families, assembled by itemSpecs()
 std::vector<ItemSpec> textItemSpecs();
 std::vector<ItemSpec> mediaItemSpecs();

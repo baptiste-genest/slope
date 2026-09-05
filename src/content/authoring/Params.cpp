@@ -138,6 +138,7 @@ int Params::read(const std::string& name, scalar* out4)
     if (auto p = std::dynamic_pointer_cast<ScalarEntry>(e)) { out4[0] = p->value; return 1; }
     if (auto p = std::dynamic_pointer_cast<IntEntry>(e))    { out4[0] = p->value; return 1; }
     if (auto p = std::dynamic_pointer_cast<BoolEntry>(e))   { out4[0] = p->value ? 1 : 0; return 1; }
+    if (auto p = std::dynamic_pointer_cast<EnumEntry>(e))   { out4[0] = p->value; return 1; }
     return 0;
 }
 
@@ -166,6 +167,7 @@ int Params::write(const std::string& name, const scalar* in, int n)
     if (auto p = std::dynamic_pointer_cast<ScalarEntry>(e)) { p->value = in[0]; return written(); }
     if (auto p = std::dynamic_pointer_cast<IntEntry>(e))    { p->value = int(std::lround(in[0])); return written(); }
     if (auto p = std::dynamic_pointer_cast<BoolEntry>(e))   { p->value = in[0] != 0; return written(); }
+    if (auto p = std::dynamic_pointer_cast<EnumEntry>(e))   { p->value = int(std::lround(in[0])); return written(); }
     return 0;
 }
 
@@ -204,6 +206,20 @@ Params::ScalarParam Params::Add(const std::string& name, scalar def, scalar min,
     return {e};
 }
 
+Params::ScalarParam Params::AddAtLeast(const std::string& name, scalar def, scalar min)
+{
+    auto e = addEntry<ScalarEntry>(name);
+    e->min = min;
+    e->max = min;
+    e->open_max = true;
+    if (!keepEditedValue(name)) {
+        e->value = def;
+        applyFileValue(e, name);
+    }
+    e->onWritten();
+    return {e};
+}
+
 Params::IntParam Params::AddInt(const std::string& name, int def, int min, int max)
 {
     auto e = addEntry<IntEntry>(name);
@@ -234,6 +250,77 @@ Params::ColorParam Params::AddColor(const std::string& name, const RGBA& def)
         applyFileValue(e, name);
     }
     return {e};
+}
+
+Params::EnumParam Params::AddEnum(const std::string& name,
+                                  std::vector<std::string> options,
+                                  const std::string& def)
+{
+    auto e = addEntry<EnumEntry>(name);
+    // re-declaring keeps the option held, when the new list still has it
+    const std::string held = e->choice();
+    e->options = std::move(options);
+    auto index = [&](const std::string& want) {
+        for (std::size_t i = 0; i < e->options.size(); i++)
+            if (e->options[i] == want) return int(i);
+        return -1;
+    };
+    if (index(def) < 0 && !e->options.empty())
+        spdlog::warn("parameter \"{}\" defaults to \"{}\", which is not one of "
+                     "its options", name, def);
+    if (!keepEditedValue(name)) {
+        e->value = std::max(0, index(def));
+        applyFileValue(e, name);
+    } else if (const int keep = index(held); keep >= 0) {
+        e->value = keep;
+    }
+    e->onWritten();
+    return {e};
+}
+
+bool Params::drive(const std::string& name, const json& value)
+{
+    auto it = registry.find(name);
+    if (it == registry.end())
+        return false;
+    try {
+        it->second->fromJson(value);
+    } catch (const json::exception&) {
+        throw std::runtime_error("parameter \"" + name + "\" cannot take the "
+                                 "value " + value.dump());
+    }
+    it->second->onWritten();
+    // a driven parameter is a used one, the Tuner shows it like a read does
+    it->second->last_read = frame;
+    return true;
+}
+
+json Params::valueOf(const std::string& name)
+{
+    auto it = registry.find(name);
+    return it == registry.end() ? json() : it->second->toJson();
+}
+
+bool Params::setDefault(const std::string& name, const json& value)
+{
+    if (!registry.count(name))
+        return false;
+    // an unsaved edit is the newest value there is, and outranks a default
+    if (!keepEditedValue(name)) {
+        drive(name, value);
+        applyFileValue(registry[name], name);   // ... a saved value outranks both
+    }
+    return true;
+}
+
+std::string Params::choice(const std::string& name)
+{
+    auto it = registry.find(name);
+    if (it == registry.end()) return {};
+    auto e = std::dynamic_pointer_cast<EnumEntry>(it->second);
+    if (!e) return {};
+    e->last_read = frame;
+    return e->choice();
 }
 
 Params::Vec2Param Params::AddVec2(const std::string& name, const vec2& def,
@@ -292,9 +379,11 @@ static scalar clampToBounds(scalar v, scalar min, scalar max)
 bool Params::ScalarEntry::drawUI(const char* label)
 {
     float f = value;
-    bool changed = (min < max)
-        ? ImGui::SliderFloat(label, &f, min, max)
-        : ImGui::DragFloat(label, &f, 0.01f);
+    bool changed = open_max
+        ? ImGui::DragFloat(label, &f, 0.01f, float(min), FLT_MAX, "%.3f",
+                           ImGuiSliderFlags_AlwaysClamp)
+        : (min < max) ? ImGui::SliderFloat(label, &f, min, max)
+                      : ImGui::DragFloat(label, &f, 0.01f);
     if (changed)
         value = f;
     return changed;
@@ -302,7 +391,8 @@ bool Params::ScalarEntry::drawUI(const char* label)
 
 void Params::ScalarEntry::onWritten()
 {
-    value = clampToBounds(value, min, max);
+    if (open_max) value = std::max(value, min);
+    else          value = clampToBounds(value, min, max);
 }
 
 bool Params::IntEntry::drawUI(const char* label)
@@ -321,6 +411,39 @@ void Params::IntEntry::onWritten()
 bool Params::BoolEntry::drawUI(const char* label)
 {
     return ImGui::Checkbox(label, &value);
+}
+
+const std::string& Params::EnumEntry::choice() const
+{
+    static const std::string none;
+    return (value >= 0 && value < int(options.size())) ? options[std::size_t(value)] : none;
+}
+
+bool Params::EnumEntry::drawUI(const char* label)
+{
+    std::vector<const char*> names;
+    names.reserve(options.size());
+    for (const auto& o : options) names.push_back(o.c_str());
+    return ImGui::Combo(label, &value, names.data(), int(names.size()));
+}
+
+void Params::EnumEntry::onWritten()
+{
+    value = std::min(std::max(value, 0), int(options.size()) - 1);
+}
+
+// by the name it holds, so a saved file survives the list being reordered
+json Params::EnumEntry::toJson() const { return choice(); }
+
+void Params::EnumEntry::fromJson(const json& j)
+{
+    if (j.is_number_integer()) { value = j.get<int>(); onWritten(); return; }
+    if (!j.is_string()) return;
+    const std::string want = j.get<std::string>();
+    for (std::size_t i = 0; i < options.size(); i++)
+        if (options[i] == want) { value = int(i); return; }
+    // an option that no longer exists, left on what the code declared
+    spdlog::warn("parameter \"{}\" has no option \"{}\" any more", name, want);
 }
 
 bool Params::ColorEntry::drawUI(const char* label)
