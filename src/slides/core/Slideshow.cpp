@@ -159,6 +159,10 @@ void slope::Slideshow::updateBackground(parameter transition)
 
 void slope::Slideshow::renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T)
 {
+    // latex texture reloads are only safe from here, see Latex::requestTexels
+    Latex::in_render_pass = true;
+    struct PassGuard { ~PassGuard() { Latex::in_render_pass = false; } } pass_guard;
+
     if (state.backward || !state.locked) {
         state.settle();
         for (auto& s : CS.getDepthSorted())

@@ -201,6 +201,16 @@ public:
     // refills the texture from the png, reduced k times more than now
     void reloadTexels(double k);
 
+    // reloadTexels if it is safe now, otherwise on the next render pass
+    void requestTexels(double k);
+
+    // reloadTexels deletes the live texture, so it is only safe while the
+    // frame's draw list holds no reference to it yet. True only inside
+    // Slideshow::renderSlide; anywhere else the reload waits for the next one.
+    static bool in_render_pass;
+    // the reload ensureTexelsFor asked for out of pass, composed
+    double deferred_texels = 0;
+
     // uploads the png at the size it will be drawn at
     void loadTexture(const path& png);
 
@@ -208,6 +218,12 @@ public:
         FlushPending();
         if (data.width == -1)
             return;
+        // taken before anything references the texture this frame
+        if (deferred_texels > 0 && in_render_pass) {
+            const double k = deferred_texels;
+            deferred_texels = 0;
+            reloadTexels(k);
+        }
         anchor->updatePos(sis.getPosition());
         scalar s = scale*getNormalizationFactor()*sis.getScale();
         if (sis.hasPlane()){

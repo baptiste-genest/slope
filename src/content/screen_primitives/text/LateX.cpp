@@ -106,8 +106,8 @@ void slope::Latex::ensureTexelsFor(double sx, double sy)
 
     if (need > have*1.05 && have < 1) {
         // a 1.5 ladder, so a zoom drag costs a few reloads, not one a frame
-        reloadTexels(std::min(1.0/have,
-                              std::pow(1.5,std::ceil(std::log(need/have)/std::log(1.5)))));
+        requestTexels(std::min(1.0/have,
+                               std::pow(1.5,std::ceil(std::log(need/have)/std::log(1.5)))));
         settling_need = -1;
         return;
     }
@@ -119,7 +119,7 @@ void slope::Latex::ensureTexelsFor(double sx, double sy)
     }
     // an export draws each slide once, nothing to wait for
     if (Options::ExportMode) {
-        reloadTexels(need/have);
+        requestTexels(need/have);
         return;
     }
     if (settling_need < 0 || std::abs(need - settling_need) > settling_need*0.02) {
@@ -129,8 +129,23 @@ void slope::Latex::ensureTexelsFor(double sx, double sy)
     }
     if (TimeFrom(settling_since) < 0.25)
         return;
-    reloadTexels(need/have);
+    requestTexels(need/have);
     settling_need = -1;
+}
+
+bool slope::Latex::in_render_pass = false;
+
+// Out of the render pass the current frame may already have queued a draw on
+// the texture reloadTexels is about to delete, which the driver only reports
+// later, at the frame's own bind. Skipping to a slide (forceNextFrame) plays
+// intros from there, so it takes this path.
+void slope::Latex::requestTexels(double k)
+{
+    if (in_render_pass) {
+        reloadTexels(k);
+        return;
+    }
+    deferred_texels = deferred_texels > 0 ? deferred_texels*k : k;
 }
 
 void slope::Latex::ensureRendered()
