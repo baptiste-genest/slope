@@ -61,8 +61,8 @@ public:
     // sources (deck manifest, generated data...) and recompose on change
     std::function<void()> onFrame;
 
-    // a fresh name on the clipboard, "at: <name>" as a placement and the
-    // bare name otherwise, which serves as an "id:" just as well
+    // a fresh name on the clipboard, "at: <name>" as a placement and the bare
+    // name otherwise, which serves as an "id:" just as well
     void copyLabelSuggestion(bool as_placement = false);
 
 private:

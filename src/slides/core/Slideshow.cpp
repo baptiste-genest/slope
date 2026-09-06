@@ -268,8 +268,23 @@ void slope::Slideshow::copyLabelSuggestion(bool as_placement)
         spdlog::warn("could not find a free label to suggest");
         return;
     }
+    // no layout of our own, an editor reindenting a pasted line being free to
+    // undo it. The name alone serves as an "id:" just as well.
     std::string paste = as_placement ? "at: " + l : l;
-    ImGui::SetClipboardText(paste.c_str());
+    // straight to glfw, ImGui::SetClipboardText going nowhere when the current
+    // context is not the one its glfw backend was set up on
+    GLFWwindow* win = glfwGetCurrentContext();
+    if (win == nullptr) {
+        spdlog::warn("no window to hold the clipboard, \"{}\" was not copied", l);
+        return;
+    }
+    glfwSetClipboardString(win, paste.c_str());
+    // reading it back says whether the selection was really taken
+    const char* back = glfwGetClipboardString(win);
+    if (back == nullptr || paste != back) {
+        spdlog::warn("the clipboard did not take \"{}\", use it as a name by hand", l);
+        return;
+    }
     spdlog::info("copied \"{}\" to the clipboard", paste);
 }
 

@@ -177,8 +177,9 @@ void DeckLoader::parse()
 
 bool DeckLoader::sourceModified()
 {
+    // checked often, the deck being what the author saves to see a change
     static auto last_refresh = Time::now();
-    if (TimeFrom(last_refresh) < 0.2)
+    if (TimeFrom(last_refresh) < 0.05)
         return false;
     last_refresh = Time::now();
     try {
@@ -226,20 +227,16 @@ void DeckLoader::hotReload(Slideshow& show)
     latex_generation = LatexLoader::generation;
     if (!deck_changed && !cams_changed && !latex_changed)
         return;
+    // saving the deck is what asks for a name, and the rebuild below can take
+    // a latex compile, so the paste is ready before any of that starts
+    if (Options::AutoSuggest && deck_changed)
+        show.copyLabelSuggestion(true);
+
     spdlog::info("{} changed, rebuilding slides...",
                  deck_changed ? "deck file" : (cams_changed ? "camera view" : "latex source"));
     show.recompose([this](SlideManager& sm) { build(sm); }, used_primitives);
 
-    // a first placement is named after its content, before any .pos exists
-    auto fresh = LabelAnchor::takeFreshLabels();
-    if (Options::AutoSuggest && !fresh.empty()) {
-        std::string list;
-        for (const auto& l : fresh)
-            list += (list.empty() ? "" : ", ") + l;
-        spdlog::info("{} item(s) placed for the first time ({})", fresh.size(), list);
-        // the item was just placed, so it wants the whole "at:" key
-        show.copyLabelSuggestion(true);
-    }
+    LabelAnchor::takeFreshLabels();
 }
 
 PrimitivePtr DeckLoader::cached(const std::string& key, const std::function<PrimitivePtr()>& create)
