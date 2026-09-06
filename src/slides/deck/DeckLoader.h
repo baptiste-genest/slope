@@ -307,6 +307,10 @@ public:
     // throttled mtime check; true when the manifest changed on disk and
     // was successfully re-parsed
     bool sourceModified();
+private:
+    // the first build places every item, so only what follows it is new
+    bool first_build_done = false;
+public:
 
     // primitives placed by the manifest at the last build
     const std::set<PrimitivePtr>& usedPrimitives() const {return used_primitives;}

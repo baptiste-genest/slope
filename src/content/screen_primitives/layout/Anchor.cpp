@@ -1,9 +1,42 @@
 #include "content/screen_primitives/layout/Anchor.h"
 #include <spdlog/spdlog.h>
+#include <random>
 
 namespace slope {
 
 AnchorPtr GlobalAnchor = AbsoluteAnchor::Add(vec2(0,0));
+
+std::set<std::string> LabelAnchor::takeFreshLabels()
+{
+    std::set<std::string> out;
+    out.swap(fresh_labels);
+    return out;
+}
+
+// c q x y are left out, reading as several sounds or as another letter
+static const std::string label_consonants = "bdfgklmnprstvz";
+static const std::string label_vowels     = "aeiou";
+
+std::string LabelAnchor::suggestLabel()
+{
+    static std::mt19937 rng{std::random_device{}()};
+    auto pick = [](const std::string& from) {
+        std::uniform_int_distribution<size_t> d(0, from.size()-1);
+        return from[d(rng)];
+    };
+    // enough tries that only a deck holding most of the 68600 names gives up
+    for (int attempt = 0; attempt < 200; attempt++) {
+        std::string l;
+        for (int i = 0; i < 5; i++)
+            l += (i % 2 == 0) ? pick(label_consonants) : pick(label_vowels);
+        if (label_usage.count(l) || reserved_names.count(l))
+            continue;
+        if (io::file_exists(slope::Options::ProjectViewsPath + l + ".pos"))
+            continue;
+        return l;
+    }
+    return "";
+}
 
 void LabelAnchor::writeAtLabel(const AnchorState& s, bool overwrite) const
 {
@@ -14,6 +47,7 @@ void LabelAnchor::writeAtLabel(const AnchorState& s, bool overwrite) const
     if (!exists || overwrite){
         if (!exists)
             created_labels.insert(label);
+            fresh_labels.insert(label);
         std::ofstream file(filepath);
         if (!file.is_open()){
             spdlog::error("could not open file {}",filepath);

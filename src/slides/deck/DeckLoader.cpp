@@ -229,6 +229,17 @@ void DeckLoader::hotReload(Slideshow& show)
     spdlog::info("{} changed, rebuilding slides...",
                  deck_changed ? "deck file" : (cams_changed ? "camera view" : "latex source"));
     show.recompose([this](SlideManager& sm) { build(sm); }, used_primitives);
+
+    // a first placement is named after its content, before any .pos exists
+    auto fresh = LabelAnchor::takeFreshLabels();
+    if (Options::AutoSuggest && !fresh.empty()) {
+        std::string list;
+        for (const auto& l : fresh)
+            list += (list.empty() ? "" : ", ") + l;
+        spdlog::info("{} item(s) placed for the first time ({})", fresh.size(), list);
+        // the item was just placed, so it wants the whole "at:" key
+        show.copyLabelSuggestion(true);
+    }
 }
 
 PrimitivePtr DeckLoader::cached(const std::string& key, const std::function<PrimitivePtr()>& create)
@@ -478,6 +489,15 @@ void DeckLoader::build(SlideManager& show)
     }
     if (show.getNumberSlides() == 0)
         show.addSlide(Slide());
+    // an id is a name too, and a suggestion clashing with one is unusable
+    std::set<std::string> taken;
+    for (const auto& [n, prim] : named)
+        taken.insert(n);
+    LabelAnchor::reserveNames(std::move(taken));
+    if (!first_build_done) {
+        LabelAnchor::takeFreshLabels();
+        first_build_done = true;
+    }
 }
 
 // A group is built the first time it is used and re-added afterwards, like a

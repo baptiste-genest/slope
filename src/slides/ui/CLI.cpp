@@ -28,6 +28,9 @@ int slope::parseCLI(int argc,char** argv) {
         else if (arg == "--ignore_cache") {
             Options::ignore_cache = true;
         }
+        else if (arg == "--auto-suggest") {
+            Options::AutoSuggest = true;
+        }
         else if (arg == "--resolution" && i + 1 < argc) {
             resolution = argv[++i];
         }

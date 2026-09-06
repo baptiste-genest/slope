@@ -27,6 +27,7 @@ double Options::TitleScale = Options::DefaultTitleScale;
 double Options::DefaultLatexScale = Options::DefaultLatexScaleValue;
 vec2 Options::ScreenMargin = vec2(Options::DefaultScreenMargin, Options::DefaultScreenMargin);
 
+bool Options::AutoSuggest = false;
 bool Options::ignore_cache = false;
 bool Options::ExportMode = false;
 int Options::ExportTransitionSamples = 0;

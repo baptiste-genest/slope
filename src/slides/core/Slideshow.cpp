@@ -260,6 +260,19 @@ void slope::Slideshow::handleTransition()
 
 
 
+// the one thing a deck item needs that the author has to invent
+void slope::Slideshow::copyLabelSuggestion(bool as_placement)
+{
+    std::string l = LabelAnchor::suggestLabel();
+    if (l.empty()) {
+        spdlog::warn("could not find a free label to suggest");
+        return;
+    }
+    std::string paste = as_placement ? "at: " + l : l;
+    ImGui::SetClipboardText(paste.c_str());
+    spdlog::info("copied \"{}\" to the clipboard", paste);
+}
+
 void slope::Slideshow::ImGuiWindowConfig()
 {
     ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -870,6 +883,8 @@ void slope::Slideshow::addKeyboardInputs()
             spdlog::info("screenshot saved at {}", file.string());
         },false);
 
+    input_manager.addInput("copy a label for a new item","N",ImGuiKey_N,
+        [this](){ copyLabelSuggestion(); },false);
     input_manager.addInput("reload latex","L",ImGuiKey_L,
         [this](){slope::LatexLoader::ReloadContentAndUpdate();},false);
     input_manager.addInput("show slide goto and timings","Tab",ImGuiKey_Tab,

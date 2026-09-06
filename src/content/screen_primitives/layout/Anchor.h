@@ -71,6 +71,10 @@ protected:
     // bookkeeping for the startup report, see reportLabelIssues()
     inline static std::map<std::string,int> label_usage;   // how many anchors use each label
     inline static std::set<std::string> created_labels;    // had no .pos file yet
+    // the same, drained by whoever suggests a shorter name for them
+    inline static std::set<std::string> fresh_labels;
+    // names the deck already gives to something, refreshed by its loader
+    inline static std::set<std::string> reserved_names;
     inline static std::set<std::string> unreadable_labels; // .pos present but unusable
 
 public:
@@ -120,6 +124,18 @@ public:
     // LabelAnchor would register a spurious label use
     static void writeToSessionAt(const std::string& label, const AnchorState& s);
     static void saveAllDirty();
+
+    // a short name in consonant-vowel pairs, so it reads aloud and never
+    // mixes letters with digits. Empty when every name it tried was taken.
+    static std::string suggestLabel();
+
+    // the names the deck uses for its items, which a suggestion stays clear of
+    static void reserveNames(std::set<std::string> names) {
+        reserved_names = std::move(names);
+    }
+
+    // the labels placed for the first time since this was last called
+    static std::set<std::string> takeFreshLabels();
     static bool hasDirty();
 
     void writePosAtLabel(scalar x, scalar y, bool /*overwrite*/) const {

@@ -67,6 +67,9 @@ static float DefaultBoxRoundness;
 
 static bool ignore_cache;
 
+/// Copy a label for every newly placed item to the clipboard (--auto-suggest)
+static bool AutoSuggest;
+
 /// Height ratio for title
 static double TitleScale;
 static double DefaultLatexScale;
