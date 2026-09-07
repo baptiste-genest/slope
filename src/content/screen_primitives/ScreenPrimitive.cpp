@@ -17,18 +17,21 @@ bool slope::ScreenPrimitive::isScreenSpace() const {
 void slope::ScreenPrimitive::play(const TimeObject &t, const StateInSlide &sis) {
     anchor->updatePos(sis.getPosition());
     drawn_scale = sis.getScale();
+    drawn_angle = sis.getAngle();
     Primitive::play(t,sis);
 }
 
 void slope::ScreenPrimitive::intro(const TimeObject &t, const StateInSlide &sis) {
     anchor->updatePos(sis.getPosition());
     drawn_scale = sis.getScale();
+    drawn_angle = sis.getAngle();
     Primitive::intro(t,sis);
 }
 
 void slope::ScreenPrimitive::outro(const TimeObject &t, const StateInSlide &sis) {
     anchor->updatePos(sis.getPosition());
     drawn_scale = sis.getScale();
+    drawn_angle = sis.getAngle();
     Primitive::outro(t,sis);
 }
 
@@ -113,7 +116,14 @@ slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::at(const vec &worldPos, co
 
 slope::Primitive::Size slope::ScreenPrimitive::getRelativeSize() const {
     auto s = getSize();
-    return Size(s(0)/Options::ScreenResolutionWidth,s(1)/Options::ScreenResolutionHeight);
+    Size r(s(0)/Options::ScreenResolutionWidth,s(1)/Options::ScreenResolutionHeight);
+    if (canRotate() && drawn_angle != 0) {
+        // still axis aligned, grown to wrap the rotated primitive
+        const scalar c = std::abs(std::cos(drawn_angle));
+        const scalar sn = std::abs(std::sin(drawn_angle));
+        r = Size(r(0)*c + r(1)*sn, r(0)*sn + r(1)*c);
+    }
+    return r;
 }
 
 void slope::ScreenPrimitive::getBoundingBox(vec2 &lo, vec2 &hi) const {

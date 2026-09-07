@@ -19,6 +19,10 @@ protected:
     // anchor scale), mirrored on every play/intro/outro like the anchor,
     // so bounding boxes follow dynamic rescaling
     scalar drawn_scale = 1;
+
+    // angle the primitive is actually drawn at, mirrored like drawn_scale so
+    // the axis-aligned bounding box can be refitted around a rotated primitive
+    scalar drawn_angle = 0;
 public:
     ScreenPrimitive();
 
