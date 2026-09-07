@@ -341,10 +341,8 @@ BoardPtr Board::Add(const std::string& name, std::optional<vec2> x, std::optiona
     if (x) p->settings.set("xrange", json::array({(*x)(0), (*x)(1)}));
     if (y) p->settings.set("yrange", json::array({(*y)(0), (*y)(1)}));
 
-    // re-declared every frame, so an untouched background follows the slide
     p->bind("background", [self] {
-        const auto& b = polyscope::view::bgColor;
-        return self->settings.ink("background", RGBA(b[0], b[1], b[2], 1.f));
+        return self->settings.ink("background", RGBA(1.f, 1.f, 1.f, 1.f));
     });
     p->bind("grid_color", [self] { return self->settings.ink("grid", kGridInk); });
     p->bind("axis_color", [self] { return self->settings.ink("axis", kAxisInk); });
