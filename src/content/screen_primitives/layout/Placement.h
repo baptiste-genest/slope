@@ -6,9 +6,15 @@
 
 namespace slope {
 
-const vec2 CENTER(0.5,0.5);
-const vec2 TOP(0.5,0.1);
-const vec2 BOTTOM(0.5,0.9);
+// named screen points, mutable so the deck "config:" block can move them
+namespace placement_default {   // the compiled values, for a reset
+inline const vec2 CENTER(0.5,0.5);
+inline const vec2 TOP(0.5,0.1);
+inline const vec2 BOTTOM(0.5,0.9);
+}
+extern vec2 CENTER;
+extern vec2 TOP;
+extern vec2 BOTTOM;
 
 struct Replace {
     Replace(ScreenPrimitivePtr ptr,ScreenPrimitivePtr ptr_other = nullptr) : ptr(ptr),ptr_other(ptr_other) {}

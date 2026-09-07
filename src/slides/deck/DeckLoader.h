@@ -42,7 +42,17 @@ using ShaderPtr = std::shared_ptr<Shader>;
  * Manifest format (deck.yaml):
  *
  * commands: my_commands.tex           # optional, latex prefix file
+ * preamble: \usepackage{...}          # optional, inline latex prefix (string or
+ *                                     # list), on top of commands.tex
  * latex: my_definitions.json          # optional, latex source file
+ * config:                             # optional, hot-reloaded. Drop a key to
+ *   title_scale: 1.8                   # reset that knob to its compiled default
+ *   latex_scale: 1.0
+ *   box_roundness: 0.5
+ *   margin: 0.05                       # number or [x, y], for the edge anchors
+ *   top:    [0.5, 0.08]                # moves the TOP / CENTER / BOTTOM points
+ *   center: [0.5, 0.5]
+ *   bottom: [0.5, 0.92]
  * slides:
  *   - frame:
  *       - title: My title
@@ -162,6 +172,9 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *   at: label                # persistent, drag-editable LabelAnchor
  *   at: [x, y]               # fixed position
  *   at: TOP | CENTER | BOTTOM
+ *   at: TOP_LEFT | TOP_RIGHT | BOTTOM_LEFT | BOTTOM_RIGHT | LEFT | RIGHT
+ *                            # flush to that screen edge/corner, size-aware,
+ *                            # "config: margin" away
  *   below/above/right_of/left_of: other_item   (optional padding: p)
  * When omitted, load/image items default to a label derived from their
  * key/filename, so everything is drag-editable out of the box.
@@ -339,6 +352,8 @@ private:
     std::unique_ptr<Slideshow> owned_show;
 
     void parse();
+    // applies the top-level "config:" and "preamble:", once per build
+    void applyDeckConfig();
     void loadLatexResources();
     void buildFrame(SlideManager& show, const json& items);
 

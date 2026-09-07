@@ -1,5 +1,10 @@
 #include "content/screen_primitives/layout/Placement.h"
 
+namespace slope {
+vec2 CENTER = placement_default::CENTER;
+vec2 TOP    = placement_default::TOP;
+vec2 BOTTOM = placement_default::BOTTOM;
+}
 
 slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitiveInSlide &other) const {
 

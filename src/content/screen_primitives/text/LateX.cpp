@@ -185,6 +185,16 @@ void slope::Latex::rebuildContext()
         buffer << t.rdbuf();
         context += buffer.str();
     }
+    context += deck_prefix;
+}
+
+void slope::Latex::SetDeckPrefix(const TexObject &tex)
+{
+    if (tex == deck_prefix)
+        return;
+    deck_prefix = tex;
+    rebuildContext();
+    RegenerateAll();
 }
 
 // compiled off the render thread, each primitive shows its previous image
@@ -367,6 +377,7 @@ slope::path slope::GetLatexPath(const TexObject &tex)
 }
 
 slope::TexObject slope::Latex::context = "";
+slope::TexObject slope::Latex::deck_prefix = "";
 std::vector<slope::Latex::ContextPart> slope::Latex::context_parts;
 std::future<void> slope::Latex::batch_future;
 std::vector<slope::LatexPtr> slope::Latex::batch_targets;

@@ -107,6 +107,10 @@ struct Latex : public TextualPrimitive {
 
     static void AddFileToPrefix(const path& p);
 
+    // the deck's inline "preamble:", added after the file-backed prefix parts
+    static TexObject deck_prefix;
+    static void SetDeckPrefix(const TexObject& tex);
+
     // watches the file-backed prefix parts; when one changed on disk,
     // rebuilds the context and re-renders every latex primitive
     static void HotReloadPrefixIfModified();
@@ -260,11 +264,11 @@ struct Formula : public Latex {
     static LatexPtr Add(const TexObject& tex,scalar scale = 1.,int width = -1);
 };
 
-inline LatexPtr Title(TexObject s,bool center = true) {
+inline LatexPtr Title(TexObject s,bool center = true,scalar scale = -1) {
     auto old = s;
     if (center)
         s = tex::center(s);
-    auto rslt = Latex::Add(s,Options::TitleScale);
+    auto rslt = Latex::Add(s,scale < 0 ? Options::TitleScale : scale);
     rslt->exclusive = true;
     rslt->content = old;
     return rslt;

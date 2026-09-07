@@ -341,12 +341,64 @@ ScreenPrimitivePtr DeckLoader::resolveScreen(const std::string& name) const
     return sp;
 }
 
+void DeckLoader::applyDeckConfig()
+{
+    // an absent block, or a dropped key, resets that knob to its compiled default
+    const json empty = json::object();
+    const json& cfg = (source.is_object() && source.contains("config"))
+                     ? source["config"] : empty;
+    if (!cfg.is_object())
+        throw std::runtime_error("\"config\" must be a map of settings");
+
+    Options::TitleScale         = cfg.value("title_scale",  Options::DefaultTitleScale);
+    Options::DefaultLatexScale  = cfg.value("latex_scale",  Options::DefaultLatexScaleValue);
+    Options::DefaultBoxRoundness = cfg.value("box_roundness",
+                                             (double)Options::DefaultBoxRoundnessValue);
+
+    // "margin" is one number (both axes) or [x, y]
+    const scalar dm = Options::DefaultScreenMargin;
+    if (!cfg.contains("margin"))
+        Options::ScreenMargin = vec2(dm, dm);
+    else if (cfg["margin"].is_number()) {
+        scalar m = cfg["margin"].get<scalar>();
+        Options::ScreenMargin = vec2(m, m);
+    }
+    else
+        Options::ScreenMargin = readVec2(cfg["margin"], "margin");
+
+    auto point = [&](const char* key, const vec2& def) {
+        return cfg.contains(key) ? readVec2(cfg[key], key) : def;
+    };
+    TOP    = point("top",    placement_default::TOP);
+    CENTER = point("center", placement_default::CENTER);
+    BOTTOM = point("bottom", placement_default::BOTTOM);
+
+    // top-level "preamble:", a string or list of inline latex prefix lines, on top of commands.tex
+    TexObject preamble;
+    if (source.is_object() && source.contains("preamble")) {
+        const json& p = source["preamble"];
+        if (p.is_string())
+            preamble = p.get<std::string>();
+        else if (p.is_array()) {
+            for (const auto& line : p) {
+                if (!line.is_string())
+                    throw std::runtime_error("\"preamble\" list entries must be strings");
+                preamble += line.get<std::string>() + "\n";
+            }
+        }
+        else
+            throw std::runtime_error("\"preamble\" must be a string or a list of strings");
+    }
+    Latex::SetDeckPrefix(preamble);
+}
+
 void DeckLoader::build(SlideManager& show)
 {
     if (!source.contains("slides") || !source["slides"].is_array())
         throw std::runtime_error("deck file must contain a top-level \"slides\" array");
     static const std::set<std::string> reserved =
-        {"slides", "commands", "latex", "snippets", "template"};
+        {"slides", "commands", "latex", "snippets", "template", "config", "preamble"};
+    applyDeckConfig();
     deck_groups.clear();
     built_groups.clear();
     for (const auto& [key, val] : source.items()) {
@@ -719,9 +771,27 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         pis = prim->at(readVec2(item["at"], "at"), alpha);
     else if (item.contains("at")) {
         std::string at = item["at"];
+        // sx, sy of -1 / 0 / +1 is flush-low / centre / flush-high on that axis
+        auto edge = [&](int sx, int sy) {
+            ScreenPrimitivePtr p = prim;
+            pis = p->at([p, sx, sy] {
+                vec2 m = Options::ScreenMargin;
+                vec2 h = p->getRelativeSize() * 0.5;
+                scalar x = sx < 0 ? m(0) + h(0) : (sx > 0 ? 1 - m(0) - h(0) : CENTER(0));
+                scalar y = sy < 0 ? m(1) + h(1) : (sy > 0 ? 1 - m(1) - h(1) : CENTER(1));
+                return vec2(x, y);
+            });
+            pis.second.alpha = alpha;
+        };
         if (at == "TOP") pis = prim->at(TOP, alpha);
         else if (at == "CENTER") pis = prim->at(CENTER, alpha);
         else if (at == "BOTTOM") pis = prim->at(BOTTOM, alpha);
+        else if (at == "TOP_LEFT")      edge(-1, -1);
+        else if (at == "TOP_RIGHT")     edge(+1, -1);
+        else if (at == "BOTTOM_LEFT")   edge(-1, +1);
+        else if (at == "BOTTOM_RIGHT")  edge(+1, +1);
+        else if (at == "LEFT")          edge(-1,  0);
+        else if (at == "RIGHT")         edge(+1,  0);
         else pis = prim->at(at, alpha);
     }
     else if (default_label != "" && !prim->placesItself())

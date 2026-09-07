@@ -107,10 +107,19 @@ std::vector<ItemSpec> textItemSpecs()
         },
     });
 
+    // scale shapes the compiled latex, so it goes in the cache key below
+    auto titleScale = [](const json& i) {
+        return i.value("scale", Options::TitleScale);
+    };
     specs.push_back({
-        "title", ItemSpec::Kind::Screen, {},
-        [](const json& i) { return "title:" + i["title"].get<std::string>(); },
-        [](const json& i) -> PrimitivePtr { return Title(i["title"].get<std::string>()); },
+        "title", ItemSpec::Kind::Screen, {"scale"},
+        [titleScale](const json& i) {
+            return "title:" + i["title"].get<std::string>() + ":"
+                 + std::to_string(titleScale(i));
+        },
+        [titleScale](const json& i) -> PrimitivePtr {
+            return Title(i["title"].get<std::string>(), true, titleScale(i));
+        },
         nullptr,
         [](const json& i) { return titleLabel(i["title"].get<std::string>()); },
     });

@@ -64,6 +64,15 @@ static bool ignore_cache;
 static double TitleScale;
 static double DefaultLatexScale;
 
+/// (x, y) gap the TOP_LEFT / ... edge anchors leave to the window border
+static vec2 ScreenMargin;
+
+// compiled defaults, the value a dropped "config:" key falls back to
+static constexpr double DefaultTitleScale       = 1.5;
+static constexpr double DefaultLatexScaleValue  = 1.0;
+static constexpr float  DefaultBoxRoundnessValue = 1.f;
+static constexpr double DefaultScreenMargin     = 0.06;
+
 };
 }
 #endif //OPTIONS_H
