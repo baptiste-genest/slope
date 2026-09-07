@@ -102,6 +102,9 @@ private:
     // stills sampled through every slide change, not only at its endpoints
     void exportTransitions();
 
+    // a continuous frame sequence of the whole deck, encoded to <ProjectName>.mp4
+    void recordVideo();
+
     void loadSlides();
 
     PlaybackState state;

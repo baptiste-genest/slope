@@ -24,6 +24,13 @@ static bool ExportMode;
 /// Samples per slide change for --export_transitions, 0 for one still per slide
 static int ExportTransitionSamples;
 
+/// Render every slide to a continuous frame sequence, encode <ProjectName>.mp4 (--record)
+static bool RecordMode;
+/// Frames per second for --record
+static int RecordFPS;
+/// Seconds each settled slide is held, clocks still running, for --record
+static double RecordDwell;
+
 /// Report unused/duplicated/defaulted anchor labels at startup (--check_labels)
 static bool CheckLabels;
 

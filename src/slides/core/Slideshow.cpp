@@ -367,6 +367,8 @@ void slope::Slideshow::run()
             play();
         };
         polyscope::show();
+    } else if (Options::RecordMode) {
+        recordVideo();
     } else if (Options::ExportTransitionSamples > 0) {
         exportTransitions();
     } else {
@@ -568,6 +570,123 @@ void slope::Slideshow::exportTransitions()
 
     polyscope::state::userCallback = nullptr;
     spdlog::info("{} stills written to {}", slides.size()*(samples+1), dir.string());
+}
+
+// Each slide change is replayed as in exportTransitions, then the settled slide
+// is held for RecordDwell seconds with primitive clocks still advancing. Frames
+// are numbered globally so ffmpeg reads one sequence. Camera flights do not replay.
+void slope::Slideshow::recordVideo()
+{
+    if (!initialized)
+        initializeSlides();
+
+    const int fps = std::max(1, Options::RecordFPS);
+    const TimeTypeSec step_dt = 1.0 / fps;
+    const int dwell_frames = std::max(0, (int)(Options::RecordDwell * fps + 0.5));
+    const TimeTypeSec settle_time = 10;
+
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path() / ("slope_record_" + Options::ProjectName);
+    std::filesystem::create_directories(dir);
+
+    auto backdate = [](TimeTypeSec s) {
+        return Time::now() - std::chrono::duration_cast<TimeStamp::duration>(DurationSec(s));
+    };
+
+    // the frame being drawn, read by the callback below
+    TimeTypeSec dt = 0;
+    std::set<PrimitivePtr> appearing;
+
+    polyscope::state::userCallback = [&]() {
+        ImGuiWindowConfig();
+        ImGui::Begin("Slope", NULL, window_flags);
+
+        state.from_action = backdate(dt);
+        const TimeTypeSec now = TimeFrom(from_begin);
+        for (int k = 0; k <= (int)state.current; k++)
+            slide_times[k] = now - (k == (int)state.current ? dt : settle_time);
+
+        for (auto& p : slides[state.current])
+            p.first->settleInnerTime(appearing.count(p.first)
+                                     ? std::max<TimeTypeSec>(0, dt - transitionTime)
+                                     : settle_time);
+
+        TimeObject T = getTimeObject();
+        T.delta_time = step_dt;
+        T.slide_progress = transitionProgress(dt);
+        TimeObject ST = T;
+        ST.transition_parameter = T.slide_progress;
+        Snippet::setTime(ST);
+
+        updateBackground(T.slide_progress);
+        polyscope::options::transparencyMode = polyscope::TransparencyMode::None;
+
+        auto& CS = slides[state.current];
+        renderSlide(dt, CS, T);
+
+        if (display_slide_number)
+            hud.drawSlideNumber(state.current);
+        ImGui::End();
+    };
+
+    polyscope::ScreenshotOptions opts;
+    opts.includeUI = true;
+    opts.transparentBackground = false;
+
+    size_t frame = 0;
+    auto shot = [&]() {
+        char name[32];
+        std::snprintf(name, sizeof(name), "frame_%06zu.png", frame++);
+        polyscope::screenshot((dir / name).string(), opts);
+    };
+
+    for (size_t i = 0; i < slides.size(); i++) {
+        spdlog::info("recording slide {} / {}", i+1, slides.size());
+
+        state.current = i;
+        state.locked = true;
+        state.done = false;
+        state.backward = false;
+        state.visited = (int)i;
+        slide_times.clear();
+
+        appearing.clear();
+        if (i > 0) {
+            auto& fresh = uniqueNext(transitions[i-1]);
+            appearing.insert(fresh.begin(), fresh.end());
+        } else {
+            for (auto& p : slides[0])
+                appearing.insert(p.first);
+        }
+
+        const TimeTypeSec span = (i > 0 ? 2 : 1) * transitionTime;
+        for (dt = 0; dt < span; dt += step_dt)
+            shot();
+
+        // guarded, so it only acts if no frame landed inside the swap window
+        handleTransition();
+        state.settle();
+        slides[i].setCam(false);
+
+        for (int f = 0; f < dwell_frames; f++) {
+            dt = span + f * step_dt;
+            shot();
+        }
+    }
+
+    polyscope::state::userCallback = nullptr;
+
+    const std::string out = Options::ProjectPath + Options::ProjectName + ".mp4";
+    const std::string cmd = quote(Options::PathToFFMPEG)
+        + " -y -loglevel error -framerate " + std::to_string(fps)
+        + " -i " + quote((dir / "frame_%06d.png").string())
+        + " -c:v libx264 -pix_fmt yuv420p -movflags +faststart"
+        + " -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" " + quote(out);
+    spdlog::info("encoding {} frames to {}", frame, out);
+    if (runCommand(cmd) != 0)
+        spdlog::error("video encoding failed, ffmpeg returned non-zero");
+    else
+        spdlog::info("video saved to {}", out);
 }
 
 void slope::Slideshow::recompose(const std::function<void(SlideManager&)>& composer,

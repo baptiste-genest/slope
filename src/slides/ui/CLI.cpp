@@ -47,6 +47,16 @@ int slope::parseCLI(int argc,char** argv) {
             Options::ExportMode = true;
             Options::ExportTransitionSamples = std::stoi(argv[++i]);
         }
+        else if (arg == "--record") {
+            Options::ExportMode = true;
+            Options::RecordMode = true;
+        }
+        else if (arg == "--fps" && i + 1 < argc) {
+            Options::RecordFPS = std::stoi(argv[++i]);
+        }
+        else if (arg == "--record_dwell" && i + 1 < argc) {
+            Options::RecordDwell = std::stod(argv[++i]);
+        }
         else if (arg == "--check_labels") {
             Options::CheckLabels = true;
         }
