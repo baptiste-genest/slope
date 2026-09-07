@@ -24,6 +24,9 @@ struct Settings {
     std::string owner;                     // "fig", so a key is "fig/xrange"
     std::map<std::string, json> stated;    // what a deck or a caller fixed
 
+    // first colour default seen per key, so a live default is not re-applied every frame
+    mutable std::map<std::string, RGBA> first_ink;
+
     std::string full(const std::string& key) const { return owner + "/" + key; }
     void set(const std::string& key, const json& value) { stated[key] = value; }
     bool isSet(const std::string& key) const { return stated.count(key) > 0; }

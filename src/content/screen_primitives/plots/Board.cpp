@@ -266,7 +266,9 @@ RGBA Settings::ink(const std::string& key, const RGBA& def) const
         return RGBA(c[0].get<float>(), c[1].get<float>(), c[2].get<float>(),
                     c.size() > 3 ? c[3].get<float>() : 1.f);
     }
-    return *Params::AddColor(full(key), def);
+    // captured once, so a live default (the slide bg) cannot rewrite an untouched param every frame
+    const RGBA& first = first_ink.try_emplace(key, def).first->second;
+    return *Params::AddColor(full(key), first);
 }
 
 bool Settings::flag(const std::string& key, bool def) const
