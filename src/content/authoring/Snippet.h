@@ -110,6 +110,8 @@ public:
     static void load(const path& file);
     // re-reads any snippet file whose mtime moved; call once per frame
     static void HotReloadIfModified();
+    // every snippet file currently watched for hot reload, resolved and absolute
+    static std::vector<path> WatchedFiles();
     // publishes the frame's TimeObject and opens a new evaluation frame
     static void setTime(const TimeObject& t);
 

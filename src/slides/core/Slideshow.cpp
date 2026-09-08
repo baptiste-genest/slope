@@ -856,8 +856,12 @@ void slope::Slideshow::handleInputs()
             polyscope::unshow();
     }
 
+    // a focused text field (the file editor) owns every keystroke
+    const bool typing = ImGui::GetIO().WantTextInput;
+
     for (const auto& input : input_manager.getInputs()) {
         if (input.trigger == ImGuiKey_None) continue;
+        if (typing) continue;
         if (ImGui::IsKeyPressed(input.trigger)) {
             if (!input.isPopUp && !wm.isAnyOpen())
                 input.callback();
@@ -910,6 +914,8 @@ void slope::Slideshow::addKeyboardInputs()
         [this](){wm.Toggle(WindowType::Tuner);},true);
     input_manager.addInput("show polyscope GUI","D",ImGuiKey_D,
         [this](){wm.Toggle(WindowType::PolyscopeGUI);},true);
+    input_manager.addInput("edit hot-reloaded files","E",ImGuiKey_E,
+        [this](){wm.Toggle(WindowType::FileEditor);},true);
     input_manager.addInput("reset timings","R",ImGuiKey_R,
         [this](){ time_tracker.reset(); },true);
     input_manager.addInput("pause/resume the rehearsal timer","space",ImGuiKey_Space,
@@ -956,6 +962,8 @@ void slope::Slideshow::displayPopUps()
         camera_exporter.drawPopup(wm);
     else if (wm.isOpen(WindowType::Tuner))
         Params::DrawPanel();
+    else if (wm.isOpen(WindowType::FileEditor))
+        file_editor.draw(wm);
     else if (wm.isOpen(WindowType::SlideMenu))
         time_tracker.drawMenu(slides.size(),
             [this](int i){ return getSlideTitle(i); },

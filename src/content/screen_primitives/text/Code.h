@@ -140,8 +140,20 @@ public:
     // re-reads any file-backed Code whose source changed on disk
     static void HotReloadIfModified();
 
+    // every source file currently watched for hot reload. Absolute, de-duplicated.
+    static std::vector<path> WatchedFiles();
+
     // loads a ttf into the atlas once and hands back the same font after that
     static ImFont* LoadFont(const path& file, float size = 18.f);
+
+    // Tree-sitter highlight of an arbitrary buffer, for callers that draw their
+    // own text (the in-app file editor). Runs are disjoint, sorted, and cover
+    // only the coloured spans; the gaps between them are default text. `color`
+    // is a packed ImU32 resolved from the live CodeStyle palette.
+    struct HighlightRun { size_t begin, end; ImU32 color; };
+    static std::vector<HighlightRun> HighlightRuns(const std::string& text,
+                                                   const CodeLanguage& lang,
+                                                   const CodeStyle& style = CodeStyle());
 
     // a deck recomposes the whole show on every reload, so the cues of the
     // previous composition have to go with it

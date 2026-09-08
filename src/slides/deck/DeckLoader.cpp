@@ -58,6 +58,7 @@ DeckLoader::~DeckLoader() {}
 void DeckLoader::init(path deck_file)
 {
     source_path = formatPath(deck_file);
+    FileEditor::registerExtra(source_path);
     parse();
     loadLatexResources();
     source_last_modified = std::filesystem::last_write_time(source_path);

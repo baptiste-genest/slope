@@ -439,6 +439,10 @@ public:
     // recompiles every shader when the deck's keyframes move
     static void HotReloadIfModified();
 
+    // every file currently watched for hot reload: file-backed sources plus the
+    // headers they reach through #include. Absolute, de-duplicated.
+    static std::vector<path> WatchedFiles();
+
     vec2 getSize() const override;
 
     void draw(const TimeObject& t, const StateInSlide& sis) override;

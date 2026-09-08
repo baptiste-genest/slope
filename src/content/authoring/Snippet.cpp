@@ -833,6 +833,20 @@ void Snippet::HotReloadIfModified() {
     rebuild();
 }
 
+std::vector<path> Snippet::WatchedFiles() {
+    std::vector<path> out;
+    for (auto& f : files) {
+        std::error_code ec;
+        path p = f.resolved.empty() ? path(formatPath(f.given)) : path(f.resolved);
+        auto v = std::filesystem::weakly_canonical(p, ec);
+        if (ec) v = p;
+        bool seen = false;
+        for (auto& o : out) if (o == v) { seen = true; break; }
+        if (!seen) out.push_back(v);
+    }
+    return out;
+}
+
 void Snippet::setTime(const TimeObject& t) {
     // stamped even with no state, since it marks that a frame has run
     time_published = true;

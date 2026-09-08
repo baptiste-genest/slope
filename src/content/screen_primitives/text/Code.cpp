@@ -735,12 +735,109 @@ ImFont* Code::LoadFont(const path& file, float size)
     return font;
 }
 
+std::vector<Code::HighlightRun> Code::HighlightRuns(const std::string& text,
+                                                    const CodeLanguage& lang,
+                                                    const CodeStyle& style)
+{
+    std::vector<HighlightRun> out;
+    if (text.empty() || !lang.valid())
+        return out;
+
+    TSQuery* query = queryFor(lang.name);
+    const Grammar* g = grammarNamed(lang.name);
+    if (!query || !g)
+        return out;
+
+    TSParser* parser = ts_parser_new();
+    ts_parser_set_language(parser, static_cast<const TSLanguage*>(g->fn()));
+    TSTree* tree = ts_parser_parse_string(parser, nullptr, text.c_str(),
+                                          uint32_t(text.size()));
+    TSQueryCursor* cursor = ts_query_cursor_new();
+    ts_query_cursor_exec(cursor, query, ts_tree_root_node(tree));
+
+    struct Raw { size_t begin, end; Tok tok; };
+    std::vector<Raw> raw;
+    TSQueryMatch match;
+    while (ts_query_cursor_next_match(cursor, &match)) {
+        for (uint16_t c = 0; c < match.capture_count; ++c) {
+            const TSQueryCapture& cap = match.captures[c];
+            uint32_t len = 0;
+            const char* name = ts_query_capture_name_for_id(query, cap.index, &len);
+            const Tok tok = tokenOfCapture(std::string_view(name, len));
+            if (tok == Tok::Plain)
+                continue;
+            size_t b = ts_node_start_byte(cap.node);
+            size_t e = ts_node_end_byte(cap.node);
+            if (e > b && e <= text.size())
+                raw.push_back({b, e, tok});
+        }
+    }
+    ts_query_cursor_delete(cursor);
+    ts_tree_delete(tree);
+    ts_parser_delete(parser);
+
+    if (raw.empty())
+        return out;
+
+    // paint the widest captures first, then the narrower (more specific) ones
+    // on top, so a token inside a larger node keeps its own colour
+    std::sort(raw.begin(), raw.end(), [](const Raw& a, const Raw& b) {
+        return (a.end - a.begin) > (b.end - b.begin);
+    });
+    std::vector<signed char> paint(text.size(), -1);
+    for (const auto& r : raw)
+        for (size_t i = r.begin; i < r.end; ++i)
+            paint[i] = static_cast<signed char>(r.tok);
+
+    auto colorOf = [&](Tok tok) -> ImU32 {
+        Color col = style.text;
+        switch (tok) {
+            case Tok::Keyword:  col = style.keyword;  break;
+            case Tok::Type:     col = style.type;     break;
+            case Tok::Comment:  col = style.comment;  break;
+            case Tok::Literal:  col = style.literal;  break;
+            case Tok::Preproc:  col = style.preproc;  break;
+            case Tok::Function: col = style.function; break;
+            case Tok::Constant: col = style.constant; break;
+            case Tok::Variable: col = style.variable; break;
+            case Tok::Operator: col = style.op;       break;
+            case Tok::Plain:    break;
+        }
+        return ImU32(ImColor(col.getImColor()));
+    };
+
+    // coalesce equal neighbours into runs
+    for (size_t i = 0; i < paint.size();) {
+        if (paint[i] < 0) { ++i; continue; }
+        size_t j = i + 1;
+        while (j < paint.size() && paint[j] == paint[i])
+            ++j;
+        out.push_back({i, j, colorOf(static_cast<Tok>(paint[i]))});
+        i = j;
+    }
+    return out;
+}
+
 void Code::ClearAllCues()
 {
     // file_backed misses the inline ones, so this walks every primitive
     for (const auto& p : Primitive::primitives)
         if (auto c = std::dynamic_pointer_cast<Code>(p))
             c->clearCues();
+}
+
+std::vector<path> Code::WatchedFiles()
+{
+    std::vector<path> out;
+    for (auto* c : file_backed) {
+        if (c->source_file.empty()) continue;
+        std::error_code ec;
+        auto v = std::filesystem::weakly_canonical(c->source_file, ec);
+        if (ec) v = c->source_file;
+        if (std::find(out.begin(), out.end(), v) == out.end())
+            out.push_back(v);
+    }
+    return out;
 }
 
 void Code::HotReloadIfModified()

@@ -20,6 +20,7 @@
 #include "slides/capture/TimeTracker.h"
 #include "slides/capture/CameraExporter.h"
 #include "slides/ui/HUD.h"
+#include "slides/ui/FileEditor.h"
 
 namespace slope {
 
@@ -71,6 +72,7 @@ private:
     TimeTracker time_tracker;
     CameraExporter camera_exporter;
     HUD hud;
+    FileEditor file_editor;
 
     void setInnerTime();
     // How far the slide change has got, 0 to 1, the deck wide reading of what

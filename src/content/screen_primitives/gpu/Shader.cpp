@@ -2238,6 +2238,24 @@ void Shader::playOutro(const TimeObject& t, const StateInSlide& sis)
     drawWith(t, sis, float(sis.getAlpha()));
 }
 
+std::vector<path> Shader::WatchedFiles()
+{
+    std::vector<path> out;
+    auto push = [&](const path& p) {
+        if (p.empty()) return;
+        std::error_code ec;
+        auto c = std::filesystem::weakly_canonical(p, ec);
+        const path& v = ec ? p : c;
+        if (std::find(out.begin(), out.end(), v) == out.end())
+            out.push_back(v);
+    };
+    for (auto* s : all_shaders) {
+        if (s->from_file) push(s->source_file);
+        for (const auto& [file, stamp] : s->include_deps) push(path(file));
+    }
+    return out;
+}
+
 void Shader::HotReloadIfModified()
 {
     static auto last_refresh = Time::now();
