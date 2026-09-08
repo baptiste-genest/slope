@@ -722,7 +722,7 @@ ImFont* Code::LoadFont(const path& file, float size)
         if (resolved.empty())
             spdlog::error("[code] no font matching \"{}\"", file.string());
         else
-            spdlog::info("[code] font \"{}\" -> {}", file.string(), resolved);
+            spdlog::debug("[code] font \"{}\" -> {}", file.string(), resolved);
     }
 
     ImFont* font = nullptr;

@@ -154,6 +154,17 @@ ImFont* FileEditor::fontForScale(float scale)
     return f;
 }
 
+// bake every snapped face on open, so the TTF-load hitch never lands on a
+// keystroke frame (ImGui drops the Enter shortcut on a just-activated field)
+void FileEditor::primeFonts()
+{
+    if (fonts_primed)
+        return;
+    fonts_primed = true;
+    for (float s = 0.75f; s <= 3.001f; s += 0.25f)
+        fontForScale(s);
+}
+
 void FileEditor::saveToDisk()
 {
     if (current.empty())
@@ -174,8 +185,13 @@ void FileEditor::saveToDisk()
 
 void FileEditor::draw(WindowManager& wm)
 {
-    if (!wm.isOpen(WindowType::FileEditor))
+    if (!wm.isOpen(WindowType::FileEditor)) {
+        fonts_primed = false;   // re-bake check on the next open, cheap if cached
         return;
+    }
+
+    // bake the faces now, while the mouse is still travelling to the text area
+    primeFonts();
 
     // the file set changes as slides come and go; twice a second is plenty
     {

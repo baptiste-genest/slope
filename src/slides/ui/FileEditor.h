@@ -39,6 +39,7 @@ private:
     void saveToDisk();
     void rehighlight();   // recompute runs if the buffer moved
     ImFont* fontForScale(float scale);
+    void primeFonts();    // bake every snapped face on open, off the hot path
     static const CodeStyle& editorStyle();
 
     std::vector<std::filesystem::path> files;      // what the list shows
@@ -55,6 +56,7 @@ private:
     std::vector<Code::HighlightRun>    runs;
     std::size_t                        hl_hash = 0;
     std::map<int, ImFont*>             font_cache;   // px size -> atlas font
+    bool                               fonts_primed = false;
 };
 
 } // namespace slope
