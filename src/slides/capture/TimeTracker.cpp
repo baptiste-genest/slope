@@ -115,6 +115,8 @@ void slope::TimeTracker::record(const std::string& slide_title)
 
 void slope::TimeTracker::togglePause()
 {
+    if (!Options::Rehearse)
+        return;
     paused = !paused;
     last_recorded_time = Time::now();
     if (paused)
@@ -125,6 +127,8 @@ void slope::TimeTracker::togglePause()
 
 void slope::TimeTracker::reset()
 {
+    if (!Options::Rehearse)
+        return;
     time_from_start = 0;
     for (auto& [k, v] : time_per_slide_group)
         v = 0;
@@ -136,20 +140,24 @@ void slope::TimeTracker::drawMenu(int n_slides,
                                    const std::function<void(int)>& go_to_slide)
 {
     ImGui::Begin("Slides");
-    ImGui::Text("Elapsed: %s", formatTime(time_from_start).c_str());
-    if (paused) {
-        ImGui::SameLine();
-        ImGui::TextColored(ImVec4(1.f, 0.7f, 0.2f, 1.f), "[PAUSED]");
+    // without --rehearse nothing is timed, so only the slide list is shown
+    const bool timed = Options::Rehearse;
+    if (timed) {
+        ImGui::Text("Elapsed: %s", formatTime(time_from_start).c_str());
+        if (paused) {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1.f, 0.7f, 0.2f, 1.f), "[PAUSED]");
+        }
+        if (has_previous) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("| last run: %s (%s)",
+                                formatTime(previous_time_from_start).c_str(),
+                                formatDelta(time_from_start - previous_time_from_start).c_str());
+        }
+        ImGui::Separator();
     }
-    if (has_previous) {
-        ImGui::SameLine();
-        ImGui::TextDisabled("| last run: %s (%s)",
-                            formatTime(previous_time_from_start).c_str(),
-                            formatDelta(time_from_start - previous_time_from_start).c_str());
-    }
-    ImGui::Separator();
 
-    const int n_cols = has_previous ? 3 : 2;
+    const int n_cols = !timed ? 1 : has_previous ? 3 : 2;
     std::set<std::string> done;
     if (ImGui::BeginTable("SlideTable", n_cols, ImGuiTableFlags_SizingStretchProp)) {
         for (int i = 0; i < n_slides; i++) {
@@ -160,6 +168,8 @@ void slope::TimeTracker::drawMenu(int n_slides,
             ImGui::TableSetColumnIndex(0);
             if (ImGui::Button(title.c_str()))
                 go_to_slide(i);
+            if (!timed)
+                continue;
             ImGui::TableSetColumnIndex(1);
             ImGui::TextUnformatted(formatTime(time_per_slide_group[title]).c_str());
             if (has_previous) {
