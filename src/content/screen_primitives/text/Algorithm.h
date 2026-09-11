@@ -61,8 +61,7 @@ private:
     int listing_width = -1;
     void setSource(const TexObject& tex);
 
-    // a cue names a line either by number, or by the mark it resolves to when
-    // the positions are read, so that an edited \slopemark moves the cue
+    // a cue names a line by number or by mark, the mark resolved when the lines are read
     struct LineRef {
         std::string label;
         int line = 0;

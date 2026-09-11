@@ -16,11 +16,7 @@ static std::string fnv(const std::string& s)
 
 static path linesPath(const std::string& key) { return Options::CachePath + key + ".lines"; }
 
-// A \pdfsavepos at the start of each line lands on its baseline; positions are
-// only known at shipout, hence \write. algorithmicx lines go through the list
-// label \ALG@step, algorithm2e lines through \algocf@everypar. algorithm2e only
-// counts lines when numbered, so numbering is hidden rather than off. A counter
-// going back means a new environment, which continues from the last line.
+// records each line's baseline with \pdfsavepos, through the line hooks of algorithmicx and algorithm2e
 static std::string hooks(const std::string& key)
 {
     return R"(\newwrite\slopeAlgOut\immediate\openout\slopeAlgOut=)" + key + R"(.lines
@@ -186,8 +182,7 @@ void Algorithm::parseLines()
     warnUnknownMarks();
 }
 
-// Lines are cut in the blank rows right above each line's ink, so a wrapped
-// line keeps its rows and a tall fraction stays with its own line.
+// cut in the blank rows above each line's ink, so wrapped rows and tall math stay with their line
 void Algorithm::cutLines(const path& png)
 {
     const int n = count();

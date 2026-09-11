@@ -127,7 +127,7 @@ struct Latex : public TextualPrimitive {
 
     // the latex source json and the file-backed prefix parts, for the file editor
     static std::vector<path> WatchedFiles();
-    // the file errors of tex without an origin are reported to, the deck
+    // where errors of tex with no origin of its own are reported, the deck
     static path default_origin;
     // hands every compile_error to ReloadErrors, grouped by origin
     static void PublishErrors();
@@ -164,7 +164,7 @@ struct Latex : public TextualPrimitive {
 
     // fraction of the png the texture actually holds, one per axis
     double tex_sx = 1, tex_sy = 1;
-    // the png the texture came from, refills re-read it even when full_content failed to compile
+    // the png on screen, which refills re-read even after a failed compile
     path texture_png;
     // a refill that failed stops asking until the next loadTexture
     bool texels_failed = false;

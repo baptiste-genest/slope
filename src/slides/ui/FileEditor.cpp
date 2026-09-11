@@ -664,9 +664,7 @@ void FileEditor::draw(WindowManager& wm)
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + gutter);
         avail.x -= gutter;
 
-        // The widget renders no text of its own (transparent ink): a coloured glyph
-        // drawn over a pale one just muddies through the anti-aliased edges. We draw
-        // every character ourselves, in the Dracula palette, over its dark ground.
+        // the widget's own ink is transparent, every glyph is drawn below in the Dracula palette
         const ImU32 ink = ImU32(ImColor(editorStyle().text.getImColor()));
         ImGui::PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(0x28, 0x2A, 0x36, 255));
         ImGui::PushStyleColor(ImGuiCol_Text,           IM_COL32(0, 0, 0, 0));
@@ -687,8 +685,7 @@ void FileEditor::draw(WindowManager& wm)
             const ImVec2 p_min = ImGui::GetItemRectMin();
             const ImVec2 p_max = ImGui::GetItemRectMax();
 
-            // the scrollable child InputTextMultiline created, so vertical scroll is
-            // read straight from it whether or not the field is focused
+            // vertical scroll lives on the multiline's own child window, focused or not
             char child_name[256];
             ImFormatString(child_name, sizeof(child_name), "%s/##body_%08X",
                            edit_win->Name, body_id);

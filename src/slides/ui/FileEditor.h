@@ -15,14 +15,13 @@ struct ImGuiInputTextCallbackData;
 namespace slope {
 
 /*
- * An in-app text editor for every file the hot-reload watchers are tracking:
- * GLSL/frag sources and their #included headers, Lua snippets, Code and
- * Algorithm sources, and the deck manifest. Toggled with E.
+ * An in-app text editor for every file the hot-reload watchers track, GLSL
+ * sources and their includes, Lua snippets, Code and Algorithm sources, the
+ * latex files and the deck. Toggled with E.
  *
- * It does not talk to the reload machinery at all: it writes to disk and the
- * existing mtime polls (Shader/Snippet/Code::HotReloadIfModified, the deck
- * loader) pick the change up on the next frame, exactly as an external editor
- * would. One file at a time; unsaved edits are never dropped without asking.
+ * It only writes to disk, and the existing mtime polls pick the change up on
+ * the next frame, as they would for an external editor. One file at a time,
+ * and unsaved edits are never dropped without asking.
  */
 class FileEditor {
 public:

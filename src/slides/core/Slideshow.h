@@ -56,7 +56,7 @@ public:
     // rebuilds the slide structure at runtime. Disables what is shown and the
     // given stale primitives, clears the slides, re-runs the composer and
     // restores the playback position. The primitives themselves are untouched.
-    // When the composer throws, fallback composes instead. False on that failure.
+    // fallback composes instead when composer throws, and false is returned then
     bool recompose(const std::function<void(SlideManager&)>& composer,
                    const std::set<PrimitivePtr>& stale = {},
                    const std::function<void(SlideManager&)>& fallback = {});
