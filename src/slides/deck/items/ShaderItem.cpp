@@ -238,7 +238,7 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
 //     prior: {snippet: prior_mean, resolution: 512, domain: [-6, 6]}
 //
 // An image file or a sampled snippet. A texture fed by another pass needs a
-// streaming order the manifest cannot express, and stays on the C++ side.
+// streaming order the deck cannot express, and stays on the C++ side.
 // {snippet: fn, resolution: N or [w,h], domain: [a,b] or [[a,b],[c,d]],
 //  components: 1..4, resample: auto|once|always}
 static SnippetTexture::Spec snippetTextureSpec(const std::string& name, const json& spec)
@@ -334,7 +334,7 @@ void declareShaderTextures(const ShaderPtr& shader, const json& item)
             declared.push_back(name);
         }
     }
-    // whatever the manifest no longer declares is unbound (the shader itself
+    // whatever the deck no longer declares is unbound (the shader itself
     // is cached across rebuilds, so nothing else would drop it)
     shader->retainTextures(declared);
 }

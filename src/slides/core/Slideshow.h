@@ -62,7 +62,7 @@ public:
                    const std::function<void(SlideManager&)>& fallback = {});
 
     // called once per frame at the end of play(), e.g. to watch external
-    // sources (deck manifest, generated data...) and recompose on change
+    // sources (deck.yaml, generated data...) and recompose on change
     std::function<void()> onFrame;
 
     // a fresh name on the clipboard, "at: <name>" as a placement and the bare

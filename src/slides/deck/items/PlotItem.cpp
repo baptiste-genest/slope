@@ -27,7 +27,7 @@ std::string boardOf(const json& item, const char* type = "plot")
     return b;
 }
 
-// A manifest value in the shape its parameter is saved in. Only "#rrggbb"
+// A deck value in the shape its parameter is saved in. Only "#rrggbb"
 // needs converting.
 json settingValue(const json& v)
 {
@@ -158,7 +158,7 @@ std::vector<ItemSpec> plotItemSpecs()
             },
             [](const json& i) -> PrimitivePtr {
                 auto [w, h] = resolution(i);
-                // left to the manifest, or to the Tuner when it says nothing
+                // left to the deck, or to the Tuner when it says nothing
                 return Board::Add(i["board"].get<std::string>(), std::nullopt,
                                   std::nullopt, w, h);
             },

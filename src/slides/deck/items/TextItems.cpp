@@ -41,6 +41,8 @@ static std::string codeKey(const json& i)
     std::string k = "code:" + i["code"].get<std::string>();
     if (i.contains("lines"))
         k += ":" + i["lines"].dump();
+    if (i.contains("region"))
+        k += ":" + i["region"].get<std::string>();
     return k;
 }
 
@@ -56,6 +58,12 @@ static std::string codeExtension(const json& i)
 static CodePtr makeCode(const json& i)
 {
     const std::string file = i["code"].get<std::string>();
+    if (i.contains("region")) {
+        if (i.contains("lines"))
+            throw std::runtime_error("\"region\" and \"lines\" cannot both slice a listing");
+        const std::string r = i["region"].get<std::string>();
+        return Code::FromFile(file, "slope:begin " + r, "slope:end " + r);
+    }
     if (i.contains("lines")) {
         const json& l = i["lines"];
         if (!l.is_array() || l.size() != 2 || !l[0].is_number_integer())
@@ -71,7 +79,7 @@ std::vector<ItemSpec> textItemSpecs()
 
     specs.push_back({
         "code", ItemSpec::Kind::Screen,
-        {"lines","language","font","line_numbers","font_scale","tracking",
+        {"lines","region","language","font","line_numbers","font_scale","tracking",
          "line_spacing","padding","dim","reveal","focus"},
         codeKey,
         [](const json& i) -> PrimitivePtr { return makeCode(i); },

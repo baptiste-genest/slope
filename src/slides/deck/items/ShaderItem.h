@@ -10,7 +10,7 @@ class Shader;
 using ShaderPtr = std::shared_ptr<Shader>;
 
 /*
- * What a manifest can say about a shader, beyond building one : "uniforms",
+ * What a deck can say about a shader, beyond building one : "uniforms",
  * "textures" and "view". None of it needs the loader, so it lives next to the
  * "shader" item record rather than in DeckLoader.
  *

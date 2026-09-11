@@ -92,7 +92,7 @@ namespace slope {
  * length it declares. Past a few hundred values a texture or a buffer is the
  * right shape, uniform storage is small and shared by the whole shader.
  *
- * From a deck manifest, "uniforms:" on a shader item declares them instead,
+ * From a deck, "uniforms:" on a shader item declares them instead,
  * each backed by a persistent Params entry (Tuner panel, params.json) :
  *
  *   - shader: plasma.frag
@@ -237,7 +237,7 @@ public:
     bool isBound(const std::string& name) const { return uniforms.count(name) > 0; }
     // drops every user uniform (set/bind); the built-ins are unaffected. What
     // a declarative owner (the deck loader) uses to re-declare its whole set
-    // on a hot reload, so a uniform deleted from the manifest really goes away.
+    // on a hot reload, so a uniform deleted from the deck really goes away.
     void clearUniforms() { uniforms.clear(); }
 
     // ── textures ────────────────────────────────────────────────────────────
@@ -270,7 +270,7 @@ public:
     void clearTextures();
     // drop every *file-backed* texture whose name is not listed, which a
     // declarative owner (the deck loader) uses so a texture removed from the
-    // manifest really goes away, while the ones still declared keep their GL
+    // deck really goes away, while the ones still declared keep their GL
     // objects. Data textures and inter-pass ones are left alone, they were
     // set from code such an owner never saw.
     void retainTextures(const std::vector<std::string>& names);

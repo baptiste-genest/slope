@@ -14,7 +14,7 @@ namespace slope {
  * One record per deck item type, so adding a type is one entry in one file
  * instead of three edits spread over the loader.
  *
- * Screen and Scene items are built from the manifest alone : their factories
+ * Screen and Scene items are built from the deck alone : their factories
  * call the plain C++ API and never touch the loader, which is what keeps the
  * deck a thin layer over it (a primitive knows nothing about yaml). Items that
  * drive the slide rather than build a primitive (remove, set, box, stack...)
@@ -45,7 +45,7 @@ struct ItemSpec {
     // should not force a new one. It runs once the reference name is known,
     // which the shader's uniforms are named after
     std::function<void(const PrimitivePtr&, const json&, const std::string& name)> configure;
-    // the name the manifest refers to this item by, before "id" overrides it
+    // the name the deck refers to this item by, before "id" overrides it
     std::function<std::string(const json&)> name;
 };
 

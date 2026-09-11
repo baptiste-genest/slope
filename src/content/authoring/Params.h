@@ -215,7 +215,7 @@ public:
     //   Params::AddVec("arap/handle", p0).show(Params::Visible::Handle);
     static void setVisible(const std::string& name, Visible v);
     static Visible getVisible(const std::string& name);
-    // "none", "panel", "handle" or "both", how a deck manifest says it
+    // "none", "panel", "handle" or "both", how a deck says it
     static Visible parseVisible(const std::string& mode);
 
     static void DrawPanel();

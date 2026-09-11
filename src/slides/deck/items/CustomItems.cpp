@@ -3,7 +3,7 @@
 namespace slope {
 
 // these items drive the slide (or need the loader's registries) rather than
-// build a primitive from the manifest alone, so DeckLoader::addItem keeps
+// build a primitive from the deck alone, so DeckLoader::addItem keeps
 // their branch. Only their field list lives here, next to every other one, so
 // it cannot drift from what the branch reads
 std::vector<ItemSpec> customItemSpecs()
