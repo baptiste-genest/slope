@@ -174,6 +174,9 @@ struct Latex : public TextualPrimitive {
 
     void regenerate() {ensureRendered();}
 
+    // rebuilds tex_source from the current context, before a prefix reload compiles it
+    virtual void refreshSource() {}
+
 
     // Primitive interface
 public:

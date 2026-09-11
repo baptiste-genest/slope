@@ -227,6 +227,7 @@ void slope::Latex::RegenerateAll()
         auto l = std::dynamic_pointer_cast<Latex>(p);
         if (!l)
             continue;
+        l->refreshSource();
         auto tex_content = WriteTexFile(l->tex_source,l->isFormula,l->width,l->tintable);
         if (l->full_content == tex_content && l->data.width != -1)
             continue;

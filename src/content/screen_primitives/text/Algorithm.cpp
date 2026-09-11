@@ -1,6 +1,9 @@
 #include "content/screen_primitives/text/Algorithm.h"
+#include "extern/stb_image.h"
 #include <spdlog/spdlog.h>
 #include <fmt/core.h>
+#include <climits>
+#include <set>
 
 namespace slope {
 
@@ -16,18 +19,22 @@ static path linesPath(const std::string& key) { return Options::CachePath + key 
 // A \pdfsavepos at the start of each line lands on its baseline; positions are
 // only known at shipout, hence \write. algorithmicx lines go through the list
 // label \ALG@step, algorithm2e lines through \algocf@everypar. algorithm2e only
-// counts lines when numbered, so numbering is hidden rather than off.
+// counts lines when numbered, so numbering is hidden rather than off. A counter
+// going back means a new environment, which continues from the last line.
 static std::string hooks(const std::string& key)
 {
     return R"(\newwrite\slopeAlgOut\immediate\openout\slopeAlgOut=)" + key + R"(.lines
 \csname newcount\endcsname\slopeAlgN\global\slopeAlgN=0
 \csname newcount\endcsname\slopeAlgLast\global\slopeAlgLast=0
+\csname newcount\endcsname\slopeAlgO\global\slopeAlgO=0
+\csname newcount\endcsname\slopeAlgV\global\slopeAlgV=0
 \def\slopeAlgPos#1{\pdfsavepos\edef\slopeAlgW{\write\slopeAlgOut{#1}}\slopeAlgW}
 \def\slopeAlgRecord{\ifnum\slopeAlgN>\slopeAlgLast\global\slopeAlgLast=\slopeAlgN\slopeAlgPos{L \the\slopeAlgN\space\noexpand\the\noexpand\pdflastypos\space\noexpand\number\noexpand\pdfpageheight\space\noexpand\number\noexpand\ht\noexpand\slopebox}\fi}
+\def\slopeAlgSet#1{\ifnum#1<\slopeAlgV\global\slopeAlgO=\slopeAlgLast\fi\global\slopeAlgV=#1\relax\global\slopeAlgN=\numexpr\slopeAlgO+#1\relax\slopeAlgRecord}
 \expandafter\let\expandafter\slopeAlgStep\csname ALG@step\endcsname
-\expandafter\def\csname ALG@step\endcsname{\slopeAlgStep\global\slopeAlgN=\value{ALG@line}\slopeAlgRecord}
+\expandafter\def\csname ALG@step\endcsname{\slopeAlgStep\slopeAlgSet{\value{ALG@line}}}
 \expandafter\let\expandafter\slopeAlgPar\csname algocf@everypar\endcsname
-\expandafter\def\csname algocf@everypar\endcsname{\slopeAlgPar\global\slopeAlgN=\value{AlgoLine}\slopeAlgRecord}
+\expandafter\def\csname algocf@everypar\endcsname{\slopeAlgPar\slopeAlgSet{\value{AlgoLine}}}
 \def\slopemark#1{\immediate\write\slopeAlgOut{M #1 \the\slopeAlgN}}
 \csname LinesNumberedHidden\endcsname
 )";
@@ -58,12 +65,13 @@ AlgorithmPtr Algorithm::Add(const TexObject& tex, scalar scale, int width)
     return r;
 }
 
+// width and preamble move the lines, so both are in the key
 void Algorithm::setSource(const TexObject& tex)
 {
-    key = "alg_" + fnv(tex);
+    const std::string w = listing_width > 0 ? std::to_string(listing_width) : "493.69707";
+    key = "alg_" + fnv(Latex::context + "|" + w + "|" + tex);
     content = tex;
     // algorithm2e draws its numbers left of the box, the pad keeps them in; -trim drops it otherwise
-    const std::string w = listing_width > 0 ? std::to_string(listing_width) : "493.69707";
     tex_source = hooks(key) + "\\hspace*{2em}\\begin{varwidth}[t]{" + w + "pt}\n"
                + tex + "\n\\end{varwidth}";
 }
@@ -105,7 +113,6 @@ std::vector<path> Algorithm::WatchedFiles()
     return out;
 }
 
-// cues keep the line numbers they resolved to, a moved \slopemark needs a deck reload
 void Algorithm::HotReloadIfModified()
 {
     for (auto* a : all) {
@@ -132,6 +139,7 @@ void Algorithm::parseLines()
 {
     parsed_for = full_content;
     baseline_px.clear();
+    edge_px.clear();
     marks.clear();
     std::ifstream f(linesPath(key));
     if (!f || baseline < 0) {
@@ -154,8 +162,11 @@ void Algorithm::parseLines()
             marks[name] = n;
         }
     }
-    if (ys.empty())
+    if (ys.empty()) {
+        spdlog::warn("[algo] no line recorded for {}, focus and reveal need pdflatex "
+                     "and algorithmicx or algorithm2e", key);
         return;
+    }
     baseline_px.assign(ys.rbegin()->first, 0.);
     for (auto [n, y] : ys)
         if (n >= 1) baseline_px[n-1] = y;
@@ -165,31 +176,94 @@ void Algorithm::parseLines()
         gaps.push_back(baseline_px[i] - baseline_px[i-1]);
     std::sort(gaps.begin(), gaps.end());
     pitch_px = gaps.empty() ? 12 * 65536. * px_per_sp : gaps[gaps.size()/2];
+
+    cutLines(GetLatexPath(full_content));
+    warnUnknownMarks();
 }
 
-double Algorithm::yOf(double l) const
+// Lines are cut in the blank rows right above each line's ink, so a wrapped
+// line keeps its rows and a tall fraction stays with its own line.
+void Algorithm::cutLines(const path& png)
 {
-    l = std::clamp(l, 1., double(count()));
-    const int i = int(std::floor(l));
+    const int n = count();
+    const double asc = 0.72 * pitch_px;
+    edge_px.assign(n + 1, double(data.height));
+    edge_px[0] = std::max(0., baseline_px[0] - asc);
+    for (int k = 1; k < n; ++k)
+        edge_px[k] = std::clamp(baseline_px[k] - asc, baseline_px[k-1], baseline_px[k]);
+
+    int w, h;
+    unsigned char* px = stbi_load(png.string().c_str(), &w, &h, nullptr, 4);
+    if (!px)
+        return;
+    std::vector<char> ink(h, 0);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w && !ink[y]; ++x)
+            ink[y] = px[(std::size_t(y) * w + x) * 4 + 3] > 16;
+    stbi_image_free(px);
+
+    // from inside the x-height of the line on `base`, up to the blank run above it
+    auto blankAbove = [&](double base, double stop_y, int& top, int& bottom) {
+        const int stop = std::clamp(int(std::ceil(stop_y)), 0, h - 1);
+        int y = std::clamp(int(base - 0.25 * pitch_px), stop, h - 1);
+        while (y > stop && ink[y]) --y;
+        if (ink[y])
+            return false;
+        bottom = y;
+        while (y > stop && !ink[y-1]) --y;
+        top = y;
+        return true;
+    };
+    int top, bottom;
+    if (blankAbove(baseline_px[0], 0, top, bottom))
+        edge_px[0] = std::max(double(top), bottom + 1 - 0.15 * pitch_px);
+    for (int k = 1; k < n; ++k)
+        if (blankAbove(baseline_px[k], baseline_px[k-1], top, bottom))
+            edge_px[k] = 0.5 * (top + bottom + 1);
+}
+
+void Algorithm::warnUnknownMarks()
+{
+    std::set<std::string> missing;
+    auto check = [&](const LineRef& r) {
+        if (!r.label.empty() && !marks.count(r.label))
+            missing.insert(r.label);
+    };
+    for (const auto& [s, r] : reveal_at)
+        check(r);
+    for (const auto& [s, f] : focus_at) {
+        check(f.first);
+        check(f.second);
+    }
+    for (const auto& m : missing)
+        spdlog::warn("[algo] no \\slopemark{{{}}}", m);
+}
+
+double Algorithm::edgeOf(double k) const
+{
+    k = std::clamp(k, 0., double(count()));
+    const int i = int(std::floor(k));
     if (i >= count())
-        return baseline_px.back();
-    return std::lerp(baseline_px[i-1], baseline_px[i], l - i);
+        return edge_px.back();
+    return std::lerp(edge_px[i], edge_px[i+1], k - i);
 }
 
-int Algorithm::markOf(const std::string& label) const
+// -1 for an unknown mark
+int Algorithm::resolve(const LineRef& ref) const
 {
-    if (auto it = marks.find(label); it != marks.end())
-        return it->second;
-    spdlog::warn("[algo] no \\slopemark{{{}}}", label);
-    return -1;
+    if (ref.label.empty())
+        return std::clamp(ref.line, 0, count());
+    auto it = marks.find(ref.label);
+    return it == marks.end() ? -1 : std::clamp(it->second, 0, count());
 }
 
 int Algorithm::revealOn(int slide) const
 {
-    if (reveal_at.empty())
-        return count();
     auto it = reveal_at.upper_bound(slide);
-    return it == reveal_at.begin() ? 0 : std::prev(it)->second;
+    if (it == reveal_at.begin())
+        return count();
+    const int r = resolve(std::prev(it)->second);
+    return r < 0 ? count() : r;
 }
 
 bool Algorithm::focusOn(int slide, int& first, int& last) const
@@ -197,59 +271,55 @@ bool Algorithm::focusOn(int slide, int& first, int& last) const
     auto it = focus_at.upper_bound(slide);
     if (it == focus_at.begin())
         return false;
-    first = std::prev(it)->second.first;
-    last  = std::prev(it)->second.second;
-    return first > 0;
+    first = resolve(std::prev(it)->second.first);
+    last  = resolve(std::prev(it)->second.second);
+    if (first <= 0 || last <= 0)
+        return false;
+    if (last < first)
+        std::swap(first, last);
+    return true;
 }
 
-// cues resolve lines at compose time, so the positions must be read by then
 #define ALGO_CUE(...) \
     const auto id = pid; \
     return {[=](int slide) { \
         auto c = Primitive::get<Algorithm>(id); \
-        FlushPending(); \
-        if (c->parsed_for != c->full_content) c->parseLines(); \
         __VA_ARGS__ \
     }};
 
 SlideCue Algorithm::reveal(CodeAnchor where)
 {
-    ALGO_CUE(c->reveal_at[slide] = where == END ? c->count() : 0;)
+    ALGO_CUE(c->reveal_at[slide] = {"", where == END ? INT_MAX : 0};)
 }
 
 SlideCue Algorithm::reveal(int line)
 {
-    ALGO_CUE(c->reveal_at[slide] = std::clamp(line, 0, c->count());)
+    ALGO_CUE(c->reveal_at[slide] = {"", line};)
 }
 
 SlideCue Algorithm::reveal(const std::string& label)
 {
-    ALGO_CUE(if (int n = c->markOf(label); n >= 0) c->reveal_at[slide] = n;)
+    ALGO_CUE(c->reveal_at[slide] = {label, 0};)
 }
 
 SlideCue Algorithm::focus(const std::string& label)
 {
-    ALGO_CUE(int n = c->markOf(label);
-             c->focus_at[slide] = n > 0 ? std::pair{n, n} : std::pair{0, 0};)
+    ALGO_CUE(c->focus_at[slide] = {{label, 0}, {label, 0}};)
 }
 
 SlideCue Algorithm::focus(const std::string& from, const std::string& to)
 {
-    ALGO_CUE(int a = c->markOf(from), b = c->markOf(to);
-             if (b < a) std::swap(a, b);
-             c->focus_at[slide] = a > 0 ? std::pair{a, b} : std::pair{0, 0};)
+    ALGO_CUE(c->focus_at[slide] = {{from, 0}, {to, 0}};)
 }
 
 SlideCue Algorithm::focus(int first_line, int last_line)
 {
-    ALGO_CUE(const int n = std::max(c->count(), 1);
-             const int a = std::clamp(first_line, 1, n), b = std::clamp(last_line, 1, n);
-             c->focus_at[slide] = b < a ? std::pair{0, 0} : std::pair{a, b};)
+    ALGO_CUE(c->focus_at[slide] = {{"", first_line}, {"", last_line}};)
 }
 
 SlideCue Algorithm::unfocus()
 {
-    ALGO_CUE(c->focus_at[slide] = {0, 0};)
+    ALGO_CUE(c->focus_at[slide] = {};)
 }
 
 #undef ALGO_CUE
@@ -261,8 +331,11 @@ void Algorithm::draw(const TimeObject& t, const StateInSlide& sis)
         return;
     if (parsed_for != full_content)
         parseLines();
-    // the strips below are axis aligned, a plane or a rotation draws it whole
-    if (sis.hasPlane() || std::abs(sis.getAngle()) > 0.001 || baseline_px.empty()) {
+    if (sis.hasPlane() || baseline_px.empty()) {
+        if (sis.hasPlane() && !warned_plane && (!reveal_at.empty() || !focus_at.empty())) {
+            warned_plane = true;
+            spdlog::warn("[algo] reveal and focus are ignored on a plane");
+        }
         display(sis);
         return;
     }
@@ -277,20 +350,20 @@ void Algorithm::draw(const TimeObject& t, const StateInSlide& sis)
     ensureTexelsFor(sx, sy);
 
     const double H = data.height;
-    const float W = float(data.width * sx);
+    const double W = data.width * sx;
     const auto P = sis.getAbsolutePosition();
-    const ImVec2 o(P.x - W * 0.5f, float(P.y - H * sy * 0.5));
+    const double ca = std::cos(sis.getAngle()), sa = std::sin(sis.getAngle());
+    // x in screen pixels from the left edge, y in png pixels from the top
+    auto at = [&](double x, double y) {
+        const double lx = x - W * 0.5, ly = (y - H * 0.5) * sy;
+        return ImVec2(float(P.x + lx * ca - ly * sa), float(P.y + lx * sa + ly * ca));
+    };
 
-    const double asc = 0.72 * pitch_px, desc = 0.28 * pitch_px;
     const parameter pos = t.slidePosition();
     const int i = int(std::floor(pos));
     const double f = std::clamp<double>(pos - i, 0, 1);
 
-    auto clipOf = [&](int slide) {
-        const int r = revealOn(slide);
-        if (r >= count()) return H;
-        return r <= 0 ? yOf(1) - asc : yOf(r) + desc;
-    };
+    auto clipOf = [&](int slide) { return edge_px[std::clamp(revealOn(slide), 0, count())]; };
     const double clip = std::lerp(clipOf(i), clipOf(i+1), f);
 
     int fa, la, fb, lb;
@@ -306,22 +379,22 @@ void Algorithm::draw(const TimeObject& t, const StateInSlide& sis)
         y0 = std::clamp(y0, 0., clip);
         y1 = std::clamp(y1, 0., clip);
         if (y1 <= y0) return;
-        dl->AddImage(tex, ImVec2(o.x, float(o.y + y0 * sy)), ImVec2(o.x + W, float(o.y + y1 * sy)),
-                     ImVec2(0, float(y0 / H)), ImVec2(1, float(y1 / H)),
-                     ImColor(1.f, 1.f, 1.f, a * alpha));
+        const float v0 = float(y0 / H), v1 = float(y1 / H);
+        dl->AddImageQuad(tex, at(0, y0), at(W, y0), at(W, y1), at(0, y1),
+                         ImVec2(0, v0), ImVec2(1, v0), ImVec2(1, v1), ImVec2(0, v1),
+                         ImColor(1.f, 1.f, 1.f, a * alpha));
     };
 
     if (amt < 0.001) {
         strip(0, H, 1);
         return;
     }
-    const double top = yOf(bf) - asc, bot = yOf(bl) + desc;
+    const double top = edgeOf(bf - 1), bot = edgeOf(bl);
     ImVec4 hc = highlight.getImColor();
     hc.w *= float(amt) * alpha;
     const double btop = std::min(top, clip), bbot = std::min(bot, clip);
     if (bbot > btop)
-        dl->AddRectFilled(ImVec2(o.x, float(o.y + btop * sy)), ImVec2(o.x + W, float(o.y + bbot * sy)),
-                          ImColor(hc));
+        dl->AddQuadFilled(at(0, btop), at(W, btop), at(W, bbot), at(0, bbot), ImColor(hc));
     const float dim = float(1 - amt * (1 - dim_factor));
     strip(0, top, dim);
     strip(top, bot, 1);

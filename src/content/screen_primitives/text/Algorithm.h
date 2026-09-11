@@ -13,9 +13,11 @@ namespace slope {
  *   auto algo = Algorithm::FromFile("bfs.tex");   // \begin{algorithmic}...
  *   show << algo->at("listing") << algo->focus(3, 4);
  *
- * Lines count as the package numbers them, shown or not. \slopemark{name}
- * names the line it sits on. The package goes in the preamble; algorithm2e
- * needs \begin{algorithm}[H], a float cannot be boxed.
+ * Lines count as the package numbers them, shown or not, and keep counting
+ * across several environments of the same file. \slopemark{name} names the
+ * line it sits on. The package goes in the preamble; algorithm2e needs
+ * \begin{algorithm}[H], a float cannot be boxed. Line positions come from
+ * \pdfsavepos, so focus and reveal need pdflatex.
  */
 class Algorithm;
 using AlgorithmPtr = std::shared_ptr<Algorithm>;
@@ -38,7 +40,7 @@ public:
     SlideCue focus(int first_line, int last_line);
     SlideCue unfocus();
 
-    void clearCues() { reveal_at.clear(); focus_at.clear(); }
+    void clearCues() { reveal_at.clear(); focus_at.clear(); parsed_for.clear(); }
     static void ClearAllCues();
 
     // file-backed listings, for the in-app editor and hot reload
@@ -49,27 +51,42 @@ public:
     void playIntro(const TimeObject& t, const StateInSlide& sis) override { draw(t, sis); }
     void playOutro(const TimeObject& t, const StateInSlide& sis) override { draw(t, sis); }
 
+    // the preamble is in the key, so a prefix reload renames the cache entry
+    void refreshSource() override { setSource(content); }
+
 private:
     std::string key;                       // names the .lines file in the cache
     path source_file;
     std::filesystem::file_time_type last_modified;
     int listing_width = -1;
     void setSource(const TexObject& tex);
+
+    // a cue names a line either by number, or by the mark it resolves to when
+    // the positions are read, so that an edited \slopemark moves the cue
+    struct LineRef {
+        std::string label;
+        int line = 0;
+    };
+
     std::vector<double> baseline_px;       // [n-1] = line n, png pixels from the top
+    std::vector<double> edge_px;           // [k] = between line k and k+1, k in [0,count]
     std::map<std::string, int> marks;
     std::string parsed_for;                // full_content the lines were read for
     double pitch_px = 0;
+    bool warned_plane = false;
 
-    std::map<int, int> reveal_at;
-    std::map<int, std::pair<int,int>> focus_at;
+    std::map<int, LineRef> reveal_at;
+    std::map<int, std::pair<LineRef, LineRef>> focus_at;
 
     void parseLines();
+    void cutLines(const path& png);
+    void warnUnknownMarks();
     int count() const { return int(baseline_px.size()); }
-    int markOf(const std::string& label) const;
+    int resolve(const LineRef& ref) const;
     int revealOn(int slide) const;
     bool focusOn(int slide, int& first, int& last) const;
-    // png y of line l's baseline, l fractional and 1-based
-    double yOf(double l) const;
+    // png y of the cut below line k, k fractional in [0,count]
+    double edgeOf(double k) const;
 
     inline static std::vector<Algorithm*> all;
 };
