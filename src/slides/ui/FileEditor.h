@@ -6,7 +6,6 @@
 
 #include <string>
 #include <vector>
-#include <map>
 #include <filesystem>
 
 struct ImFont;
@@ -14,14 +13,14 @@ struct ImFont;
 namespace slope {
 
 /*
- * A bare-bones in-app text editor for every file the hot-reload watchers are
- * tracking: GLSL/frag sources and their #included headers, Lua snippets, Code
- * primitive sources, and the deck manifest. Toggled with E.
+ * An in-app text editor for every file the hot-reload watchers are tracking:
+ * GLSL/frag sources and their #included headers, Lua snippets, Code and
+ * Algorithm sources, and the deck manifest. Toggled with E.
  *
  * It does not talk to the reload machinery at all: it writes to disk and the
  * existing mtime polls (Shader/Snippet/Code::HotReloadIfModified, the deck
  * loader) pick the change up on the next frame, exactly as an external editor
- * would. A prototype, hence no tabs, no undo, no syntax colouring.
+ * would. One file at a time; unsaved edits are never dropped without asking.
  */
 class FileEditor {
 public:
@@ -32,14 +31,22 @@ public:
     // should still show up in the list. Absolute paths, de-duplicated.
     static void registerExtra(const std::filesystem::path& p);
 
+    bool hasUnsaved() const { return dirty; }
+    // saves the open file if it has edits; false if that save failed
+    bool saveUnsaved() { return !dirty || saveToDisk(); }
+    const std::filesystem::path& currentFile() const { return current; }
+
 private:
+    enum class Pending { None, Switch, Reload, Overwrite };
+
     void refreshFileList();
-    void selectFile(const std::filesystem::path& p);
+    void requestOpen(const std::filesystem::path& p);
+    void openFile(const std::filesystem::path& p);
     void loadFromDisk();
-    void saveToDisk();
+    bool saveToDisk();
+    bool changedOnDisk() const;
+    void drawPendingPopup();
     void rehighlight();   // recompute runs if the buffer moved
-    ImFont* fontForScale(float scale);
-    void primeFonts();    // bake every snapped face on open, off the hot path
     static const CodeStyle& editorStyle();
 
     std::vector<std::filesystem::path> files;      // what the list shows
@@ -48,15 +55,21 @@ private:
     std::filesystem::file_time_type    disk_mtime{};
     bool                               dirty = false;     // buffer != disk
     bool                               load_failed = false;
+    std::string                        save_error;        // last failed save, shown in the toolbar
+    bool                               widget_reload = false; // buffer replaced under an active field
     double                             last_refresh = -1; // seconds, throttle
     float                              text_scale = 1.4f; // editor font multiplier
+
+    // a confirmation waiting on the user, and the file a Switch goes to
+    Pending                            pending = Pending::None;
+    std::filesystem::path              pending_file;
 
     // tree-sitter highlight of the current buffer, recomputed when it changes
     std::string                        language;          // CodeLanguage name, "" if none
     std::vector<Code::HighlightRun>    runs;
     std::size_t                        hl_hash = 0;
-    std::map<int, ImFont*>             font_cache;   // px size -> atlas font
-    bool                               fonts_primed = false;
+    ImFont*                            mono = nullptr;    // one face, sized per frame
+    bool                               font_tried = false;
 };
 
 } // namespace slope

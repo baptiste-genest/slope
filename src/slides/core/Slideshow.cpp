@@ -841,25 +841,27 @@ void slope::Slideshow::handleInputs()
     if (wm.isModalOpen())
         return;
 
-    if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_S)) {
+    // a focused text field (the file editor) owns every keystroke
+    const bool typing = ImGui::GetIO().WantTextInput;
+    // KeyCtrl is Cmd on macOS, which the key guide already prints
+    const bool ctrl = ImGui::GetIO().KeyCtrl;
+
+    if (ctrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) {
         LabelAnchor::saveAllDirty();
         Params::saveAllDirty();
         PersistentTransform::saveAllDirty();
     }
 
-    if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_Z))
+    if (!typing && ctrl && ImGui::IsKeyPressed(ImGuiKey_Z))
         drag_editor.undo(slides[state.current], wm);
 
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape) && !wm.isAnyOpen()) {
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !wm.isAnyOpen()) {
         if (LabelAnchor::hasDirty() || Params::hasDirty() || PersistentTransform::hasDirty()
-            || time_tracker.hasRecordableSession())
+            || file_editor.hasUnsaved() || time_tracker.hasRecordableSession())
             wm.Toggle(WindowType::QuitWarning);
         else
             polyscope::unshow();
     }
-
-    // a focused text field (the file editor) owns every keystroke
-    const bool typing = ImGui::GetIO().WantTextInput;
 
     for (const auto& input : input_manager.getInputs()) {
         if (input.trigger == ImGuiKey_None) continue;
@@ -975,6 +977,9 @@ void slope::Slideshow::displayPopUps()
         if (ImGui::BeginPopupModal("Save before quitting?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
             if (LabelAnchor::hasDirty() || Params::hasDirty() || PersistentTransform::hasDirty())
                 ImGui::Text("Unsaved position/parameter changes.");
+            if (file_editor.hasUnsaved())
+                ImGui::Text("Unsaved edits to %s in the file editor.",
+                            file_editor.currentFile().filename().string().c_str());
             if (time_tracker.hasRecordableSession())
                 ImGui::Text("This rehearsal session's timings are not saved.");
             ImGui::Text("Quit without saving?");
@@ -984,8 +989,11 @@ void slope::Slideshow::displayPopUps()
                 Params::saveAllDirty();
                 PersistentTransform::saveAllDirty();
                 time_tracker.save();
-                polyscope::unshow();
-                ImGui::CloseCurrentPopup();
+                // a failed editor save keeps the dialog up, its line still showing
+                if (file_editor.saveUnsaved()) {
+                    polyscope::unshow();
+                    ImGui::CloseCurrentPopup();
+                }
             }
             ImGui::SameLine();
             if (ImGui::Button("Discard and quit")) {

@@ -19,10 +19,19 @@ namespace slope {
 
 namespace {
 
+constexpr float kBasePx = 16.f;   // editor font size at text_scale 1
+
 std::vector<std::filesystem::path>& extras()
 {
     static std::vector<std::filesystem::path> v;
     return v;
+}
+
+std::filesystem::path normalized(const std::filesystem::path& p)
+{
+    std::error_code ec;
+    auto v = std::filesystem::weakly_canonical(p, ec);
+    return ec ? p : v;
 }
 
 // lets ImGui grow a std::string in place, the trick imgui_stdlib uses
@@ -47,9 +56,7 @@ std::string shortName(const std::filesystem::path& p)
 
 void FileEditor::registerExtra(const std::filesystem::path& p)
 {
-    std::error_code ec;
-    auto v = std::filesystem::weakly_canonical(p, ec);
-    if (ec) v = p;
+    auto v = normalized(p);
     auto& e = extras();
     if (std::find(e.begin(), e.end(), v) == e.end())
         e.push_back(v);
@@ -58,10 +65,13 @@ void FileEditor::registerExtra(const std::filesystem::path& p)
 void FileEditor::refreshFileList()
 {
     std::vector<std::filesystem::path> all;
+    // normalised so every registry compares equal to `current`
     auto add = [&](const std::vector<std::filesystem::path>& v) {
-        for (const auto& p : v)
+        for (const auto& raw : v) {
+            auto p = normalized(raw);
             if (std::find(all.begin(), all.end(), p) == all.end())
                 all.push_back(p);
+        }
     };
     add(Shader::WatchedFiles());
     add(Snippet::WatchedFiles());
@@ -75,12 +85,20 @@ void FileEditor::refreshFileList()
     files = std::move(all);
 }
 
-void FileEditor::selectFile(const std::filesystem::path& p)
+void FileEditor::requestOpen(const std::filesystem::path& p)
 {
-    if (dirty && p != current) {
-        // a prototype: keep it simple, just warn and drop the edits
-        spdlog::warn("[file-editor] discarding unsaved edits to {}", current.string());
+    if (p == current)
+        return;
+    if (dirty) {
+        pending = Pending::Switch;
+        pending_file = p;
+        return;
     }
+    openFile(p);
+}
+
+void FileEditor::openFile(const std::filesystem::path& p)
+{
     current = p;
     loadFromDisk();
 }
@@ -89,7 +107,11 @@ void FileEditor::loadFromDisk()
 {
     load_failed = false;
     dirty = false;
+    save_error.clear();
     buffer.clear();
+    widget_reload = true;
+    hl_hash = 0;
+    runs.clear();
     if (current.empty())
         return;
 
@@ -109,8 +131,15 @@ void FileEditor::loadFromDisk()
     if (!ext.empty() && ext.front() == '.') ext.erase(0, 1);
     const auto& lang = CodeLanguage::ForExtension(ext);
     language = lang.valid() ? lang.name : std::string();
-    hl_hash = 0;
-    runs.clear();
+}
+
+bool FileEditor::changedOnDisk() const
+{
+    if (current.empty())
+        return false;
+    std::error_code ec;
+    auto t = std::filesystem::last_write_time(current, ec);
+    return !ec && t != disk_mtime;
 }
 
 // Dracula palette for the editor: Code's CodeStyle is tuned for a light slide,
@@ -146,54 +175,105 @@ void FileEditor::rehighlight()
     runs = Code::HighlightRuns(buffer, CodeLanguage::ForName(language), editorStyle());
 }
 
-ImFont* FileEditor::fontForScale(float scale)
+// written aside then renamed, so a failed write never truncates the original
+bool FileEditor::saveToDisk()
 {
-    const int px = int(std::lround(16.f * scale));
-    if (auto it = font_cache.find(px); it != font_cache.end())
-        return it->second;
-    ImFont* f = Code::LoadFont("Fira Code", float(px));
-    if (f) font_cache[px] = f;   // retry next frame if the atlas was busy
-    return f;
-}
-
-// bake every snapped face on open, so the TTF-load hitch never lands on a
-// keystroke frame (ImGui drops the Enter shortcut on a just-activated field)
-void FileEditor::primeFonts()
-{
-    if (fonts_primed)
-        return;
-    fonts_primed = true;
-    for (float s = 0.75f; s <= 3.001f; s += 0.25f)
-        fontForScale(s);
-}
-
-void FileEditor::saveToDisk()
-{
+    namespace fs = std::filesystem;
     if (current.empty())
-        return;
-    std::ofstream f(current, std::ios::binary | std::ios::trunc);
-    if (!f) {
-        spdlog::error("[file-editor] could not write {}", current.string());
-        return;
-    }
-    f << buffer;
-    f.close();
+        return false;
+    save_error.clear();
 
+    fs::path tmp = current;
+    tmp += ".slope-save";
     std::error_code ec;
-    disk_mtime = std::filesystem::last_write_time(current, ec);
+    {
+        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
+        if (f) {
+            f.write(buffer.data(), std::streamsize(buffer.size()));
+            f.close();
+        }
+        if (!f) {
+            save_error = "could not write " + tmp.string();
+            fs::remove(tmp, ec);
+            spdlog::error("[file-editor] {}", save_error);
+            return false;
+        }
+    }
+
+    const auto st = fs::status(current, ec);
+    if (!ec && fs::exists(st))
+        fs::permissions(tmp, st.permissions(), ec);
+    fs::rename(tmp, current, ec);
+    if (ec) {
+        save_error = "could not replace " + current.string() + ": " + ec.message();
+        std::error_code ignored;
+        fs::remove(tmp, ignored);
+        spdlog::error("[file-editor] {}", save_error);
+        return false;
+    }
+
+    disk_mtime = fs::last_write_time(current, ec);
     dirty = false;
     spdlog::info("[file-editor] saved {}", current.string());
+    return true;
+}
+
+void FileEditor::drawPendingPopup()
+{
+    const char* title = "Unsaved changes##file-editor";
+    if (pending == Pending::None)
+        return;
+    if (!ImGui::IsPopupOpen(title))
+        ImGui::OpenPopup(title);
+    if (!ImGui::BeginPopupModal(title, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        return;
+
+    const std::string name = current.filename().string();
+    auto done = [&] { pending = Pending::None; ImGui::CloseCurrentPopup(); };
+
+    switch (pending) {
+    case Pending::Switch:
+        ImGui::Text("%s has unsaved changes.", name.c_str());
+        if (changedOnDisk())
+            ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.f, 1.f), "It also changed on disk; saving overwrites that.");
+        if (ImGui::Button("Save")) {
+            if (saveToDisk()) openFile(pending_file);
+            done();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Discard")) { openFile(pending_file); done(); }
+        break;
+    case Pending::Reload:
+        ImGui::Text("Discard your changes to %s and reload it from disk?", name.c_str());
+        if (ImGui::Button("Reload")) { loadFromDisk(); done(); }
+        break;
+    case Pending::Overwrite:
+        ImGui::Text("%s changed on disk since it was loaded.", name.c_str());
+        if (ImGui::Button("Overwrite")) { saveToDisk(); done(); }
+        ImGui::SameLine();
+        if (ImGui::Button("Reload from disk")) { loadFromDisk(); done(); }
+        break;
+    case Pending::None:
+        break;
+    }
+    if (pending != Pending::None) {
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+            done();
+    }
+    ImGui::EndPopup();
 }
 
 void FileEditor::draw(WindowManager& wm)
 {
-    if (!wm.isOpen(WindowType::FileEditor)) {
-        fonts_primed = false;   // re-bake check on the next open, cheap if cached
+    if (!wm.isOpen(WindowType::FileEditor))
         return;
-    }
 
-    // bake the faces now, while the mouse is still travelling to the text area
-    primeFonts();
+    // loaded on open so the lookup hitch never eats a keystroke
+    if (!font_tried) {
+        font_tried = true;
+        mono = Code::LoadFont("Fira Code", kBasePx);
+    }
 
     // the file set changes as slides come and go; twice a second is plenty
     {
@@ -205,11 +285,15 @@ void FileEditor::draw(WindowManager& wm)
         }
     }
 
+    bool open = true;
     ImGui::SetNextWindowSize(ImVec2(900, 560), ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin("Hot-reload files (E)")) {
+    const bool visible = ImGui::Begin("Hot-reload files (E)", &open);
+    if (!visible) {
         ImGui::End();
+        if (!open) wm.CloseAll();
         return;
     }
+    const bool win_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
     // ── left: the file list ────────────────────────────────────────────────
     ImGui::BeginChild("list", ImVec2(260, 0), ImGuiChildFlags_Borders);
@@ -218,7 +302,7 @@ void FileEditor::draw(WindowManager& wm)
     for (const auto& p : files) {
         bool sel = (p == current);
         if (ImGui::Selectable(shortName(p).c_str(), sel))
-            selectFile(p);
+            requestOpen(p);
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", p.string().c_str());
     }
@@ -228,156 +312,183 @@ void FileEditor::draw(WindowManager& wm)
 
     // ── right: the editor ──────────────────────────────────────────────────
     ImGui::BeginChild("edit", ImVec2(0, 0));
+    const ImGuiID body_id = ImGui::GetID("##body");
+
+    // the widget's own Escape reverts every edit, so it never sees one
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && pending == Pending::None) {
+        if (ImGui::GetActiveID() == body_id)
+            ImGui::ClearActiveID();
+        else if (win_focused)
+            open = false;
+    }
+
     if (current.empty()) {
         ImGui::TextDisabled("select a file");
-        ImGui::EndChild();
-        ImGui::End();
-        return;
-    }
+    } else {
+        // a clean buffer follows the disk; a dirty one is flagged instead
+        bool stale = changedOnDisk();
+        if (stale && !dirty) {
+            loadFromDisk();
+            stale = false;
+        }
 
-    // has the file changed under us since we loaded it?
-    std::error_code ec;
-    auto now_mtime = std::filesystem::last_write_time(current, ec);
-    bool stale = !ec && now_mtime != disk_mtime;
-
-    ImGui::TextUnformatted(current.filename().string().c_str());
-    ImGui::SameLine();
-    if (dirty)
-        ImGui::TextColored(ImVec4(1.f, 0.7f, 0.2f, 1.f), "[modified]");
-    else if (stale)
-        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.f, 1.f), "[changed on disk]");
-
-    bool ctrl_s = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) && ImGui::IsKeyPressed(ImGuiKey_S);
-
-    if (ImGui::Button("Save") || (ctrl_s && dirty))
-        saveToDisk();
-    ImGui::SameLine();
-    if (ImGui::Button(stale ? "Reload from disk*" : "Reload from disk"))
-        loadFromDisk();
-    if (load_failed) {
+        ImGui::TextUnformatted(current.filename().string().c_str());
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4(1.f, 0.3f, 0.3f, 1.f), "could not read file");
-    }
+        if (dirty && stale)
+            ImGui::TextColored(ImVec4(1.f, 0.4f, 0.3f, 1.f), "[modified, also changed on disk]");
+        else if (dirty)
+            ImGui::TextColored(ImVec4(1.f, 0.7f, 0.2f, 1.f), "[modified]");
 
-    ImGui::SameLine();
-    if (language.empty())
-        ImGui::TextDisabled("no grammar");
-    else
-        ImGui::TextDisabled("%s", language.c_str());
+        const bool ctrl_s = ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false);
+        if (ImGui::Button("Save") || (ctrl_s && dirty)) {
+            if (stale) pending = Pending::Overwrite;
+            else saveToDisk();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Reload from disk")) {
+            if (dirty) pending = Pending::Reload;
+            else loadFromDisk();
+        }
+        if (load_failed) {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1.f, 0.3f, 0.3f, 1.f), "could not read file");
+        }
 
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(140);
-    // snapped to quarter steps: each distinct size is its own atlas font
-    if (ImGui::SliderFloat("size", &text_scale, 0.75f, 3.0f, "%.2fx"))
-        text_scale = std::round(text_scale * 4.f) / 4.f;
+        ImGui::SameLine();
+        if (language.empty())
+            ImGui::TextDisabled("no grammar");
+        else
+            ImGui::TextDisabled("%s", language.c_str());
 
-    ImGui::Separator();
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(140);
+        // quarter steps, so only a handful of sizes get baked
+        if (ImGui::SliderFloat("size", &text_scale, 0.75f, 3.0f, "%.2fx"))
+            text_scale = std::round(text_scale * 4.f) / 4.f;
 
-    rehighlight();
+        if (!save_error.empty())
+            ImGui::TextColored(ImVec4(1.f, 0.3f, 0.3f, 1.f), "%s", save_error.c_str());
 
-    // one Fira Code face per size, added to the atlas on demand and cached
-    ImFont* mono = fontForScale(text_scale);
+        ImGui::Separator();
 
-    ImGuiWindow* edit_win = ImGui::GetCurrentWindow();
-    ImVec2 avail = ImGui::GetContentRegionAvail();
-    if (mono) ImGui::PushFont(mono);
+        rehighlight();
 
-    // The widget renders no text of its own (transparent ink): a coloured glyph
-    // drawn over a pale one just muddies through the anti-aliased edges. We draw
-    // every character ourselves, in the Dracula palette, over its dark ground.
-    const ImU32 ink = ImU32(ImColor(editorStyle().text.getImColor()));
-    ImGui::PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(0x28, 0x2A, 0x36, 255));
-    ImGui::PushStyleColor(ImGuiCol_Text,           IM_COL32(0, 0, 0, 0));
-    ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(0x44, 0x47, 0x5A, 255));
+        // an active field keeps its own copy of the text
+        if (widget_reload) {
+            widget_reload = false;
+            if (ImGui::GetActiveID() == body_id)
+                if (ImGuiInputTextState* st = ImGui::GetInputTextState(body_id))
+                    st->ReloadUserBufAndKeepSelection();
+        }
 
-    const ImGuiID body_id = ImGui::GetID("##body");
-    if (ImGui::InputTextMultiline("##body", buffer.data(), buffer.size() + 1,
-                                  avail,
-                                  ImGuiInputTextFlags_AllowTabInput
-                                      | ImGuiInputTextFlags_CallbackResize,
-                                  growString, &buffer)) {
-        dirty = true;
-    }
-    ImGui::PopStyleColor(3);
+        ImGuiWindow* edit_win = ImGui::GetCurrentWindow();
+        ImVec2 avail = ImGui::GetContentRegionAvail();
+        // a null face keeps the current one, so the size still applies
+        ImGui::PushFont(mono, kBasePx * text_scale);
 
-    {
-        const ImVec2 p_min = ImGui::GetItemRectMin();
-        const ImVec2 p_max = ImGui::GetItemRectMax();
+        // The widget renders no text of its own (transparent ink): a coloured glyph
+        // drawn over a pale one just muddies through the anti-aliased edges. We draw
+        // every character ourselves, in the Dracula palette, over its dark ground.
+        const ImU32 ink = ImU32(ImColor(editorStyle().text.getImColor()));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(0x28, 0x2A, 0x36, 255));
+        ImGui::PushStyleColor(ImGuiCol_Text,           IM_COL32(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(0x44, 0x47, 0x5A, 255));
 
-        // the scrollable child InputTextMultiline created, so vertical scroll is
-        // read straight from it whether or not the field is focused
-        char child_name[256];
-        ImFormatString(child_name, sizeof(child_name), "%s/##body_%08X",
-                       edit_win->Name, body_id);
-        ImGuiWindow* body_win = ImGui::FindWindowByName(child_name);
-        ImVec2 scroll = body_win ? body_win->Scroll : ImVec2(0.f, 0.f);
-        ImGuiInputTextState* st = ImGui::GetInputTextState(body_id);
-        if (st) scroll.x = st->Scroll.x;   // horizontal is tracked on the state
+        if (ImGui::InputTextMultiline("##body", buffer.data(), buffer.size() + 1,
+                                      avail,
+                                      ImGuiInputTextFlags_AllowTabInput
+                                          | ImGuiInputTextFlags_CallbackResize,
+                                      growString, &buffer)) {
+            dirty = true;
+        }
+        ImGui::PopStyleColor(3);
 
-        const ImGuiStyle& gs = ImGui::GetStyle();
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        ImFont* font = ImGui::GetFont();
-        const float fs = ImGui::GetFontSize();
-        const ImVec2 origin(p_min.x + gs.FramePadding.x - scroll.x,
-                            p_min.y + gs.FramePadding.y - scroll.y);
-        const char* base = buffer.c_str();
-        auto measure = [&](size_t a, size_t b) {
-            return font->CalcTextSizeA(fs, FLT_MAX, 0.f, base + a, base + b).x;
-        };
+        {
+            const ImVec2 p_min = ImGui::GetItemRectMin();
+            const ImVec2 p_max = ImGui::GetItemRectMax();
 
-        // [begin,end) of every line, trailing '\n' excluded
-        std::vector<std::pair<size_t, size_t>> lines;
-        for (size_t i = 0, b = 0; i <= buffer.size(); ++i)
-            if (i == buffer.size() || buffer[i] == '\n') { lines.push_back({b, i}); b = i + 1; }
+            // the scrollable child InputTextMultiline created, so vertical scroll is
+            // read straight from it whether or not the field is focused
+            char child_name[256];
+            ImFormatString(child_name, sizeof(child_name), "%s/##body_%08X",
+                           edit_win->Name, body_id);
+            ImGuiWindow* body_win = ImGui::FindWindowByName(child_name);
+            ImVec2 scroll = body_win ? body_win->Scroll : ImVec2(0.f, 0.f);
+            // the state outlives the field's focus, and may describe another file
+            const bool active = ImGui::GetActiveID() == body_id;
+            ImGuiInputTextState* st = active ? ImGui::GetInputTextState(body_id) : nullptr;
+            if (st) scroll.x = st->Scroll.x;   // horizontal is tracked on the state
 
-        const int n = int(lines.size());
-        const int first = std::max(0, int(scroll.y / fs) - 1);
-        const int lastl = std::min(n, first + int((p_max.y - p_min.y) / fs) + 3);
+            const ImGuiStyle& gs = ImGui::GetStyle();
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImFont* font = ImGui::GetFont();
+            const float fs = ImGui::GetFontSize();
+            const ImVec2 origin(p_min.x + gs.FramePadding.x - scroll.x,
+                                p_min.y + gs.FramePadding.y - scroll.y);
+            const char* base = buffer.c_str();
+            auto measure = [&](size_t a, size_t b) {
+                return font->CalcTextSizeA(fs, FLT_MAX, 0.f, base + a, base + b).x;
+            };
 
-        dl->PushClipRect(p_min, p_max, true);
-        for (int li = first; li < lastl; ++li) {
-            const auto [b, e] = lines[li];
-            const float y = origin.y + float(li) * fs;
-            float x = origin.x;
-            size_t seg = b;
-            // first run that reaches into this line
-            size_t k = 0;
-            while (k < runs.size() && runs[k].end <= seg) ++k;
-            while (seg < e) {
+            // [begin,end) of every line, trailing '\n' excluded
+            std::vector<std::pair<size_t, size_t>> lines;
+            for (size_t i = 0, b = 0; i <= buffer.size(); ++i)
+                if (i == buffer.size() || buffer[i] == '\n') { lines.push_back({b, i}); b = i + 1; }
+
+            const int n = int(lines.size());
+            const int first = std::max(0, int(scroll.y / fs) - 1);
+            const int lastl = std::min(n, first + int((p_max.y - p_min.y) / fs) + 3);
+
+            dl->PushClipRect(p_min, p_max, true);
+            for (int li = first; li < lastl; ++li) {
+                const auto [b, e] = lines[li];
+                const float y = origin.y + float(li) * fs;
+                float x = origin.x;
+                size_t seg = b;
+                // first run that reaches into this line
+                size_t k = 0;
                 while (k < runs.size() && runs[k].end <= seg) ++k;
-                ImU32 col;
-                size_t seg_end;
-                if (k < runs.size() && runs[k].begin <= seg) {
-                    col = runs[k].color;
-                    seg_end = std::min(e, runs[k].end);
-                } else {
-                    col = ink;
-                    seg_end = (k < runs.size()) ? std::min(e, runs[k].begin) : e;
+                while (seg < e) {
+                    while (k < runs.size() && runs[k].end <= seg) ++k;
+                    ImU32 col;
+                    size_t seg_end;
+                    if (k < runs.size() && runs[k].begin <= seg) {
+                        col = runs[k].color;
+                        seg_end = std::min(e, runs[k].end);
+                    } else {
+                        col = ink;
+                        seg_end = (k < runs.size()) ? std::min(e, runs[k].begin) : e;
+                    }
+                    if (seg_end <= seg) break;
+                    dl->AddText(font, fs, ImVec2(x, y), col, base + seg, base + seg_end);
+                    x += measure(seg, seg_end);
+                    seg = seg_end;
                 }
-                if (seg_end <= seg) break;
-                dl->AddText(font, fs, ImVec2(x, y), col, base + seg, base + seg_end);
-                x += measure(seg, seg_end);
-                seg = seg_end;
             }
+
+            // our own caret, the widget's is transparent too
+            if (st) {
+                const int cpos = std::clamp(st->GetCursorPos(), 0, int(buffer.size()));
+                int cl = 0;
+                while (cl + 1 < n && int(lines[cl + 1].first) <= cpos) ++cl;
+                const float cx = origin.x + measure(lines[cl].first, size_t(cpos));
+                const float cy = origin.y + float(cl) * fs;
+                if (std::fmod(st->CursorAnim, 1.2f) <= 0.8f)
+                    dl->AddLine(ImVec2(cx, cy + 1.f), ImVec2(cx, cy + fs - 1.f), ink, 1.f);
+            }
+            dl->PopClipRect();
         }
 
-        // our own caret, the widget's is transparent too
-        if (st) {
-            const int cpos = st->GetCursorPos();
-            int cl = 0;
-            while (cl + 1 < n && int(lines[cl + 1].first) <= cpos) ++cl;
-            const float cx = origin.x + measure(lines[cl].first, size_t(cpos));
-            const float cy = origin.y + float(cl) * fs;
-            if (std::fmod(st->CursorAnim, 1.2f) <= 0.8f)
-                dl->AddLine(ImVec2(cx, cy + 1.f), ImVec2(cx, cy + fs - 1.f), ink, 1.f);
-        }
-        dl->PopClipRect();
+        ImGui::PopFont();
     }
-
-    if (mono) ImGui::PopFont();
 
     ImGui::EndChild();
+    drawPendingPopup();
     ImGui::End();
+
+    // closing keeps the buffer, edits included; quitting asks about them
+    if (!open)
+        wm.CloseAll();
 }
 
 } // namespace slope
