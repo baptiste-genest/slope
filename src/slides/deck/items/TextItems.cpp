@@ -3,6 +3,9 @@
 #include "content/config/Options.h"
 #include "content/screen_primitives/text/LateX.h"
 #include "content/screen_primitives/text/Code.h"
+#include "content/screen_primitives/text/Algorithm.h"
+#include <fstream>
+#include <sstream>
 
 namespace slope {
 
@@ -104,6 +107,31 @@ std::vector<ItemSpec> textItemSpecs()
         },
         [](const json& i) {
             return std::filesystem::path(i["code"].get<std::string>()).stem().string();
+        },
+    });
+
+    // the file's content is in the key, so an edited .tex recompiles on reload
+    specs.push_back({
+        "algo", ItemSpec::Kind::Screen, {"scale","width","dim","reveal","focus"},
+        [](const json& i) {
+            std::ifstream f(formatPath(i["algo"].get<std::string>()));
+            std::stringstream ss;
+            ss << f.rdbuf();
+            return "algo:" + i["algo"].get<std::string>() + ":"
+                 + std::to_string(std::hash<std::string>{}(ss.str())) + ":"
+                 + std::to_string(i.value("scale", Options::DefaultLatexScale)) + ":"
+                 + std::to_string(i.value("width", -1));
+        },
+        [](const json& i) -> PrimitivePtr {
+            return Algorithm::FromFile(i["algo"].get<std::string>(),
+                                       i.value("scale", Options::DefaultLatexScale),
+                                       i.value("width", -1));
+        },
+        [](const PrimitivePtr& p, const json& i, const std::string&) {
+            std::static_pointer_cast<Algorithm>(p)->dim_factor = i.value("dim", 0.35f);
+        },
+        [](const json& i) {
+            return std::filesystem::path(i["algo"].get<std::string>()).stem().string();
         },
     });
 

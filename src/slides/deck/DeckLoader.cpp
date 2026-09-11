@@ -1,6 +1,7 @@
 #include "content/authoring/Snippet.h"
 #include "slides/deck/DeckLoader.h"
 #include "content/screen_primitives/text/Code.h"
+#include "content/screen_primitives/text/Algorithm.h"
 #include "slides/deck/items/DeckItem.h"
 #include "slides/deck/items/ShaderItem.h"
 #include "slides/deck/items/JsonRead.h"
@@ -431,6 +432,7 @@ void DeckLoader::build(SlideManager& show)
     show.clearGroups();
     show.clearKeyframes();
     Code::ClearAllCues();
+    Algorithm::ClearAllCues();
 
     // drop what an "object:" item no longer declares, and only that, the rest
     // of that shader's binds belong to its C++ owner
@@ -684,15 +686,10 @@ static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& 
 // position), on (a world plane) or below/above/right_of/left_of
 // "reveal" and "focus" are slide state, so they are streamed for the frame
 // being composed rather than set on the primitive
-static void applyCodeCues(SlideManager& show, const ScreenPrimitivePtr& prim,
-                          const json& item)
+template <class Listing>
+static void streamCues(SlideManager& show, const std::shared_ptr<Listing>& code,
+                       const json& item)
 {
-    if (!item.contains("reveal") && !item.contains("focus"))
-        return;
-    auto code = std::dynamic_pointer_cast<Code>(prim);
-    if (!code)
-        throw std::runtime_error("\"reveal\" and \"focus\" belong to a \"code\" item");
-
     if (item.contains("reveal")) {
         const json& r = item["reveal"];
         if (r.is_number_integer())
@@ -720,6 +717,18 @@ static void applyCodeCues(SlideManager& show, const ScreenPrimitivePtr& prim,
             throw std::runtime_error("\"focus\" takes a region, [label, label] or "
                                      "[first, last]");
     }
+}
+
+static void applyCodeCues(SlideManager& show, const ScreenPrimitivePtr& prim,
+                          const json& item)
+{
+    if (!item.contains("reveal") && !item.contains("focus"))
+        return;
+    if (auto code = std::dynamic_pointer_cast<Code>(prim))
+        return streamCues(show, code, item);
+    if (auto algo = std::dynamic_pointer_cast<Algorithm>(prim))
+        return streamCues(show, algo, item);
+    throw std::runtime_error("\"reveal\" and \"focus\" belong to a \"code\" or \"algo\" item");
 }
 
 void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,

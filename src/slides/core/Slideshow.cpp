@@ -1,6 +1,7 @@
 #include "slides/core/Slideshow.h"
 #include "content/screen_primitives/text/LateX.h"
 #include "content/screen_primitives/text/Code.h"
+#include "content/screen_primitives/text/Algorithm.h"
 #include "content/screen_primitives/gpu/Shader.h"
 #include "spdlog/spdlog.h"
 #include "polyscope/pick.h"
@@ -120,6 +121,7 @@ void slope::Slideshow::play() {
     Params::HotReloadIfModified();
     Shader::HotReloadIfModified();
     Code::HotReloadIfModified();
+    Algorithm::HotReloadIfModified();
     Snippet::HotReloadIfModified();
 
     if (onFrame)

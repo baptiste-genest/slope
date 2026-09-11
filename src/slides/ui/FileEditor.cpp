@@ -2,6 +2,7 @@
 
 #include "content/screen_primitives/gpu/Shader.h"
 #include "content/screen_primitives/text/Code.h"
+#include "content/screen_primitives/text/Algorithm.h"
 #include "content/authoring/Snippet.h"
 
 #include "imgui.h"
@@ -65,6 +66,7 @@ void FileEditor::refreshFileList()
     add(Shader::WatchedFiles());
     add(Snippet::WatchedFiles());
     add(Code::WatchedFiles());
+    add(Algorithm::WatchedFiles());
     add(extras());
 
     std::sort(all.begin(), all.end(), [](const auto& a, const auto& b) {
