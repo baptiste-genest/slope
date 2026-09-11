@@ -12,10 +12,14 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cctype>
+#include <climits>
 #include <cmath>
+#include <cstdio>
 #include <fstream>
 #include <sstream>
 #include <functional>
+#include <string_view>
 
 namespace slope {
 
@@ -34,17 +38,6 @@ std::filesystem::path normalized(const std::filesystem::path& p)
     std::error_code ec;
     auto v = std::filesystem::weakly_canonical(p, ec);
     return ec ? p : v;
-}
-
-// lets ImGui grow a std::string in place, the trick imgui_stdlib uses
-int growString(ImGuiInputTextCallbackData* data)
-{
-    if (data->EventFlag == ImGuiInputTextFlags_CallbackResize) {
-        auto* s = static_cast<std::string*>(data->UserData);
-        s->resize(data->BufTextLen);
-        data->Buf = s->data();
-    }
-    return 0;
 }
 
 std::string shortName(const std::filesystem::path& p)
@@ -86,6 +79,12 @@ void FileEditor::refreshFileList()
         return a.filename() < b.filename();
     });
     files = std::move(all);
+    missing.clear();
+    for (const auto& p : files) {
+        std::error_code ec;
+        if (!std::filesystem::exists(p, ec))
+            missing.insert(p);
+    }
 }
 
 void FileEditor::requestOpen(const std::filesystem::path& p)
@@ -113,6 +112,9 @@ void FileEditor::loadFromDisk()
     save_error.clear();
     buffer.clear();
     widget_reload = true;
+    indent_pending = false;
+    pending_insert.clear();
+    comment_pending = false;
     hl_hash = 0;
     runs.clear();
     if (current.empty())
@@ -267,6 +269,194 @@ void FileEditor::drawPendingPopup()
     ImGui::EndPopup();
 }
 
+bool FileEditor::isYaml() const
+{
+    const auto ext = current.extension();
+    return ext == ".yaml" || ext == ".yml";
+}
+
+// the previous line's indentation, one level deeper in yaml after "- " or a trailing ":"
+std::string FileEditor::indentAfter(const char* buf, int cursor) const
+{
+    const int end = std::max(0, cursor - 1);
+    int begin = end;
+    while (begin > 0 && buf[begin - 1] != '\n')
+        --begin;
+    const std::string_view line(buf + begin, size_t(end - begin));
+    const size_t n = line.find_first_not_of(" \t");
+    std::string indent(line.substr(0, n == std::string_view::npos ? line.size() : n));
+    if (!isYaml() || n == std::string_view::npos)
+        return indent;
+
+    std::string_view rest = line.substr(n);
+    while (!rest.empty() && (rest.back() == ' ' || rest.back() == '\t' || rest.back() == '\r'))
+        rest.remove_suffix(1);
+    if (rest == "-" || rest.starts_with("- "))
+        indent += "  ";
+    if (rest.ends_with(":") || rest.ends_with(": |") || rest.ends_with(": >"))
+        indent += "  ";
+    return indent;
+}
+
+std::string FileEditor::commentMarker() const
+{
+    std::string ext = current.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return char(std::tolower(c)); });
+    if (ext == ".yaml" || ext == ".yml" || ext == ".py" || ext == ".sh" || ext == ".cmake")
+        return "#";
+    if (ext == ".lua")
+        return "--";
+    if (ext == ".tex" || ext == ".sty")
+        return "%";
+    if (ext == ".glsl" || ext == ".frag" || ext == ".vert" || ext == ".comp" || ext == ".geom"
+        || ext == ".c" || ext == ".h" || ext == ".cpp" || ext == ".hpp" || ext == ".js")
+        return "//";
+    return "";
+}
+
+// every line the selection touches, or the caret's; uncommented when all already are
+void FileEditor::toggleComment(ImGuiInputTextCallbackData* d) const
+{
+    const std::string m = commentMarker();
+    if (m.empty())
+        return;
+    const bool had_selection = d->SelectionStart != d->SelectionEnd;
+    int a = std::min(d->SelectionStart, d->SelectionEnd);
+    int b = std::max(d->SelectionStart, d->SelectionEnd);
+    if (!had_selection)
+        a = b = d->CursorPos;
+    // a selection ending at a line start leaves that line alone
+    if (b > a && d->Buf[b - 1] == '\n')
+        --b;
+
+    auto lineStart = [&](int p) { while (p > 0 && d->Buf[p - 1] != '\n') --p; return p; };
+    auto lineEnd = [&](int p) { while (p < d->BufTextLen && d->Buf[p] != '\n') ++p; return p; };
+    auto indentOf = [&](int s) { int i = s; while (i < d->BufTextLen && (d->Buf[i] == ' ' || d->Buf[i] == '\t')) ++i; return i - s; };
+
+    std::vector<int> starts;
+    for (int s = lineStart(a);;) {
+        starts.push_back(s);
+        const int e = lineEnd(s);
+        if (e >= b || e >= d->BufTextLen)
+            break;
+        s = e + 1;
+    }
+
+    bool all = true, any = false;
+    int min_indent = INT_MAX;
+    for (int s : starts) {
+        const int ind = indentOf(s);
+        if (s + ind == lineEnd(s))
+            continue;   // blank lines are left as they are
+        any = true;
+        min_indent = std::min(min_indent, ind);
+        if (std::string_view(d->Buf + s + ind, size_t(lineEnd(s) - s - ind)).substr(0, m.size()) != m)
+            all = false;
+    }
+    if (!any)
+        return;
+
+    const int first = starts.front();
+    const int last_end = lineEnd(starts.back());
+    const int caret = d->CursorPos;
+    int delta = 0;
+    // bottom up, so the lines still to edit keep their offsets
+    for (auto it = starts.rbegin(); it != starts.rend(); ++it) {
+        const int s = *it;
+        const int ind = indentOf(s);
+        if (s + ind == lineEnd(s))
+            continue;
+        if (all) {
+            int n = int(m.size());
+            if (d->Buf[s + ind + n] == ' ')
+                ++n;
+            d->DeleteChars(s + ind, n);
+            delta -= n;
+        } else {
+            const std::string ins = m + " ";
+            d->InsertChars(s + min_indent, ins.c_str());
+            delta += int(ins.size());
+        }
+    }
+    if (had_selection) {
+        d->SelectionStart = first;
+        d->SelectionEnd = d->CursorPos = last_end + delta;
+    } else {
+        d->CursorPos = std::clamp(caret + delta, first, d->BufTextLen);
+        d->SelectionStart = d->SelectionEnd = d->CursorPos;
+    }
+}
+
+// a shader gets the smallest body that compiles, so creating it is not an error
+bool FileEditor::createFile()
+{
+    namespace fs = std::filesystem;
+    save_error.clear();
+    std::error_code ec;
+    fs::create_directories(current.parent_path(), ec);
+    std::string ext = current.extension().string();
+    const std::string starter = ext == ".frag" ? "void main() {\n    fragColor = vec4(0.0);\n}\n"
+                              : ext == ".json" ? "{}\n"
+                              : "";
+    {
+        std::ofstream f(current, std::ios::binary);
+        if (f) {
+            f << starter;
+            f.close();
+        }
+        if (!f) {
+            save_error = "could not create " + current.string();
+            spdlog::error("[file-editor] {}", save_error);
+            return false;
+        }
+    }
+    missing.erase(current);
+    spdlog::info("[file-editor] created {}", current.string());
+    loadFromDisk();
+    return true;
+}
+
+int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
+{
+    auto* self = static_cast<FileEditor*>(data->UserData);
+    switch (data->EventFlag) {
+    case ImGuiInputTextFlags_CallbackResize:
+        // lets ImGui grow the std::string in place, the trick imgui_stdlib uses
+        self->buffer.resize(data->BufTextLen);
+        data->Buf = self->buffer.data();
+        break;
+    case ImGuiInputTextFlags_CallbackCharFilter:
+        // Enter only, a pasted newline keeps the text as it came
+        if (data->EventChar == '\n'
+            && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)))
+            self->indent_pending = true;
+        else if (data->EventChar == '\t' && self->isYaml()) {
+            self->pending_insert = "  ";   // a tab is not yaml indentation
+            return 1;
+        }
+        break;
+    case ImGuiInputTextFlags_CallbackAlways:
+        if (self->comment_pending) {
+            self->comment_pending = false;
+            self->toggleComment(data);
+        }
+        if (self->indent_pending) {
+            self->indent_pending = false;
+            const std::string indent = self->indentAfter(data->Buf, data->CursorPos);
+            if (!indent.empty())
+                data->InsertChars(data->CursorPos, indent.c_str());
+        }
+        if (!self->pending_insert.empty()) {
+            data->InsertChars(data->CursorPos, self->pending_insert.c_str());
+            self->pending_insert.clear();
+        }
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
 void FileEditor::draw(WindowManager& wm)
 {
     if (!wm.isOpen(WindowType::FileEditor))
@@ -306,11 +496,13 @@ void FileEditor::draw(WindowManager& wm)
     for (const auto& p : files) {
         bool sel = (p == current);
         const bool broken = errors.count(p) > 0;
-        if (broken)
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.35f, 1.f));
+        const bool absent = missing.count(p) > 0;
+        if (broken || absent)
+            ImGui::PushStyleColor(ImGuiCol_Text, broken ? ImVec4(1.f, 0.4f, 0.35f, 1.f)
+                                                        : ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         if (ImGui::Selectable(shortName(p).c_str(), sel))
             requestOpen(p);
-        if (broken)
+        if (broken || absent)
             ImGui::PopStyleColor();
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", p.string().c_str());
@@ -331,8 +523,21 @@ void FileEditor::draw(WindowManager& wm)
             open = false;
     }
 
+    // Ctrl+/, and the key that types '/' on an AZERTY layout, which ImGui sees as Period
+    if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl
+        && (ImGui::IsKeyPressed(ImGuiKey_Slash, false) || ImGui::IsKeyPressed(ImGuiKey_Period, false)))
+        comment_pending = true;
+
+    std::error_code exists_ec;
     if (current.empty()) {
         ImGui::TextDisabled("select a file");
+    } else if (!dirty && !std::filesystem::exists(current, exists_ec)) {
+        ImGui::TextUnformatted(current.filename().string().c_str());
+        ImGui::TextDisabled("%s does not exist yet", current.string().c_str());
+        if (ImGui::Button("Create file"))
+            createFile();
+        if (!save_error.empty())
+            ImGui::TextColored(ImVec4(1.f, 0.3f, 0.3f, 1.f), "%s", save_error.c_str());
     } else {
         // a clean buffer follows the disk; a dirty one is flagged instead
         bool stale = changedOnDisk();
@@ -407,6 +612,14 @@ void FileEditor::draw(WindowManager& wm)
         // a null face keeps the current one, so the size still applies
         ImGui::PushFont(mono, kBasePx * text_scale);
 
+        // a gutter for the line numbers, as wide as the largest one
+        const int n_lines = 1 + int(std::count(buffer.begin(), buffer.end(), '\n'));
+        const float digit_w = ImGui::CalcTextSize("0").x;
+        const float gutter = (float(std::max<size_t>(std::to_string(n_lines).size(), 2)) + 1.5f) * digit_w;
+        const float gutter_x = ImGui::GetCursorScreenPos().x;
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + gutter);
+        avail.x -= gutter;
+
         // The widget renders no text of its own (transparent ink): a coloured glyph
         // drawn over a pale one just muddies through the anti-aliased edges. We draw
         // every character ourselves, in the Dracula palette, over its dark ground.
@@ -418,8 +631,10 @@ void FileEditor::draw(WindowManager& wm)
         if (ImGui::InputTextMultiline("##body", buffer.data(), buffer.size() + 1,
                                       avail,
                                       ImGuiInputTextFlags_AllowTabInput
-                                          | ImGuiInputTextFlags_CallbackResize,
-                                      growString, &buffer)) {
+                                          | ImGuiInputTextFlags_CallbackResize
+                                          | ImGuiInputTextFlags_CallbackCharFilter
+                                          | ImGuiInputTextFlags_CallbackAlways,
+                                      inputCallback, this)) {
             dirty = true;
         }
         ImGui::PopStyleColor(3);
@@ -460,6 +675,27 @@ void FileEditor::draw(WindowManager& wm)
             const int first = std::max(0, int(scroll.y / fs) - 1);
             const int lastl = std::min(n, first + int((p_max.y - p_min.y) / fs) + 3);
 
+            int cpos = 0, cl = -1;
+            if (st) {
+                cpos = std::clamp(st->GetCursorPos(), 0, int(buffer.size()));
+                cl = 0;
+                while (cl + 1 < n && int(lines[cl + 1].first) <= cpos) ++cl;
+            }
+
+            // right aligned, on the text's own line positions so they scroll with it
+            const ImVec2 g_min(gutter_x, p_min.y), g_max(p_min.x, p_max.y);
+            dl->AddRectFilled(g_min, g_max, IM_COL32(0x21, 0x22, 0x2C, 255));
+            dl->PushClipRect(g_min, g_max, true);
+            const ImU32 muted = IM_COL32(0x62, 0x72, 0xA4, 255);
+            char num[16];
+            for (int li = first; li < lastl; ++li) {
+                const int len = std::snprintf(num, sizeof(num), "%d", li + 1);
+                const float w = font->CalcTextSizeA(fs, FLT_MAX, 0.f, num, num + len).x;
+                dl->AddText(font, fs, ImVec2(p_min.x - 0.75f * digit_w - w, origin.y + float(li) * fs),
+                            li == cl ? ink : muted, num, num + len);
+            }
+            dl->PopClipRect();
+
             dl->PushClipRect(p_min, p_max, true);
             for (int li = first; li < lastl; ++li) {
                 const auto [b, e] = lines[li];
@@ -489,9 +725,6 @@ void FileEditor::draw(WindowManager& wm)
 
             // our own caret, the widget's is transparent too
             if (st) {
-                const int cpos = std::clamp(st->GetCursorPos(), 0, int(buffer.size()));
-                int cl = 0;
-                while (cl + 1 < n && int(lines[cl + 1].first) <= cpos) ++cl;
                 const float cx = origin.x + measure(lines[cl].first, size_t(cpos));
                 const float cy = origin.y + float(cl) * fs;
                 if (std::fmod(st->CursorAnim, 1.2f) <= 0.8f)

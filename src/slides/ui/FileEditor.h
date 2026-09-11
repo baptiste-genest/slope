@@ -6,9 +6,11 @@
 
 #include <string>
 #include <vector>
+#include <set>
 #include <filesystem>
 
 struct ImFont;
+struct ImGuiInputTextCallbackData;
 
 namespace slope {
 
@@ -49,6 +51,12 @@ private:
     bool changedOnDisk() const;
     void drawPendingPopup();
     void rehighlight();   // recompute runs if the buffer moved
+    static int inputCallback(ImGuiInputTextCallbackData* data);
+    std::string indentAfter(const char* buf, int cursor) const;   // for the line Enter just ended
+    bool isYaml() const;
+    std::string commentMarker() const;   // "" when the language has no line comment
+    void toggleComment(ImGuiInputTextCallbackData* data) const;
+    bool createFile();
     static const CodeStyle& editorStyle();
 
     std::vector<std::filesystem::path> files;      // what the list shows
@@ -59,6 +67,10 @@ private:
     bool                               load_failed = false;
     std::string                        save_error;        // last failed save, shown in the toolbar
     bool                               widget_reload = false; // buffer replaced under an active field
+    bool                               indent_pending = false; // Enter was typed, indent at the next callback
+    std::string                        pending_insert;        // what a filtered key stands for, spaces for a yaml tab
+    bool                               comment_pending = false; // Ctrl+/ was pressed, applied at the next callback
+    std::set<std::filesystem::path>    missing;              // listed files not on disk, refreshed with the list
     double                             last_refresh = -1; // seconds, throttle
     float                              text_scale = 1.4f; // editor font multiplier
 

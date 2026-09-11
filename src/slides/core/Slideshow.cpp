@@ -77,6 +77,14 @@ void slope::Slideshow::play() {
     // the mouse is given up in gizmo mode, and under a shown handle
     if (inGizmoMode() || Params::cursorOnGizmo())
         flags |= ImGuiWindowFlags_NoMouseInputs;
+    // polyscope wires the glfw clipboard on its first ImGui context only, not the one slope draws in
+    ImGuiPlatformIO& pio = ImGui::GetPlatformIO();
+    pio.Platform_SetClipboardTextFn = [](ImGuiContext*, const char* text) {
+        glfwSetClipboardString(glfwGetCurrentContext(), text);
+    };
+    pio.Platform_GetClipboardTextFn = [](ImGuiContext*) {
+        return glfwGetClipboardString(glfwGetCurrentContext());
+    };
     ImGui::Begin("Slope",NULL,flags);
 
     if (!initialized)
