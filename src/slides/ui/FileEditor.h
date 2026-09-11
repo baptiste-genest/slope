@@ -35,6 +35,8 @@ public:
     // saves the open file if it has edits; false if that save failed
     bool saveUnsaved() { return !dirty || saveToDisk(); }
     const std::filesystem::path& currentFile() const { return current; }
+    // shows p, asking first when the open file has edits
+    void open(const std::filesystem::path& p) { requestOpen(p); }
 
 private:
     enum class Pending { None, Switch, Reload, Overwrite };

@@ -3,7 +3,9 @@
 #include "content/core/StateInSlide.h"
 #include "content/screen_primitives/text/Text.h"
 #include "content/screen_primitives/layout/Placement.h"
+#include <filesystem>
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -18,6 +20,8 @@ public:
     void drawSlideNumber(size_t current_slide) const;
     void drawPauseIndicator(float elapsed, float duration) const;
     void drawGizmoMode(const std::string& what) const;
+    // the files whose last reload failed, bottom left; returns the one clicked, empty if none
+    std::filesystem::path drawReloadErrors(const std::map<std::filesystem::path, std::string>& errors) const;
 };
 
 } // namespace slope

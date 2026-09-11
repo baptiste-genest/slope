@@ -1,4 +1,5 @@
 #include "slides/core/Slideshow.h"
+#include "content/config/ReloadErrors.h"
 #include "content/screen_primitives/text/LateX.h"
 #include "content/screen_primitives/text/Code.h"
 #include "content/screen_primitives/text/Algorithm.h"
@@ -135,6 +136,17 @@ void slope::Slideshow::play() {
 
 
     ImGui::End();
+
+    // the editor already lists them, and an export never shows them
+    if (display_reload_errors && !Options::ExportMode && !Options::RecordMode
+        && !wm.isOpen(WindowType::FileEditor)) {
+        const auto broken = hud.drawReloadErrors(ReloadErrors::all());
+        if (!broken.empty() && !wm.isAnyOpen()) {
+            wm.Toggle(WindowType::FileEditor);
+            file_editor.open(broken);
+        }
+    }
+
     Params::DrawVisible(wm.isOpen(WindowType::Tuner));
     displayPopUps();
 
@@ -723,30 +735,45 @@ void slope::Slideshow::recordVideo()
         spdlog::info("video saved to {}", out);
 }
 
-void slope::Slideshow::recompose(const std::function<void(SlideManager&)>& composer,
-                                 const std::set<PrimitivePtr>& stale)
+bool slope::Slideshow::recompose(const std::function<void(SlideManager&)>& composer,
+                                 const std::set<PrimitivePtr>& stale,
+                                 const std::function<void(SlideManager&)>& fallback)
 {
     size_t cur = state.current;
 
     if (!slides.empty())
         for (auto& p : slides[state.current])
             p.first->disable();
-    for (auto& S : slides)
-        for (auto& p : S)
-            p.first->resetFirstSlideNumber();
     for (auto& p : stale) {
         p->disable();
         p->resetFirstSlideNumber();
     }
-    slides.clear();
-    transitions.clear();
-    appearing_primitives.clear();
-    initialized = false;
+    auto reset = [this] {
+        for (auto& S : slides)
+            for (auto& p : S)
+                p.first->resetFirstSlideNumber();
+        slides.clear();
+        transitions.clear();
+        appearing_primitives.clear();
+        initialized = false;
+    };
+    reset();
 
+    bool ok = true;
     try {
         composer(*this);
     } catch (const std::exception& e) {
+        ok = false;
         spdlog::error("recompose failed: {}", e.what());
+        // a half built show would replace the working one
+        if (fallback) {
+            reset();
+            try {
+                fallback(*this);
+            } catch (const std::exception& e2) {
+                spdlog::error("recompose fallback failed: {}", e2.what());
+            }
+        }
     }
     if (slides.empty())
         addSlide(Slide());
@@ -756,6 +783,7 @@ void slope::Slideshow::recompose(const std::function<void(SlideManager&)>& compo
     state.settle();
     for (auto& p : slides[state.current])
         p.first->enable();
+    return ok;
 }
 
 void slope::Slideshow::loadSlides()

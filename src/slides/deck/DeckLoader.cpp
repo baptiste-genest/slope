@@ -1,3 +1,4 @@
+#include "content/config/ReloadErrors.h"
 #include "content/authoring/Snippet.h"
 #include "slides/deck/DeckLoader.h"
 #include "content/screen_primitives/text/Code.h"
@@ -60,6 +61,7 @@ void DeckLoader::init(path deck_file)
 {
     source_path = formatPath(deck_file);
     FileEditor::registerExtra(source_path);
+    Latex::default_origin = source_path;
     parse();
     loadLatexResources();
     source_last_modified = std::filesystem::last_write_time(source_path);
@@ -193,6 +195,7 @@ bool DeckLoader::sourceModified()
         }
     } catch (std::exception& e) {
         spdlog::warn("deck file unavailable or invalid: {}", e.what());
+        ReloadErrors::report(source_path, "deck", e.what());
     }
     return false;
 }
@@ -236,7 +239,25 @@ void DeckLoader::hotReload(Slideshow& show)
 
     spdlog::info("{} changed, rebuilding slides...",
                  deck_changed ? "deck file" : (cams_changed ? "camera view" : "latex source"));
-    show.recompose([this](SlideManager& sm) { build(sm); }, used_primitives);
+    const bool ok = show.recompose(
+        [this](SlideManager& sm) {
+            try {
+                build(sm);
+            } catch (const std::exception& e) {
+                ReloadErrors::report(source_path, "deck", e.what());
+                throw;
+            }
+        },
+        used_primitives,
+        [this](SlideManager& sm) {
+            if (last_good_source.is_null())
+                return;
+            spdlog::warn("deck: keeping the last version that built");
+            source = last_good_source;
+            build(sm);
+        });
+    if (ok)
+        ReloadErrors::clear(source_path, "deck");
 
     LabelAnchor::takeFreshLabels();
 }
@@ -498,6 +519,7 @@ void DeckLoader::build(SlideManager& show)
         LabelAnchor::takeFreshLabels();
         first_build_done = true;
     }
+    last_good_source = source;
 }
 
 // A group is built the first time it is used and re-added afterwards, like a

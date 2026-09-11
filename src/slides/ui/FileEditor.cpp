@@ -4,6 +4,8 @@
 #include "content/screen_primitives/text/Code.h"
 #include "content/screen_primitives/text/Algorithm.h"
 #include "content/authoring/Snippet.h"
+#include "content/screen_primitives/text/LateX.h"
+#include "content/config/ReloadErrors.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -77,6 +79,7 @@ void FileEditor::refreshFileList()
     add(Snippet::WatchedFiles());
     add(Code::WatchedFiles());
     add(Algorithm::WatchedFiles());
+    add(Latex::WatchedFiles());
     add(extras());
 
     std::sort(all.begin(), all.end(), [](const auto& a, const auto& b) {
@@ -294,6 +297,7 @@ void FileEditor::draw(WindowManager& wm)
         return;
     }
     const bool win_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+    const auto errors = ReloadErrors::all();
 
     // ── left: the file list ────────────────────────────────────────────────
     ImGui::BeginChild("list", ImVec2(260, 0), ImGuiChildFlags_Borders);
@@ -301,8 +305,13 @@ void FileEditor::draw(WindowManager& wm)
         ImGui::TextDisabled("nothing watched yet");
     for (const auto& p : files) {
         bool sel = (p == current);
+        const bool broken = errors.count(p) > 0;
+        if (broken)
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.4f, 0.35f, 1.f));
         if (ImGui::Selectable(shortName(p).c_str(), sel))
             requestOpen(p);
+        if (broken)
+            ImGui::PopStyleColor();
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", p.string().c_str());
     }
@@ -368,6 +377,18 @@ void FileEditor::draw(WindowManager& wm)
 
         if (!save_error.empty())
             ImGui::TextColored(ImVec4(1.f, 0.3f, 0.3f, 1.f), "%s", save_error.c_str());
+
+        // what the last reload of this file said, at most 8 lines before it scrolls
+        if (auto it = errors.find(current); it != errors.end()) {
+            const int n = 1 + int(std::count(it->second.begin(), it->second.end(), '\n'));
+            const float h = float(std::min(n, 8)) * ImGui::GetTextLineHeightWithSpacing()
+                          + 2.f * ImGui::GetStyle().WindowPadding.y;
+            ImGui::BeginChild("errors", ImVec2(0, h), ImGuiChildFlags_Borders);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.45f, 0.4f, 1.f));
+            ImGui::TextUnformatted(it->second.c_str());
+            ImGui::PopStyleColor();
+            ImGui::EndChild();
+        }
 
         ImGui::Separator();
 

@@ -27,7 +27,12 @@ struct LatexJob {
     std::string body;
     bool white;
 };
-void GenerateLatexBatch(const std::vector<LatexJob>& jobs);
+// png -> the log of its failed compile; a broken preamble fails them all at once
+struct LatexBatchResult {
+    std::map<path,std::string> failed;
+    std::string preamble_error;
+};
+LatexBatchResult GenerateLatexBatch(const std::vector<LatexJob>& jobs);
 
 struct Latex;
 using LatexPtr = std::shared_ptr<Latex>;
@@ -117,6 +122,15 @@ struct Latex : public TextualPrimitive {
 
     static void rebuildContext();
     static void RegenerateAll();
+    // asked while a batch runs, RegenerateAll waits for PumpBatch instead of blocking
+    static bool regenerate_again;
+
+    // the latex source json and the file-backed prefix parts, for the file editor
+    static std::vector<path> WatchedFiles();
+    // the file errors of tex without an origin are reported to, the deck
+    static path default_origin;
+    // hands every compile_error to ReloadErrors, grouped by origin
+    static void PublishErrors();
 
     // compiles every primitive queued by MakeObject in one pdflatex run
     static void FlushPending();
@@ -124,7 +138,7 @@ struct Latex : public TextualPrimitive {
 
     // adopts the images of a finished background batch ; called every frame
     static void PumpBatch();
-    static std::future<void> batch_future;
+    static std::future<LatexBatchResult> batch_future;
     static std::vector<LatexPtr> batch_targets;
 
 
@@ -134,6 +148,8 @@ struct Latex : public TextualPrimitive {
     ImageData data;
     TexObject tex_source; // the exact tex passed in (content may differ, cf Title)
     std::string full_content;
+    path origin;                // the file the tex was written in, if any
+    std::string compile_error;  // of the last compile of full_content, "" if it built
 
     // opt-in. setColor renders the glyphs white and multiplies them by `color`
     // at draw time, which would turn any \textcolor of the source black
@@ -148,6 +164,10 @@ struct Latex : public TextualPrimitive {
 
     // fraction of the png the texture actually holds, one per axis
     double tex_sx = 1, tex_sy = 1;
+    // the png the texture came from, refills re-read it even when full_content failed to compile
+    path texture_png;
+    // a refill that failed stops asking until the next loadTexture
+    bool texels_failed = false;
 
     // the shrink ensureTexelsFor is waiting on, and since when
     double settling_need = -1;

@@ -318,6 +318,7 @@ public:
 private:
     path source_path;
     json source;
+    json last_good_source;   // rebuilt when an edited source fails to build
     std::filesystem::file_time_type source_last_modified;
     // last LatexLoader::generation this deck was built against
     int latex_generation = 0;

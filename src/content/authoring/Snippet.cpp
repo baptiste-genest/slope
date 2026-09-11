@@ -1,4 +1,5 @@
 #include "content/authoring/Snippet.h"
+#include "content/config/ReloadErrors.h"
 #include "content/authoring/Params.h"
 #include "content/config/io.h"
 #include "math/kernels.h"
@@ -112,6 +113,7 @@ void reportOnce(Section* s, const std::string& what) {
     last_error = what;
     if (s && s->reported) return;
     if (s) s->reported = true;
+    if (s) ReloadErrors::report(formatPath(s->file), "lua", what);
     spdlog::error("[snippet] {}", what);
 }
 
@@ -671,6 +673,7 @@ void addSection(const std::string& name, const std::string& body,
     if (luaL_loadbuffer(L, src.c_str(), src.size(), chunkname.c_str()) != 0) {
         spdlog::error("[snippet] {}", lua_tostring(L, -1) ? lua_tostring(L, -1) : "load error");
         last_error = lua_tostring(L, -1) ? lua_tostring(L, -1) : "load error";
+        ReloadErrors::report(formatPath(file), "lua", last_error);
         lua_pop(L, 1);
         return;
     }
@@ -767,6 +770,8 @@ void rebuild() {
     previous.swap(sections);
     seen_sections.clear();
     last_error.clear();
+    for (auto& f : files)
+        ReloadErrors::clear(formatPath(f.given), "lua");
 
     for (auto& f : files) {
         if (loadFile(f)) continue;

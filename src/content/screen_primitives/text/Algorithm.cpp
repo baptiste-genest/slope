@@ -93,6 +93,7 @@ AlgorithmPtr Algorithm::FromFile(const path& file, scalar scale, int width)
     std::error_code ec;
     r->source_file = std::filesystem::weakly_canonical(p, ec);
     if (ec) r->source_file = p;
+    r->origin = r->source_file;
     r->last_modified = std::filesystem::last_write_time(r->source_file, ec);
     return r;
 }
@@ -115,6 +116,7 @@ std::vector<path> Algorithm::WatchedFiles()
 
 void Algorithm::HotReloadIfModified()
 {
+    bool changed = false;
     for (auto* a : all) {
         if (a->source_file.empty())
             continue;
@@ -129,9 +131,12 @@ void Algorithm::HotReloadIfModified()
             spdlog::error("{}", e.what());
             continue;
         }
-        a->ensureRendered();
-        spdlog::info("[algo] reloaded {}", a->source_file.string());
+        changed = true;
+        spdlog::info("[algo] reloading {}", a->source_file.string());
     }
+    // compiled off the render thread, like every other latex reload
+    if (changed)
+        Latex::RegenerateAll();
 }
 
 // "L n ypos pageheight boxheight" in sp, "M name n"
@@ -329,7 +334,9 @@ void Algorithm::draw(const TimeObject& t, const StateInSlide& sis)
     FlushPending();
     if (data.width == -1)
         return;
-    if (parsed_for != full_content)
+    // the lines of an image still compiling, or that failed, are not written yet
+    if (parsed_for != full_content && !batch_future.valid()
+        && io::file_exists(GetLatexPath(full_content)))
         parseLines();
     if (sis.hasPlane() || baseline_px.empty()) {
         if (sis.hasPlane() && !warned_plane && (!reveal_at.empty() || !focus_at.empty())) {

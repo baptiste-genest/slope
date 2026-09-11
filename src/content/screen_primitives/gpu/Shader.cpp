@@ -1,5 +1,6 @@
 #include "content/screen_primitives/gpu/Shader.h"
 #include "content/authoring/Snippet.h"   // bind(name), one namespace with Params
+#include "content/config/ReloadErrors.h"
 #include "GLFW/glfw3.h"
 #include "polyscope/view.h"
 #include "polyscope/polyscope.h"
@@ -699,7 +700,8 @@ bool hasVersionDirective(const std::string& src)
     return false;
 }
 
-SLGLuint compileStage(SLGLenum type, const std::string& src, const char* label)
+SLGLuint compileStage(SLGLenum type, const std::string& src, const char* label,
+                      std::string* log_out = nullptr)
 {
     auto& g = gl();
     SLGLuint s = g.CreateShader(type);
@@ -716,6 +718,7 @@ SLGLuint compileStage(SLGLenum type, const std::string& src, const char* label)
         // surfaced to the terminal so a live shader edit that fails to compile
         // is visible immediately (the slide keeps the last good program)
         fprintf(stderr, "[shader] %s compile failed:\n%s\n", label, log.c_str());
+        if (log_out) *log_out = log;
         g.DeleteShader(s);
         return 0;
     }
@@ -1554,7 +1557,8 @@ void Shader::recompile()
 
     SLGLuint vs = compileStage(SL_VERTEX_SHADER,
                                versionLine() + std::string(kVertexBody), "vertex");
-    SLGLuint fs = compileStage(SL_FRAGMENT_SHADER, frag, "fragment");
+    std::string log;
+    SLGLuint fs = compileStage(SL_FRAGMENT_SHADER, frag, "fragment", &log);
     // GLSL reports "<source string>:<line>", so name the strings when there is
     // more than one of them
     if (!fs && source_units.size() > 1) {
@@ -1562,10 +1566,18 @@ void Shader::recompile()
         for (size_t u = 0; u < source_units.size(); ++u)
             table += "\n  [" + std::to_string(u) + "] " + source_units[u];
         spdlog::error("[shader] source strings:{}", table);
+        log += "source strings:" + table;
     }
+    // the source and every header it reached, so the error shows on whichever is open
+    auto reportTo = [&](const std::string& msg) {
+        if (from_file) ReloadErrors::report(source_file, "shader", msg);
+        for (const auto& [file, stamp] : include_deps)
+            ReloadErrors::report(file, "shader", msg);
+    };
     if (!vs || !fs) {
         if (vs) g.DeleteShader(vs);
         if (fs) g.DeleteShader(fs);
+        reportTo(fs ? std::string("vertex stage failed, see the terminal") : log);
         return; // keep the previous program, if any, so the slide stays up
     }
 
@@ -1584,9 +1596,13 @@ void Shader::recompile()
         std::string log(std::max(len, 1), '\0');
         g.GetProgramInfoLog(prog, len, nullptr, log.data());
         spdlog::error("[shader] link failed:\n{}", log);
+        reportTo("link failed:\n" + log);
         g.DeleteProgram(prog);
         return;
     }
+    if (from_file) ReloadErrors::clear(source_file, "shader");
+    for (const auto& [file, stamp] : include_deps)
+        ReloadErrors::clear(file, "shader");
 
     if (program)
         g.DeleteProgram(program);

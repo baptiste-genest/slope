@@ -70,3 +70,39 @@ void slope::HUD::drawPauseIndicator(float elapsed, float duration) const
         dl->PathStroke(col_full, false, thickness);
     }
 }
+
+std::filesystem::path slope::HUD::drawReloadErrors(
+    const std::map<std::filesystem::path, std::string>& errors) const
+{
+    std::filesystem::path clicked;
+    if (errors.empty())
+        return clicked;
+
+    const ImVec2 S = ImGui::GetIO().DisplaySize;
+    ImGui::SetNextWindowPos(ImVec2(S.x * 0.01f, S.y * 0.99f), ImGuiCond_Always, ImVec2(0.f, 1.f));
+    ImGui::SetNextWindowBgAlpha(0.6f);
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize
+                                 | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav
+                                 | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
+    if (ImGui::Begin("##reload_errors", nullptr, flags)) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.55f, 0.45f, 1.f));
+        ImGui::Text("! %d file%s failed to reload", int(errors.size()), errors.size() > 1 ? "s" : "");
+        int shown = 0;
+        for (const auto& [file, msg] : errors) {
+            if (shown++ == 3) {
+                ImGui::TextDisabled("+%d more", int(errors.size()) - 3);
+                break;
+            }
+            std::string first = msg.substr(0, msg.find('\n'));
+            if (first.size() > 90)
+                first = first.substr(0, 87) + "...";
+            ImGui::PushID(file.string().c_str());
+            if (ImGui::Selectable((file.filename().string() + "   " + first).c_str()))
+                clicked = file;
+            ImGui::PopID();
+        }
+        ImGui::PopStyleColor();
+    }
+    ImGui::End();
+    return clicked;
+}

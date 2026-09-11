@@ -47,6 +47,7 @@ public:
     void goToSlide(int slide_nb);
 
     bool display_slide_number = true;
+    bool display_reload_errors = true;   // the corner notice of failed hot reloads
 
     void run();
 
@@ -55,8 +56,10 @@ public:
     // rebuilds the slide structure at runtime. Disables what is shown and the
     // given stale primitives, clears the slides, re-runs the composer and
     // restores the playback position. The primitives themselves are untouched.
-    void recompose(const std::function<void(SlideManager&)>& composer,
-                   const std::set<PrimitivePtr>& stale = {});
+    // When the composer throws, fallback composes instead. False on that failure.
+    bool recompose(const std::function<void(SlideManager&)>& composer,
+                   const std::set<PrimitivePtr>& stale = {},
+                   const std::function<void(SlideManager&)>& fallback = {});
 
     // called once per frame at the end of play(), e.g. to watch external
     // sources (deck manifest, generated data...) and recompose on change

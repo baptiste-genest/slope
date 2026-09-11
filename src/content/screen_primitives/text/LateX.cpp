@@ -1,4 +1,5 @@
 #include "content/screen_primitives/text/LateX.h"
+#include "content/config/ReloadErrors.h"
 #include <spdlog/spdlog.h>
 #include "content/config/Options.h"
 #include <string>
@@ -46,6 +47,70 @@ slope::LatexPtr slope::Latex::MakeObject(const TexObject &tex, scalar scale, int
     return rslt;
 }
 
+static std::vector<slope::path> preambleFiles()
+{
+    using namespace slope;
+    std::vector<path> out;
+    for (const auto& part : Latex::context_parts)
+        if (part.is_file)
+            out.push_back(formatPath(part.value));
+    if (!Latex::deck_prefix.empty())
+        out.push_back(Latex::default_origin);
+    return out;
+}
+
+// on the main thread, the batch thread only returns what failed
+static void adoptResult(const slope::LatexBatchResult& r, const std::vector<slope::LatexPtr>& targets)
+{
+    using namespace slope;
+    for (const auto& f : preambleFiles()) {
+        if (r.preamble_error.empty())
+            ReloadErrors::clear(f, "preamble");
+        else
+            ReloadErrors::report(f, "preamble", "the latex preamble does not compile\n" + r.preamble_error);
+    }
+    for (const auto& l : targets) {
+        auto it = r.failed.find(GetLatexPath(l->full_content));
+        l->compile_error = it == r.failed.end() ? "" : it->second;
+    }
+    Latex::PublishErrors();
+}
+
+void slope::Latex::PublishErrors()
+{
+    static std::set<path> reported;
+    std::map<path,std::string> by_file;
+    for (const auto& p : Primitive::primitives) {
+        auto l = std::dynamic_pointer_cast<Latex>(p);
+        if (!l || l->compile_error.empty())
+            continue;
+        const path& o = l->origin.empty() ? default_origin : l->origin;
+        if (o.empty())
+            continue;
+        std::string& m = by_file[o];
+        m += (m.empty() ? "" : "\n") + l->compile_error;
+    }
+    for (const auto& f : reported)
+        if (!by_file.count(f))
+            ReloadErrors::clear(f, "latex");
+    reported.clear();
+    for (const auto& [f, m] : by_file) {
+        ReloadErrors::report(f, "latex", m);
+        reported.insert(f);
+    }
+}
+
+std::vector<slope::path> slope::Latex::WatchedFiles()
+{
+    std::vector<path> out;
+    for (const auto& part : context_parts)
+        if (part.is_file)
+            out.push_back(formatPath(part.value));
+    if (LatexLoader::initialized)
+        out.push_back(LatexLoader::source_path);
+    return out;
+}
+
 void slope::Latex::FlushPending()
 {
     if (pending.empty())
@@ -57,7 +122,7 @@ void slope::Latex::FlushPending()
     for (const auto& l : todo)
         jobs.push_back({GetLatexPath(l->full_content),TexBody(l->tex_source,l->isFormula,l->width),l->tintable});
     spdlog::info("compiling {} latex primitives in one batch...",jobs.size());
-    GenerateLatexBatch(jobs);
+    const auto result = GenerateLatexBatch(jobs);
 
     for (const auto& l : todo) {
         try {
@@ -67,6 +132,7 @@ void slope::Latex::FlushPending()
             spdlog::error("[latex] '{}' : {}",l->tex_source,e.what());
         }
     }
+    adoptResult(result, todo);
 }
 
 void slope::Latex::updateContent(json j)
@@ -83,19 +149,22 @@ void slope::Latex::loadTexture(const path &png)
     tex_sx = std::min(1.0,sx);
     tex_sy = std::min(1.0,sy);
     data = loadImage(png,tex_sx,tex_sy);
+    texture_png = png;
+    texels_failed = false;
 }
 
 void slope::Latex::reloadTexels(double k)
 {
     try {
-        ImageData fresh = loadImage(GetLatexPath(full_content),tex_sx*k,tex_sy*k);
+        ImageData fresh = loadImage(texture_png,tex_sx*k,tex_sy*k);
         if (data.texture && glfwGetCurrentContext())
             glDeleteTextures(1,&data.texture);
         data = fresh;
         tex_sx = std::min(1.0,tex_sx*k);
         tex_sy = std::min(1.0,tex_sy*k);
     } catch (const std::exception& e) {
-        spdlog::error("[latex] {}",e.what());
+        texels_failed = true;
+        spdlog::error("[latex] {}, keeping the current texture",e.what());
     }
 }
 
@@ -141,6 +210,8 @@ bool slope::Latex::in_render_pass = false;
 // intros from there, so it takes this path.
 void slope::Latex::requestTexels(double k)
 {
+    if (texels_failed)
+        return;
     if (in_render_pass) {
         reloadTexels(k);
         return;
@@ -217,9 +288,10 @@ void slope::Latex::SetDeckPrefix(const TexObject &tex)
 void slope::Latex::RegenerateAll()
 {
     FlushPending();
-    if (batch_future.valid())
-        batch_future.wait();
-    PumpBatch();
+    if (batch_future.valid()) {
+        regenerate_again = true;
+        return;
+    }
 
     std::vector<LatexJob> jobs;
     batch_targets.clear();
@@ -242,7 +314,7 @@ void slope::Latex::RegenerateAll()
         return;
     }
     spdlog::info("recompiling {} latex primitives ({} to render)...",batch_targets.size(),jobs.size());
-    batch_future = std::async(std::launch::async,[jobs]{GenerateLatexBatch(jobs);});
+    batch_future = std::async(std::launch::async,[jobs]{return GenerateLatexBatch(jobs);});
 }
 
 void slope::Latex::PumpBatch()
@@ -251,7 +323,7 @@ void slope::Latex::PumpBatch()
         return;
     if (batch_future.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
         return;
-    batch_future.get();
+    const auto result = batch_future.get();
     for (const auto& l : batch_targets) {
         try {
             l->loadTexture(GetLatexPath(l->full_content));
@@ -261,7 +333,12 @@ void slope::Latex::PumpBatch()
         }
     }
     spdlog::info("... {} latex primitives reloaded!",batch_targets.size());
+    adoptResult(result, batch_targets);
     batch_targets.clear();
+    if (regenerate_again) {
+        regenerate_again = false;
+        RegenerateAll();
+    }
 }
 
 void slope::Latex::HotReloadPrefixIfModified()
@@ -395,7 +472,9 @@ slope::path slope::GetLatexPath(const TexObject &tex)
 slope::TexObject slope::Latex::context = "";
 slope::TexObject slope::Latex::deck_prefix = "";
 std::vector<slope::Latex::ContextPart> slope::Latex::context_parts;
-std::future<void> slope::Latex::batch_future;
+std::future<slope::LatexBatchResult> slope::Latex::batch_future;
+bool slope::Latex::regenerate_again = false;
+slope::path slope::Latex::default_origin;
 std::vector<slope::LatexPtr> slope::Latex::batch_targets;
 std::vector<slope::LatexPtr> slope::Latex::pending;
 
@@ -454,9 +533,32 @@ void slope::GenerateLatex(const path &filename,
     spdlog::info("Generating latex for '{}' done.", texcontent);
 }
 
+static std::string pdflatexCmd(const std::string& tex)
+{
+    using namespace slope;
+    return fmt::format("{} -interaction=nonstopmode -halt-on-error -no-shell-escape -output-directory={} {} >> {} 2>&1",
+                       quote(Options::PathToPDFLATEX),quote(Options::CachePath),
+                       quote(tex),quote(Options::LogPath));
+}
+
+// a preamble that fails on its own fails every formula, no use trying them one by one
+static bool PreambleCompiles(bool white,const std::string& job)
+{
+    using namespace slope;
+    {
+        std::ofstream f(job + ".tex");
+        f << TexPreamble(white) << "\\end{document}\n";
+    }
+    const bool ok = runCommand(pdflatexCmd(job + ".tex")) == 0;
+    for (auto ext : {".tex",".pdf",".aux",".log"})
+        std::filesystem::remove(job + ext);
+    return ok;
+}
+
 // one pdflatex run for every formula sharing a preamble, then a single
 // conversion splitting the pdf pages, so N compiles become 1
-static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& group)
+static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& group,
+                         slope::LatexBatchResult& out)
 {
     using namespace slope;
     std::string doc = TexPreamble(white);
@@ -495,12 +597,18 @@ static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& g
     if (!ok) {
         for (std::size_t i = 0;io::file_exists(job + "-" + std::to_string(i) + ".png");i++)
             std::filesystem::remove(job + "-" + std::to_string(i) + ".png");
+        if (!PreambleCompiles(white,job + "_preamble")) {
+            out.preamble_error = Tail(Options::LogPath,15);
+            spdlog::error("[latex] the preamble does not compile, see {}",Options::LogPath);
+            return;
+        }
         spdlog::warn("[latex] batch of {} failed, falling back to one compile per formula",group.size());
         for (auto* it : group) {
             try {
                 GenerateLatex(it->png,TexPreamble(white) + it->body + "\\end{document}\n");
             } catch (const std::exception& e) {
                 spdlog::error("[latex] {}",e.what());
+                out.failed[it->png] = std::string(e.what()) + "\n" + Tail(Options::LogPath,12);
             }
         }
         return;
@@ -512,6 +620,7 @@ static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& g
         std::filesystem::rename(page,group[i]->png,ec);
         if (ec) {
             spdlog::error("[latex] missing page {} of the batch",i);
+            out.failed[group[i]->png] = "missing page of the latex batch";
             continue;
         }
         if (i < heights.size())
@@ -519,14 +628,16 @@ static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& g
     }
 }
 
-void slope::GenerateLatexBatch(const std::vector<LatexJob> &jobs)
+slope::LatexBatchResult slope::GenerateLatexBatch(const std::vector<LatexJob> &jobs)
 {
+    LatexBatchResult out;
     // the width now travels in the body, so only the glyph color splits a batch
     std::map<bool,std::vector<const LatexJob*>> groups;
     for (const auto& j : jobs)
         groups[j.white].push_back(&j);
     for (const auto& [white,group] : groups)
-        CompileGroup(white,group);
+        CompileGroup(white,group,out);
+    return out;
 }
 
 void slope::LatexLoader::Init(path P)
@@ -556,6 +667,7 @@ slope::LatexPtr slope::LatexLoader::Load(key k)
     int width = GetWidth(obj);
 
     rslt = Latex::MakeObject(obj[1],1,width,obj[0] == 1);
+    rslt->origin = source_path;
     loaded[k] = rslt;
     return rslt;
 }
@@ -594,9 +706,11 @@ void slope::LatexLoader::ReloadContentAndUpdate()
         }
         Latex::RegenerateAll();
         generation++;
+        ReloadErrors::clear(source_path, "json");
     }
     catch (const std::exception& e) {
         spdlog::error("Failed to reload latex: {}", e.what());
+        ReloadErrors::report(source_path, "json", e.what());
     }
 }
 
