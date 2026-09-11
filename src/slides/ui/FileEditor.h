@@ -70,6 +70,9 @@ private:
     bool                               indent_pending = false; // Enter was typed, indent at the next callback
     std::string                        pending_insert;        // what a filtered key stands for, spaces for a yaml tab
     bool                               comment_pending = false; // Ctrl+/ was pressed, applied at the next callback
+    bool                               enter_raw = false;      // Enter pressed this frame in the active field
+    bool                               enter_handled = false;  // and ImGui turned it into a newline itself
+    int                                logged_mods = -1;       // modifiers of the last Enter inserted by hand
     std::set<std::filesystem::path>    missing;              // listed files not on disk, refreshed with the list
     double                             last_refresh = -1; // seconds, throttle
     float                              text_scale = 1.4f; // editor font multiplier

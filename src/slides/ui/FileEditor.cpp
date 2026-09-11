@@ -40,6 +40,19 @@ std::filesystem::path normalized(const std::filesystem::path& p)
     return ec ? p : v;
 }
 
+std::string modNames(int mods)
+{
+    std::string out;
+    auto add = [&](int bit, const char* name) {
+        if (mods & bit) out += (out.empty() ? "" : "+") + std::string(name);
+    };
+    add(ImGuiMod_Ctrl, "Ctrl");
+    add(ImGuiMod_Shift, "Shift");
+    add(ImGuiMod_Alt, "Alt");
+    add(ImGuiMod_Super, "Super");
+    return out.empty() ? "no modifier" : out;
+}
+
 std::string shortName(const std::filesystem::path& p)
 {
     auto parent = p.parent_path().filename();
@@ -428,14 +441,35 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
     case ImGuiInputTextFlags_CallbackCharFilter:
         // Enter only, a pasted newline keeps the text as it came
         if (data->EventChar == '\n'
-            && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter)))
+            && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))) {
             self->indent_pending = true;
+            self->enter_handled = true;
+        }
         else if (data->EventChar == '\t' && self->isYaml()) {
             self->pending_insert = "  ";   // a tab is not yaml indentation
             return 1;
         }
         break;
     case ImGuiInputTextFlags_CallbackAlways:
+        // ImGui refuses Enter while it believes a modifier is held, so the newline is made here
+        if (self->enter_raw && !self->enter_handled) {
+            self->enter_raw = false;
+            if (data->SelectionStart != data->SelectionEnd) {
+                const int a = std::min(data->SelectionStart, data->SelectionEnd);
+                data->DeleteChars(a, std::abs(data->SelectionEnd - data->SelectionStart));
+                data->CursorPos = a;
+            }
+            const int at = data->CursorPos;
+            data->InsertChars(at, "\n");
+            data->CursorPos = data->SelectionStart = data->SelectionEnd = at + 1;
+            self->indent_pending = true;
+            const int mods = ImGui::GetIO().KeyMods;
+            if (mods != self->logged_mods) {
+                self->logged_mods = mods;
+                spdlog::warn("[file-editor] ImGui dropped Enter ({} held for it), newline inserted by hand",
+                             modNames(mods));
+            }
+        }
         if (self->comment_pending) {
             self->comment_pending = false;
             self->toggleComment(data);
@@ -443,11 +477,16 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
         if (self->indent_pending) {
             self->indent_pending = false;
             const std::string indent = self->indentAfter(data->Buf, data->CursorPos);
-            if (!indent.empty())
-                data->InsertChars(data->CursorPos, indent.c_str());
+            if (!indent.empty()) {
+                const int at = data->CursorPos;
+                data->InsertChars(at, indent.c_str());
+                data->CursorPos = data->SelectionStart = data->SelectionEnd = at + int(indent.size());
+            }
         }
         if (!self->pending_insert.empty()) {
-            data->InsertChars(data->CursorPos, self->pending_insert.c_str());
+            const int at = data->CursorPos;
+            data->InsertChars(at, self->pending_insert.c_str());
+            data->CursorPos = data->SelectionStart = data->SelectionEnd = at + int(self->pending_insert.size());
             self->pending_insert.clear();
         }
         break;
@@ -522,6 +561,11 @@ void FileEditor::draw(WindowManager& wm)
         else if (win_focused)
             open = false;
     }
+
+    // Enter as pressed, Ctrl+Enter excepted since ImGui makes it leave the field
+    enter_raw = ImGui::GetActiveID() == body_id && !ImGui::GetIO().KeyCtrl
+             && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter));
+    enter_handled = false;
 
     // Ctrl+/, and the key that types '/' on an AZERTY layout, which ImGui sees as Period
     if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl
