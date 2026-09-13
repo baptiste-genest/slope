@@ -414,6 +414,9 @@ const char* kKeyframeFns[] = {
     "afterKeyframe", "beforeKeyframe", "atKeyframe",
     "slidesSinceKeyframe", "secondsSinceKeyframe", "duringKeyframe",
     "sinceKeyframe",
+    // the keyframe helpers of <slide.glsl>
+    "fadeInAt", "fadeInAtSmooth", "onceAt", "betweenKeyframes",
+    "stageAfter", "stageAfterSmooth",
 };
 
 bool identChar(char c) { return std::isalnum((unsigned char)c) || c == '_'; }

@@ -75,7 +75,7 @@ private:
     std::set<std::filesystem::path>    missing;              // listed files not on disk, refreshed with the list
     double                             last_refresh = -1; // seconds, throttle
     float                              text_scale = 1.4f; // editor font multiplier
-    bool                               show_tips = true;  // the writing tips panel, for files that have one
+    bool                               show_tips = true;  // the documentation panel, for files that have one
 
     // a confirmation waiting on the user, and the file a Switch goes to
     Pending                            pending = Pending::None;

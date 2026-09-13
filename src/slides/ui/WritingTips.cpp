@@ -1,12 +1,17 @@
 #include "slides/ui/WritingTips.h"
+#include "slides/ui/EditorTheme.h"
 
 #include "content/screen_primitives/gpu/Shader.h"
 #include "content/authoring/Snippet.h"
 #include "slides/deck/items/DeckItem.h"
+#include "content/config/Options.h"
 
 #include "imgui.h"
 
 #include <algorithm>
+#include <fstream>
+#include <map>
+#include <regex>
 #include <cctype>
 #include <cstring>
 #include <sstream>
@@ -19,8 +24,9 @@ namespace {
 
 enum class Kind { None, Deck, Shader, Snippet };
 
-const ImVec4 kKey    (0.545f, 0.914f, 0.992f, 1.f);   // Dracula cyan
-const ImVec4 kComment(0.384f, 0.447f, 0.643f, 1.f);   // Dracula comment
+const ImVec4 kKey     = theme::Cyan;      // keys and signatures
+const ImVec4 kValue   = theme::Orange;    // what a key takes
+const ImVec4 kComment = theme::Comment;   // comments in the examples
 
 std::string lowerExt(const std::filesystem::path& p)
 {
@@ -146,7 +152,7 @@ void itemRow(const std::string& key, const std::string& value, const std::string
     ImGui::TextColored(kKey, "%s:", key.c_str());
     if (!value.empty()) {
         ImGui::SameLine();
-        ImGui::TextUnformatted(value.c_str());
+        ImGui::TextColored(kValue, "%s", value.c_str());
     }
     ImGui::PopTextWrapPos();
     ImGui::PopFont();
@@ -169,6 +175,8 @@ void apiRow(const char* signature, const char* what, ImFont* mono, float px)
     ImGui::TextColored(kKey, "%s", signature);
     ImGui::PopTextWrapPos();
     ImGui::PopFont();
+    if (*what == 0)
+        return;
     ImGui::Indent();
     ImGui::PushTextWrapPos(0.f);
     ImGui::TextDisabled("%s", what);
@@ -200,7 +208,7 @@ slides:
       - title: A title
       - latex: some text
         at: intro  # views/intro.pos
-      - step       # next click
+      - step       # next slide
       - formula: e^{i\pi} = -1
         below: intro
   - frame:
@@ -218,7 +226,7 @@ slides:
     }
     if (ImGui::CollapsingHeader("In slides", ImGuiTreeNodeFlags_DefaultOpen)) {
         docRows(frameKeys());
-        apiRow("- step", "what follows shows on the next click", mono, px);
+        apiRow("- step", "what follows shows on the next slide", mono, px);
         apiRow("- <name>", "puts a top-level group here", mono, px);
     }
     if (ImGui::CollapsingHeader("config:", ImGuiTreeNodeFlags_DefaultOpen))
@@ -247,6 +255,222 @@ slides:
                 keyRow("  inside arrow:", joined(arrowFields()), mono, px);
         }
     }
+}
+
+// ── shader stdlib ────────────────────────────────────────────────────────────
+// signatures are read from the files, so a new function shows up by itself;
+// only the descriptions are kept here
+
+const std::map<std::string, std::string>& stdlibFileDocs()
+{
+    static const std::map<std::string, std::string> d = {
+        {"camera.glsl",   "rays for a 3D shader, and depth against polyscope's scene"},
+        {"colormap.glsl", "color maps and value remapping"},
+        {"complex.glsl",  "complex numbers on vec2 (x real, y imaginary), domain coloring; includes colormap"},
+        {"noise.glsl",    "hashes and procedural noise, no textures"},
+        {"plot.glsl",     "curves, grids and axes in the data space set by \"view:\", widths in pixels"},
+        {"raymarch.glsl", "sphere tracing a float sceneSDF(vec3 p) you define; includes camera"},
+        {"sdf.glsl",      "signed distances in 2D and 3D, and ways to combine them"},
+        {"slide.glsl",    "fades and stages that follow the talk"},
+    };
+    return d;
+}
+
+const std::map<std::string, std::string>& stdlibFnDocs()
+{
+    static const std::map<std::string, std::string> d = {
+        // camera
+        {"lookAtRay", "ray from ro towards target, lens is the focal length"},
+        {"orbitRayAt", "camera around target, orbit = (yaw, pitch) in 0..1"},
+        {"orbitRayTarget", "orbit follows the cursor, a 3/4 view otherwise"},
+        {"orbitRay", "the same, around the origin"},
+        {"screenPoint", "this pixel in the window, 0..1, y up"},
+        {"screenToLocal", "a window point in this shader's uv"},
+        {"screenAspect", "the window's width / height"},
+        {"polyscopeNDC", "this pixel in polyscope's device coordinates"},
+        {"polyscopeRay", "ray from polyscope's camera through this pixel"},
+        {"polyscopeDepth", "a world point's depth as polyscope stores it"},
+        {"sceneDepthHere", "polyscope's depth here, 1 where nothing is drawn"},
+        {"visibleOverScene", "true when the point is in front of the 3D scene"},
+        {"sceneEyeDistance", "distance to the 3D scene along the view axis"},
+        {"sceneClearance", "negative in front of the 3D scene, positive behind"},
+        {"sceneOcclusion", "0 visible to 1 hidden, eased over fade"},
+        {"sceneWorldPos", "world position of the 3D scene's surface here"},
+        // colormap
+        {"viridis", "perceptual map, t in 0..1"}, {"magma", "perceptual map, t in 0..1"},
+        {"inferno", "perceptual map, t in 0..1"}, {"plasma", "perceptual map, t in 0..1"},
+        {"turbo", "rainbow map, most contrast, not uniform"},
+        {"grayscale", "black to white"},
+        {"coolwarm", "diverging map, zero at t = 0.5"},
+        {"cosinePalette", "custom palette from offset, amplitude, frequency, phase"},
+        {"remap", "v to 0..1 across [lo, hi]"},
+        {"signedRemap", "signed v to 0..1, zero at 0.5"},
+        {"hsv2rgb", "hue, saturation, value to rgb"},
+        {"isoline", "1 on the isolines of v, grad = length of its screen gradient"},
+        // complex
+        {"I", "the imaginary unit"}, {"ONE", "the real unit"},
+        {"cinv", "1 / a"}, {"cconj", "conjugate"}, {"carg", "argument"}, {"cabs", "modulus"},
+        {"clog", "principal logarithm"}, {"cpow", "power"},
+        {"mobius", "(az + b) / (cz + d)"},
+        {"domainColor", "hue = argument, brightness bands = modulus"},
+        {"domainColorGrid", "the same, with spokes argument lines per turn"},
+        // noise
+        {"hash11", "random 0..1 from a point"}, {"hash12", "random 0..1 from a point"},
+        {"hash13", "random 0..1 from a point"}, {"hash22", "random vec2 from a point"},
+        {"hash33", "random vec3 from a point"},
+        {"valueNoise", "smooth noise, 0..1"},
+        {"gradientNoise", "Perlin-style noise, -1..1"},
+        {"fbm", "octaves of noise, natural detail"},
+        {"ridgedFbm", "fbm with creases"},
+        {"domainWarp", "fbm warped by fbm, a flowing look"},
+        {"worley", "(nearest, second nearest) distance to cell points"},
+        {"curlNoise", "divergence-free 2D flow"},
+        // plot
+        {"inkClear", "an empty stack of layers"},
+        {"inkOver", "adds a layer under the previous ones"},
+        {"inkResolve", "the stack as the output color"},
+        {"sdGraph", "pixel distance to y = f(x), dfx = f'(x), px = iPixelXY()"},
+        {"stroke", "1 within width_px of the distance"},
+        {"dashMask", "dashes along x, d = (mark, gap) in pixels"},
+        {"gridAxis", "grid lines of one axis"},
+        {"gridMask", "grid lines every step"},
+        {"axesMask", "the lines x = 0 and y = 0"},
+        {"frameMask", "a border inside the rectangle lo..hi"},
+        {"dataAt", "a 1D data texture read over span"},
+        {"dataSlope", "its slope"},
+        {"inSpan", "1 inside span, soft at the ends"},
+        {"revealMask", "draws a curve on as u goes 0 -> 1"},
+        // raymarch
+        {"sceneSDF", "you define it, the scene's distance"},
+        {"MARCH_STEPS", "#define before the include to change"},
+        {"MARCH_MAX_DIST", "#define before the include to change"},
+        {"MARCH_EPS", "#define before the include to change"},
+        {"marchScene", "true on a hit, writes the hit point"},
+        {"marchDistance", "distance to the hit, MARCH_MAX_DIST if none"},
+        {"sceneNormal", "surface normal"},
+        {"softShadow", "0 shadowed to 1 lit, sharpness sets the penumbra"},
+        {"ambientOcclusion", "0 enclosed to 1 open"},
+        {"fresnel", "rim term, strongest at grazing angles"},
+        {"checker", "0 or 1 checkerboard"},
+        {"shadeDefault", "ready-made lighting with shadow and rim"},
+        // sdf
+        {"sdBox2", "half_size is half the width and height"},
+        {"sdNgon", "regular n-gon of circumradius r"},
+        {"sdTriangle", "from its three corners"},
+        {"sdArc", "ring wedge, sc = (sin, cos) of the half angle"},
+        {"sdPie", "pie slice, c = (sin, cos) of the half angle"},
+        {"sdPlane", "plane of normal n at offset h"},
+        {"sdTorus", "t = (major radius, minor radius)"},
+        {"sdCylinder", "along y, half height h"},
+        {"sdCappedCone", "from a (radius ra) to b (radius rb)"},
+        {"sdRoundCone", "capsule tapering from r1 to r2"},
+        {"sdEllipsoid", "semi-axes r, approximate"},
+        {"opSubtract", "b minus a"},
+        {"opSmoothUnion", "union with a fillet of size k"},
+        {"opShell", "hollow, thickness 2t"},
+        {"opRound", "rounds the edges by r"},
+        {"opRepeat", "tiles space with period c"}, {"opRepeat2", "tiles space with period c"},
+        {"opMirrorX", "mirror across x = 0"},
+        {"opRotateY", "rotate around y by a radians"},
+        {"opRotate2", "rotate by a radians"},
+        // slide
+        {"fadeIn", "0 -> 1 over the slide's first seconds"},
+        {"fadeInSmooth", "the same, eased"},
+        {"fadeOut", "1 -> 0 over the slide's first seconds"},
+        {"pulse", "rises over attack, falls over release"},
+        {"fadeInAt", "0 -> 1 over seconds once the keyframe is reached"},
+        {"fadeInAtSmooth", "the same, eased"},
+        {"onceAt", "0 before the keyframe, 1 from it on"},
+        {"betweenKeyframes", "1 from the first keyframe until the second"},
+        {"stageAfter", "slides since the keyframe, clamped to 0..count"},
+        {"stageAfterSmooth", "the same, blended over seconds"},
+        {"slideAlpha", "the deck's transition, multiply your color by it"},
+        {"shaderTime", "seconds since the shader appeared"},
+    };
+    return d;
+}
+
+struct StdlibEntry { std::string name, signature; };
+struct StdlibFile  { std::string file; std::vector<StdlibEntry> entries; };
+
+// superseded headers, kept for old shaders but not offered
+bool stdlibHidden(const std::string& file) { return file == "plot2d.glsl"; }
+
+const std::vector<StdlibFile>& stdlib()
+{
+    static const std::vector<StdlibFile> files = [] {
+        std::vector<StdlibFile> out;
+        std::error_code ec;
+        std::vector<std::filesystem::path> paths;
+        for (const auto& e : std::filesystem::directory_iterator(Options::ShaderPath, ec))
+            if (e.path().extension() == ".glsl" && !stdlibHidden(e.path().filename().string()))
+                paths.push_back(e.path());
+        std::sort(paths.begin(), paths.end());
+
+        static const std::regex fn(R"(^(void|bool|int|float|[iu]?vec[234]|mat[234]|Ink)\s+(\w+)\s*\(([^)]*)\))");
+        static const std::regex def(R"(^#define\s+([A-Z_][A-Z0-9_]*)\s+(.*\S))");
+        static const std::regex space(R"(\s+)");
+        // keyframe arguments are written as names, which the compile replaces
+        static const std::pair<std::regex, const char*> kf[] = {
+            {std::regex(R"(\bint from_kf\b)"), "\"from\""},
+            {std::regex(R"(\bint to_kf\b)"), "\"to\""},
+            {std::regex(R"(\bint kf\b)"), "\"keyframe\""},
+        };
+        for (const auto& p : paths) {
+            StdlibFile f{p.filename().string(), {}};
+            std::ifstream in(p);
+            std::string line;
+            std::set<std::string> seen;
+            while (std::getline(in, line)) {
+                std::smatch m;
+                StdlibEntry e;
+                if (std::regex_search(line, m, fn)) {
+                    std::string args = std::regex_replace(m[3].str(), space, " ");
+                    for (const auto& [re, name] : kf)
+                        args = std::regex_replace(args, re, name);
+                    e = {m[2].str(), m[1].str() + " " + m[2].str() + "(" + args + ")"};
+                } else if (std::regex_search(line, m, def)) {
+                    std::string value = m[2].str();
+                    value = value.substr(0, value.find("//"));
+                    value.erase(value.find_last_not_of(' ') + 1);
+                    e = {m[1].str(), m[1].str() + " " + value};
+                } else {
+                    continue;
+                }
+                if (seen.insert(e.signature).second)
+                    f.entries.push_back(std::move(e));
+            }
+            if (!f.entries.empty())
+                out.push_back(std::move(f));
+        }
+        return out;
+    }();
+    return files;
+}
+
+void stdlibTips(ImFont* mono, float px)
+{
+    if (!ImGui::CollapsingHeader("Standard library", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+    prose("#include <file.glsl> for slope's own, #include \"file.glsl\" for the project's.");
+    if (stdlib().empty())
+        prose("The stdlib folder could not be read.");
+    ImGui::Indent();
+    for (const auto& f : stdlib()) {
+        // searching looks inside every file, open or not
+        if (filter().IsActive())
+            ImGui::SetNextItemOpen(true);
+        const std::string header = "<" + f.file + ">";
+        if (!ImGui::CollapsingHeader(header.c_str()))
+            continue;
+        if (auto it = stdlibFileDocs().find(f.file); it != stdlibFileDocs().end())
+            prose(it->second.c_str());
+        for (const auto& e : f.entries) {
+            auto it = stdlibFnDocs().find(e.name);
+            apiRow(e.signature.c_str(), it == stdlibFnDocs().end() ? "" : it->second.c_str(), mono, px);
+        }
+    }
+    ImGui::Unindent();
 }
 
 void shaderTips(ImFont* mono, float px)
@@ -291,10 +515,10 @@ void shaderTips(ImFont* mono, float px)
         apiRow("int slidesSinceKeyframe(\"keyframe\")", "slides since it was reached", mono, px);
         apiRow("float secondsSinceKeyframe(\"keyframe\")", "0 until reached", mono, px);
     }
+    stdlibTips(mono, px);
     if (ImGui::CollapsingHeader("Notes", ImGuiTreeNodeFlags_DefaultOpen)) {
-        prose("All of the above is declared for you, unless the file starts with its own "
+        prose("Inputs, coordinates, slide time and keyframes are declared for you, unless the file starts with its own "
               "\"#version\" line.");
-        prose("#include \"file.glsl\" is resolved next to this file.");
     }
 }
 

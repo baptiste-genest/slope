@@ -1,5 +1,6 @@
 #include "slides/ui/FileEditor.h"
 #include "slides/ui/WritingTips.h"
+#include "slides/ui/EditorTheme.h"
 
 #include "content/screen_primitives/gpu/Shader.h"
 #include "content/screen_primitives/text/Code.h"
@@ -7,6 +8,7 @@
 #include "content/authoring/Snippet.h"
 #include "content/screen_primitives/text/LateX.h"
 #include "content/config/ReloadErrors.h"
+#include "content/config/Options.h"
 #include "content/screen_primitives/layout/Anchor.h"
 
 #include "imgui.h"
@@ -77,10 +79,18 @@ void FileEditor::registerExtra(const std::filesystem::path& p)
 void FileEditor::refreshFileList()
 {
     std::vector<std::filesystem::path> all;
+    // the shader stdlib is slope's own, a shader including it does not make it the author's
+    const auto stdlib = normalized(Options::ShaderPath);
+    auto inStdlib = [&](const std::filesystem::path& p) {
+        auto [s, f] = std::mismatch(stdlib.begin(), stdlib.end(), p.begin(), p.end());
+        return s == stdlib.end() || (s->empty() && std::next(s) == stdlib.end());
+    };
     // normalised so every registry compares equal to `current`
     auto add = [&](const std::vector<std::filesystem::path>& v) {
         for (const auto& raw : v) {
             auto p = normalized(raw);
+            if (inStdlib(p))
+                continue;
             if (std::find(all.begin(), all.end(), p) == all.end())
                 all.push_back(p);
         }
@@ -523,9 +533,11 @@ void FileEditor::draw(WindowManager& wm)
 
     bool open = true;
     ImGui::SetNextWindowSize(ImVec2(900, 560), ImGuiCond_FirstUseEver);
+    theme::push(kBgAlpha / 255.f);
     const bool visible = ImGui::Begin("Hot-reload files (E)", &open);
     if (!visible) {
         ImGui::End();
+        theme::pop();
         if (!open) wm.CloseAll();
         return;
     }
@@ -641,7 +653,7 @@ void FileEditor::draw(WindowManager& wm)
 
         if (has_tips) {
             ImGui::SameLine();
-            ImGui::Checkbox("writing tips", &show_tips);
+            ImGui::Checkbox("documentation", &show_tips);
         }
 
         if (!save_error.empty())
@@ -811,12 +823,14 @@ void FileEditor::draw(WindowManager& wm)
     const ImVec2 win_pos = ImGui::GetWindowPos();
     const ImVec2 win_size = ImGui::GetWindowSize();
     ImGui::End();
+    theme::pop();
 
     // its own window on the editor's right edge, so the editor keeps its width
     if (has_tips && show_tips) {
         ImGui::SetNextWindowPos(ImVec2(win_pos.x + win_size.x, win_pos.y));
         ImGui::SetNextWindowSize(ImVec2(kTipsWidth, win_size.y));
-        if (ImGui::Begin("Writing tips##file-editor", nullptr,
+        theme::push(kBgAlpha / 255.f);
+        if (ImGui::Begin("Documentation##file-editor", nullptr,
                          ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
                              | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings
                              | ImGuiWindowFlags_NoFocusOnAppearing))
@@ -826,6 +840,7 @@ void FileEditor::draw(WindowManager& wm)
             || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsAnyItemActive()))
             ImGui::SetNextFrameWantCaptureMouse(true);
         ImGui::End();
+        theme::pop();
     }
 
     // closing keeps the buffer, edits included; quitting asks about them

@@ -3,14 +3,14 @@
 // Following the talk.
 //
 // The prelude already hands the shader its TimeObject (from_action, from_begin,
-// absolute_frame_number, transition_parameter, ...) and turns every keyframe the
-// deck declared into a KF_<name> constant. This is the sugar on top, the
-// staging patterns that otherwise get rewritten in every shader.
+// absolute_frame_number, transition_parameter, ...) and its keyframe queries,
+// which take a keyframe's name. This is the sugar on top, the staging patterns
+// that otherwise get rewritten in every shader, taking names the same way.
 //
 //   #include <slide.glsl>
 //
-//   vec3 col = mix(before, after, fadeInAt(KF_reveal, 0.5));
-//   int  s   = stageAfter(KF_build, 3);       // 0,1,2,3 over the slides after it
+//   vec3 col = mix(before, after, fadeInAt("reveal", 0.5));
+//   int  s   = stageAfter("build", 3);        // 0,1,2,3 over the slides after it
 //   col *= slideAlpha();                   // honour the deck's own transition
 //
 // Needs the built-in prelude, so it does not apply to a shader that brings its
