@@ -27,6 +27,7 @@ namespace slope {
 namespace {
 
 constexpr float kBasePx = 16.f;   // editor font size at text_scale 1
+constexpr int kBgAlpha = 235;    // the slide stays faintly visible behind the text
 
 std::vector<std::filesystem::path>& extras()
 {
@@ -677,7 +678,7 @@ void FileEditor::draw(WindowManager& wm)
 
         // the widget's own ink is transparent, every glyph is drawn below in the Dracula palette
         const ImU32 ink = ImU32(ImColor(editorStyle().text.getImColor()));
-        ImGui::PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(0x28, 0x2A, 0x36, 255));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(0x28, 0x2A, 0x36, kBgAlpha));
         ImGui::PushStyleColor(ImGuiCol_Text,           IM_COL32(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(0x44, 0x47, 0x5A, 255));
 
@@ -736,7 +737,7 @@ void FileEditor::draw(WindowManager& wm)
 
             // right aligned, on the text's own line positions so they scroll with it
             const ImVec2 g_min(gutter_x, p_min.y), g_max(p_min.x, p_max.y);
-            dl->AddRectFilled(g_min, g_max, IM_COL32(0x21, 0x22, 0x2C, 255));
+            dl->AddRectFilled(g_min, g_max, IM_COL32(0x21, 0x22, 0x2C, kBgAlpha));
             dl->PushClipRect(g_min, g_max, true);
             const ImU32 muted = IM_COL32(0x62, 0x72, 0xA4, 255);
             char num[16];
