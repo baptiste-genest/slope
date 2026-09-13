@@ -778,6 +778,15 @@ void FileEditor::draw(WindowManager& wm)
     }
 
     ImGui::EndChild();
+
+    // the fullscreen slide window hands every uncaptured click to polyscope's camera
+    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows
+                               | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem
+                               | ImGuiHoveredFlags_AllowWhenBlockedByPopup)
+        || pending != Pending::None
+        || (win_focused && ImGui::IsAnyItemActive()))
+        ImGui::SetNextFrameWantCaptureMouse(true);
+
     drawPendingPopup();
     ImGui::End();
 
