@@ -1,5 +1,6 @@
 #include "slides/deck/items/DeckItem.h"
 #include "spdlog/spdlog.h"
+#include <map>
 
 namespace slope {
 
@@ -9,6 +10,64 @@ const std::set<std::string>& placementFields()
         {"id","at","on","two_sided","follow","offset","alpha","rot","zoom",
          "below","above","right_of","left_of","padding","group"};
     return f;
+}
+
+const KeyDoc& deckTopLevelKeys()
+{
+    static const KeyDoc k = {
+        {"slides",   "the frames, in order"},
+        {"template", "items put on every frame"},
+        {"config",   "layout settings"},
+        {"snippets", "Lua file, or a list of them"},
+        {"preamble", "latex lines put before every latex and formula"},
+        {"commands", "tex file of macros, commands.tex by default"},
+        {"latex",    "json of latex for load:, latex.json by default"},
+    };
+    return k;
+}
+
+const KeyDoc& frameKeys()
+{
+    static const KeyDoc k = {
+        {"frame",       "the items of one slide"},
+        {"same_title",  "true keeps the previous title"},
+        {"no_template", "true leaves the template out"},
+    };
+    return k;
+}
+
+const KeyDoc& deckConfigKeys()
+{
+    static const KeyDoc k = {
+        {"title_scale",   "title size, 1.5 by default"},
+        {"latex_scale",   "text size, 1 by default"},
+        {"box_roundness", "box corners, 1 by default"},
+        {"margin",        "gap kept by TOP_LEFT and the other corners, a number or [x, y]"},
+        {"top",           "[x, y] of the TOP label, 0 to 1"},
+        {"center",        "[x, y] of the CENTER label"},
+        {"bottom",        "[x, y] of the BOTTOM label"},
+    };
+    return k;
+}
+
+std::string itemValueHint(const std::string& type)
+{
+    static const std::map<std::string, std::string> hints = {
+        {"title", "text"}, {"latex", "latex text"}, {"formula", "tex formula"},
+        {"load", "latex.json key"}, {"code", "source file"}, {"algo", "algorithm file"},
+        {"image", "image file"}, {"gif", "gif file"}, {"video", "video file"},
+        {"webcam", "device"}, {"shader", "fragment shader file"},
+        {"board", "board name"}, {"plot", "curve name"}, {"scatter", "cloud name"},
+        {"legend", "board name"},
+        {"mesh", "mesh file"}, {"surface", "snippet function"}, {"curve", "snippet function"},
+        {"point", "snippet or [x, y, z]"},
+        {"keyframe", "keyframe name"}, {"remove", "id or [ids]"}, {"set", "id"},
+        {"replace", "id"}, {"object", "C++ object name"}, {"arrow", "map, keys below"},
+        {"box", "[items]"}, {"stack", "[items]"}, {"camera", "camera view name"},
+        {"pause", "seconds"},
+    };
+    auto it = hints.find(type);
+    return it == hints.end() ? std::string() : it->second;
 }
 
 const std::vector<ItemSpec>& itemSpecs()

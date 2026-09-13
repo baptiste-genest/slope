@@ -427,13 +427,16 @@ void DeckLoader::build(SlideManager& show)
 {
     if (!source.contains("slides") || !source["slides"].is_array())
         throw std::runtime_error("deck file must contain a top-level \"slides\" array");
-    static const std::set<std::string> reserved =
-        {"slides", "commands", "latex", "snippets", "template", "config", "preamble"};
+    auto reserved = [](const std::string& key) {
+        for (const auto& [k, doc] : deckTopLevelKeys())
+            if (k == key) return true;
+        return false;
+    };
     applyDeckConfig();
     deck_groups.clear();
     built_groups.clear();
     for (const auto& [key, val] : source.items()) {
-        if (reserved.count(key))
+        if (reserved(key))
             continue;
         // any other top level list is a named group, expanded wherever the
         // bare "- key" appears in a frame

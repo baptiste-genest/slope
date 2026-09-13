@@ -52,6 +52,18 @@ struct ItemSpec {
 // placement keys, shared by every screen item
 const std::set<std::string>& placementFields();
 
+// a deck key and what it takes, in the order they are shown to the author
+using KeyDoc = std::vector<std::pair<std::string, std::string>>;
+
+// the deck's own top-level keys; any other top-level list is a named group
+const KeyDoc& deckTopLevelKeys();
+// keys of a "- frame:" entry in "slides"
+const KeyDoc& frameKeys();
+// settings read from the top-level "config:" map
+const KeyDoc& deckConfigKeys();
+// what an item type's own key takes, "tex formula" for "formula:"; "" if unknown
+std::string itemValueHint(const std::string& type);
+
 // every known item type, in the order DeckLoader::addItem dispatches them
 const std::vector<ItemSpec>& itemSpecs();
 // the spec whose type key the item carries, or null

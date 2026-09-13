@@ -1,4 +1,5 @@
 #include "slides/ui/FileEditor.h"
+#include "slides/ui/WritingTips.h"
 
 #include "content/screen_primitives/gpu/Shader.h"
 #include "content/screen_primitives/text/Code.h"
@@ -27,6 +28,7 @@ namespace slope {
 namespace {
 
 constexpr float kBasePx = 16.f;   // editor font size at text_scale 1
+constexpr float kTipsWidth = 380.f;
 constexpr int kBgAlpha = 235;    // the slide stays faintly visible behind the text
 
 std::vector<std::filesystem::path>& extras()
@@ -528,6 +530,7 @@ void FileEditor::draw(WindowManager& wm)
         return;
     }
     const bool win_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+    const bool has_tips = !current.empty() && WritingTips::available(current);
     const auto errors = ReloadErrors::all();
 
     // ── left: the file list ────────────────────────────────────────────────
@@ -635,6 +638,11 @@ void FileEditor::draw(WindowManager& wm)
         // quarter steps, so only a handful of sizes get baked
         if (ImGui::SliderFloat("size", &text_scale, 0.75f, 3.0f, "%.2fx"))
             text_scale = std::round(text_scale * 4.f) / 4.f;
+
+        if (has_tips) {
+            ImGui::SameLine();
+            ImGui::Checkbox("writing tips", &show_tips);
+        }
 
         if (!save_error.empty())
             ImGui::TextColored(ImVec4(1.f, 0.3f, 0.3f, 1.f), "%s", save_error.c_str());
@@ -800,7 +808,25 @@ void FileEditor::draw(WindowManager& wm)
         ImGui::SetNextFrameWantCaptureMouse(true);
 
     drawPendingPopup();
+    const ImVec2 win_pos = ImGui::GetWindowPos();
+    const ImVec2 win_size = ImGui::GetWindowSize();
     ImGui::End();
+
+    // its own window on the editor's right edge, so the editor keeps its width
+    if (has_tips && show_tips) {
+        ImGui::SetNextWindowPos(ImVec2(win_pos.x + win_size.x, win_pos.y));
+        ImGui::SetNextWindowSize(ImVec2(kTipsWidth, win_size.y));
+        if (ImGui::Begin("Writing tips##file-editor", nullptr,
+                         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
+                             | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings
+                             | ImGuiWindowFlags_NoFocusOnAppearing))
+            WritingTips::draw(current, mono, kBasePx);
+        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows
+                                   | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)
+            || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsAnyItemActive()))
+            ImGui::SetNextFrameWantCaptureMouse(true);
+        ImGui::End();
+    }
 
     // closing keeps the buffer, edits included; quitting asks about them
     if (!open)
