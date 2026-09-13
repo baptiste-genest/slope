@@ -6,6 +6,7 @@
 #include "content/authoring/Snippet.h"
 #include "content/screen_primitives/text/LateX.h"
 #include "content/config/ReloadErrors.h"
+#include "content/screen_primitives/layout/Anchor.h"
 
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -571,6 +572,16 @@ void FileEditor::draw(WindowManager& wm)
     if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl
         && (ImGui::IsKeyPressed(ImGuiKey_Slash, false) || ImGui::IsKeyPressed(ImGuiKey_Period, false)))
         comment_pending = true;
+
+    // N types a letter here, so Ctrl+N puts the free label in at the cursor
+    if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl
+        && ImGui::IsKeyPressed(ImGuiKey_N, false)) {
+        const std::string l = LabelAnchor::suggestLabel();
+        if (l.empty())
+            spdlog::warn("[file-editor] could not find a free label to suggest");
+        else
+            pending_insert += l;
+    }
 
     std::error_code exists_ec;
     if (current.empty()) {
