@@ -41,3 +41,7 @@ set_tests_properties(export_pipeline PROPERTIES SKIP_RETURN_CODE 125)
 add_executable(test_label_suggest test_label_suggest.cpp)
 target_link_libraries(test_label_suggest PRIVATE slope)
 add_test(NAME label_suggest COMMAND test_label_suggest)
+
+add_executable(test_deck_groups test_deck_groups.cpp)
+target_link_libraries(test_deck_groups PRIVATE slope)
+add_test(NAME deck_groups COMMAND test_deck_groups)

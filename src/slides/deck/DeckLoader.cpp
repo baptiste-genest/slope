@@ -434,22 +434,17 @@ void DeckLoader::build(SlideManager& show)
     };
     applyDeckConfig();
     deck_groups.clear();
-    built_groups.clear();
-    for (const auto& [key, val] : source.items()) {
-        if (reserved(key))
-            continue;
-        // any other top level list is a named group, expanded wherever the
-        // bare "- key" appears in a frame
-        if (!val.is_array()) {
-            spdlog::warn("deck: ignored top-level key \"{}\"", key);
-            continue;
-        }
-        for (const auto& it : val)
-            if (it.is_string() && it == "step")
-                throw std::runtime_error("group \"" + key + "\" cannot contain \"step\", "
-                                         "it is expanded inside one step");
-        deck_groups[key] = val;
-    }
+    expanding.clear();
+    collectors.clear();
+    for (const auto& [key, val] : source.items())
+        if (!reserved(key))
+            declareGroup(key, val);
+    // an arg named like a group would read as a second call
+    for (const auto& [name, g] : deck_groups)
+        for (const auto& [param, def] : g.params.items())
+            if (deck_groups.count(param))
+                throw std::runtime_error("group \"" + name + "\" has a param named like the "
+                                         "group \"" + param + "\", rename one");
 
     used_primitives.clear();
     named.clear();
@@ -501,7 +496,12 @@ void DeckLoader::build(SlideManager& show)
         step_primitives.clear();
         if (tmpl && !no_template) {
             if (!template_built) {
+                show.getLastSlide();  // the first frame has no slide until an item makes one
+                const int slides_before = show.getNumberSlides();
                 buildFrame(show, *tmpl);
+                if (show.getNumberSlides() != slides_before)
+                    throw std::runtime_error("the template uses a group with \"step\", it is "
+                                             "added to the first step of every frame");
                 template_items = show.getLastSlide().getDepthSorted();
                 template_built = true;
             } else {
@@ -525,30 +525,237 @@ void DeckLoader::build(SlideManager& show)
     last_good_source = source;
 }
 
-// A group is built the first time it is used and re-added afterwards, like a
-// C++ registered one, so reusing it keeps the same primitives across slides.
-void DeckLoader::expandGroup(SlideManager& show, const std::string& name)
+static bool isParamName(const std::string& s);
+
+// Any other top level key is a group : a list of items, or a map with "items"
+// and optionally "params".
+void DeckLoader::declareGroup(const std::string& name, const json& val)
+{
+    DeckGroup g;
+    if (val.is_array())
+        g.items = val;
+    else if (val.is_object() && val.contains("items") && val["items"].is_array()) {
+        g.items = val["items"];
+        for (const auto& [key, v] : val.items())
+            if (key != "items" && key != "params")
+                spdlog::warn("deck: ignored key \"{}\" on group \"{}\"", key, name);
+        if (val.contains("params")) {
+            if (!val["params"].is_object())
+                throw std::runtime_error("\"params\" of group \"" + name + "\" must be a map "
+                                         "of name: default");
+            g.params = val["params"];
+        }
+    }
+    else {
+        spdlog::warn("deck: ignored top-level key \"{}\", a group is a list of items or a map "
+                     "with \"items:\"", name);
+        return;
+    }
+    // "- name: value" is told apart from an item by its type key, so neither the
+    // group nor an arg may carry one
+    auto isType = [](const std::string& key) {
+        if (key == "step" || key == "background")
+            return true;
+        for (const auto& spec : itemSpecs())
+            if (spec.type == key)
+                return true;
+        return false;
+    };
+    if (isType(name))
+        throw std::runtime_error("group \"" + name + "\" has the name of an item type, rename it");
+    for (const auto& [param, def] : g.params.items()) {
+        if (!isParamName(param))
+            throw std::runtime_error("param \"" + param + "\" of group \"" + name + "\" must be "
+                                     "letters, digits and _, not starting with a digit");
+        if (isType(param))
+            throw std::runtime_error("param \"" + param + "\" of group \"" + name + "\" has the "
+                                     "name of an item type, the call would read as that item");
+    }
+    for (const auto& reserved : {"id", "group"})
+        if (g.params.contains(reserved))
+            throw std::runtime_error("group \"" + name + "\" cannot take a param named \""
+                                     + reserved + "\"");
+    deck_groups[name] = std::move(g);
+}
+
+const std::string* DeckLoader::groupCallOf(const json& item) const
+{
+    // an item type wins, so a group may share its name with an item's other keys
+    if (findItemSpec(item) || item.contains("background"))
+        return nullptr;
+    const std::string* found = nullptr;
+    for (const auto& [key, val] : item.items()) {
+        auto it = deck_groups.find(key);
+        if (it == deck_groups.end())
+            continue;
+        if (found)
+            throw std::runtime_error("an item calls two groups, \"" + *found + "\" and \""
+                                     + key + "\"");
+        found = &it->first;
+    }
+    return found;
+}
+
+static bool isParamName(const std::string& s)
+{
+    if (s.empty() || !(std::isalpha((unsigned char)s[0]) || s[0] == '_'))
+        return false;
+    for (char c : s)
+        if (!(std::isalnum((unsigned char)c) || c == '_'))
+            return false;
+    return true;
+}
+
+// "$name" as a whole value keeps the arg's type, "${name}" goes inside a string.
+// Names args does not hold are left as written, which is what keeps latex intact.
+static json substituteArgs(const json& v, const json& args, const std::string& group)
+{
+    if (v.is_object()) {
+        json out = json::object();
+        for (const auto& [key, x] : v.items())
+            out[key] = substituteArgs(x, args, group);
+        return out;
+    }
+    if (v.is_array()) {
+        json out = json::array();
+        for (const auto& x : v)
+            out.push_back(substituteArgs(x, args, group));
+        return out;
+    }
+    if (!v.is_string())
+        return v;
+    const std::string& s = v.get_ref<const std::string&>();
+    if (s.size() > 1 && s[0] == '$' && isParamName(s.substr(1))) {
+        if (args.contains(s.substr(1)))
+            return args[s.substr(1)];
+        // a whole "$word" is no latex, so it is a misspelt param
+        spdlog::warn("deck: \"{}\" in group \"{}\" names no param", s, group);
+    }
+
+    std::string out;
+    size_t pos = 0;
+    for (size_t open; (open = s.find("${", pos)) != std::string::npos;) {
+        size_t close = s.find('}', open);
+        if (close == std::string::npos)
+            break;
+        std::string name = s.substr(open + 2, close - open - 2);
+        if (!isParamName(name) || !args.contains(name)) {
+            out += s.substr(pos, open + 2 - pos);
+            pos = open + 2;
+            continue;
+        }
+        const json& a = args[name];
+        out += s.substr(pos, open - pos);
+        if (a.is_string())
+            out += a.get<std::string>();
+        else if (a.is_number() || a.is_boolean())
+            out += a.dump();
+        else
+            throw std::runtime_error("group \"" + group + "\" puts \"" + name + "\" inside a "
+                                     "string, which takes a text or a number, not " + a.dump());
+        pos = close + 1;
+    }
+    out += s.substr(pos);
+    return out;
+}
+
+static bool isIdName(const std::string& s)
+{
+    if (s.empty())
+        return false;
+    for (char c : s)
+        if (!(std::isalnum((unsigned char)c) || c == '_' || c == '-'))
+            return false;
+    return true;
+}
+
+void DeckLoader::markUsed(const PrimitivePtr& ptr)
+{
+    used_primitives.insert(ptr);
+    for (auto* c : collectors)
+        c->insert(ptr);
+}
+
+std::set<PrimitivePtr> DeckLoader::collect(const std::function<void()>& run)
+{
+    std::set<PrimitivePtr> placed;
+    collectors.push_back(&placed);
+    try {
+        run();
+    } catch (...) {
+        collectors.pop_back();
+        throw;
+    }
+    collectors.pop_back();
+    return placed;
+}
+
+// A group is rebuilt at each use, as if its items were written there. The
+// content cache hands back the same primitives, so a reuse moves them instead
+// of cross-fading copies, and remove/set/keyframe inside it run every time.
+std::set<PrimitivePtr> DeckLoader::expandGroup(SlideManager& show, const std::string& name,
+                                               const json& call)
 {
     auto it = deck_groups.find(name);
     if (it == deck_groups.end())
         throw std::runtime_error("deck references unknown group \"" + name + "\", declare it "
                                  "as a top level list beside \"slides\"");
-    if (auto built = built_groups.find(name); built != built_groups.end()) {
-        for (const auto& [ptr, sis] : built->second) {
-            show.addToLastSlide(ptr, sis);
-            used_primitives.insert(ptr);
+    const DeckGroup& g = it->second;
+    if (std::find(expanding.begin(), expanding.end(), name) != expanding.end())
+        throw std::runtime_error("group \"" + name + "\" uses itself");
+
+    json args = g.params;
+    std::string id;
+    if (call.is_object()) {
+        const json& value = call[name];
+        if (value.is_string())
+            id = value.get<std::string>();
+        else if (!value.is_null())
+            throw std::runtime_error("\"" + name + ": " + value.dump() + "\" : the value "
+                                     "after a group name is its id, a name");
+        for (const auto& [key, val] : call.items()) {
+            if (key == name || key == "group")
+                continue;
+            if (key == "id")
+                throw std::runtime_error("a group call takes its id after the name, write \"- "
+                                         + name + ": some_id\" instead of \"id:\"");
+            else if (!g.params.contains(key))
+                spdlog::warn("deck: ignored key \"{}\" on group \"{}\"", key, name);
+            else if (!val.is_null())  // "key:" left empty keeps the default
+                args[key] = val;
         }
-        return;
     }
-    std::set<PrimitivePtr> before;
-    for (const auto& [ptr, sis] : show.getLastSlide())
-        before.insert(ptr);
-    buildFrame(show, it->second);
-    std::vector<PrimitiveInSlide> made;
-    for (const auto& pis : show.getLastSlide().getDepthSorted())
-        if (!before.count(pis.first))
-            made.push_back(pis);
-    built_groups[name] = made;
+    for (const auto& [key, val] : args.items())
+        if (val.is_null())
+            throw std::runtime_error("group \"" + name + "\" needs \"" + key + ":\"");
+    if (!id.empty()) {
+        // it ends up in ids and label files through ${id}
+        if (!isIdName(id))
+            throw std::runtime_error("the id \"" + id + "\" of group \"" + name + "\" may only "
+                                     "hold letters, digits, _ and -");
+        args["id"] = id;
+    }
+    else if (const std::string body = g.items.dump();
+             body.find("\"$id\"") != std::string::npos || body.find("${id}") != std::string::npos)
+        throw std::runtime_error("group \"" + name + "\" uses $id, give it one with \"- "
+                                 + name + ": some_id\"");
+
+    std::set<PrimitivePtr> placed;
+    expanding.push_back(name);
+    try {
+        placed = collect([&] { buildFrame(show, substituteArgs(g.items, args, name)); });
+    } catch (const std::exception& e) {
+        expanding.pop_back();
+        throw std::runtime_error(std::string(e.what()) + " (in group \"" + name + "\")");
+    }
+    expanding.pop_back();
+    // tags, so "remove:" takes off every use of the group, or this one by its id
+    for (const auto& ptr : placed) {
+        show.addToGroup(name, ptr);
+        if (!id.empty())
+            show.addToGroup(id, ptr);
+    }
+    return placed;
 }
 
 void DeckLoader::buildFrame(SlideManager& show, const json& items)
@@ -561,7 +768,7 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
             continue;
         }
         if (item.is_string()) {
-            expandGroup(show, item.get<std::string>());
+            expandGroup(show, item.get<std::string>(), json());
             continue;
         }
         if (!item.is_object())
@@ -570,13 +777,17 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
         if (item.contains("step"))
             throw std::runtime_error("\"step:\" subtrees were replaced by the flat "
                                      "\"- step\" marker : items after it belong to the next step");
+        if (const std::string* called = groupCallOf(item)) {
+            auto placed = expandGroup(show, *called, item);
+            if (item.contains("group"))
+                for (const auto& ptr : placed)
+                    show.addToGroup(item["group"].get<std::string>(), ptr);
+            continue;
+        }
         if (item.contains("group")) {
             // every primitive the item adds, box subtree included, joins the group
-            auto before = used_primitives;
-            addItem(show, item);
-            for (const auto& p : used_primitives)
-                if (!before.count(p))
-                    show.addToGroup(item["group"].get<std::string>(), p);
+            for (const auto& p : collect([&] { addItem(show, item); }))
+                show.addToGroup(item["group"].get<std::string>(), p);
         } else {
             addItem(show, item);
         }
@@ -638,6 +849,8 @@ void DeckLoader::buildStackChildren(SlideManager& show, const Stack2DPtr& stack,
             step_primitives.clear();
             continue;
         }
+        if (item.is_string() || (item.is_object() && groupCallOf(item)))
+            throw std::runtime_error("a stack cannot call a group, write its items in the stack");
         if (!item.is_object())
             throw std::runtime_error("stack items must be yaml maps (or the bare \"- step\" marker)");
         if (item.contains("step"))
@@ -651,7 +864,7 @@ void DeckLoader::buildStackChildren(SlideManager& show, const Stack2DPtr& stack,
         auto [prim, name] = makeScreenPrimitive(item);
         stack->addChild(prim);
         show.addToLastSlide(stack->place(prim, item.value("alpha", 1.)));
-        used_primitives.insert(prim);
+        markUsed(prim);
         if (item.contains("group"))
             show.addToGroup(item["group"].get<std::string>(), prim);
     }
@@ -798,7 +1011,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         auto placed = slide.find(std::static_pointer_cast<Primitive>(prim));
         if (placed != slide.end())
             applyStateOptions(placed->second, item);
-        used_primitives.insert(prim);
+        markUsed(prim);
         return;
     }
 
@@ -859,12 +1072,16 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
     else {
         // no placement given, center like `show << primitive`
         show << std::static_pointer_cast<Primitive>(prim);
-        used_primitives.insert(prim);
+        markUsed(prim);
         return;
     }
     applyStateOptions(pis.second, item);
     show.addToLastSlide(pis);
-    used_primitives.insert(pis.first);
+    // a "set" re-places an item it does not own, so no group or box claims it
+    if (keep_placement)
+        used_primitives.insert(pis.first);
+    else
+        markUsed(pis.first);
 }
 
 // mesh, surface and curve are built from the manifest alone, so one branch
@@ -889,6 +1106,9 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
                 return;
             }
             if (show.hasGroup(name)) {
+                if (named.count(name))
+                    spdlog::warn("deck: \"{}\" is both a group and an item id, \"remove\" takes "
+                                 "off the group", name);
                 show.removeGroup(name);
                 return;
             }
@@ -915,7 +1135,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         // the name now refers to the replacement, or a second "replace" would
         // resolve to the primitive just taken off the slide
         named[replaced] = prim;
-        used_primitives.insert(prim);
+        markUsed(prim);
     }
     else if (item.contains("object")) {
         std::string name = item["object"];
@@ -929,7 +1149,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             const auto& G = instantiated_groups[name];
             show << G;
             for (const auto& [ptr, sis] : G.buffer)
-                used_primitives.insert(ptr);
+                markUsed(ptr);
             return;
         }
         if (!instantiated_objects.count(name)) {
@@ -959,7 +1179,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             pis = std::static_pointer_cast<PolyscopePrimitive>(pis.first)
                       ->at(item["at"].get<std::string>(), item.value("alpha", 1.));
         show.addToLastSlide(pis);
-        used_primitives.insert(pis.first);
+        markUsed(pis.first);
     }
     else if (const ItemSpec* spec = sceneSpecOf(item)) {
         auto prim = cached(spec->key(item), [&] { return spec->make(item); });
@@ -973,7 +1193,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             ? poly->at(item["at"].get<std::string>(), alpha)
             : poly->at(alpha);
         show.addToLastSlide(pis);
-        used_primitives.insert(prim);
+        markUsed(prim);
     }
     else if (item.contains("arrow")) {
         const json& spec = item["arrow"];
@@ -1025,7 +1245,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         StateInSlide sis;
         sis.alpha = item.value("alpha", 1.);
         show.addToLastSlide({prim, sis});
-        used_primitives.insert(prim);
+        markUsed(prim);
     }
     else if (item.contains("box")) {
         if (!item["box"].is_array())
@@ -1038,19 +1258,17 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         StateInSlide sis;
         sis.alpha = item.value("alpha", 1.);
         show.addToLastSlide({prim, sis});
-        used_primitives.insert(prim);
+        markUsed(prim);
 
         // build the children as regular items, and englobe the screen
-        // primitives they add (diffed through used_primitives)
-        auto before = used_primitives;
-        buildFrame(show, item["box"]);
+        // primitives they place, one shown on an earlier slide included
+        const auto children = collect([&] { buildFrame(show, item["box"]); });
 
         // targets may have been recreated, so re-resolve and restyle here
         std::vector<ScreenPrimitivePtr> targets;
-        for (const auto& p : used_primitives)
-            if (!before.count(p))
-                if (auto sp = std::dynamic_pointer_cast<ScreenPrimitive>(p))
-                    targets.push_back(sp);
+        for (const auto& p : children)
+            if (auto sp = std::dynamic_pointer_cast<ScreenPrimitive>(p))
+                targets.push_back(sp);
         prim->setTargets(targets);
 
         prim->setPadding(item.value("padding", 0.02));
@@ -1086,7 +1304,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
 
         prim->clearChildren();
         show.addToLastSlide({prim, StateInSlide(prim->handle)});
-        used_primitives.insert(prim);
+        markUsed(prim);
         if (item.contains("id"))
             named[item["id"].get<std::string>()] = prim;
 

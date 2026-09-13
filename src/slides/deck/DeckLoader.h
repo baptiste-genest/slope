@@ -168,6 +168,40 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *     - latex: \color{gray} my talk
  *       at: footer
  *
+ * Groups
+ * ------
+ * Any other top-level list is a group, put in a frame by its bare name. A map
+ * with "params:" and "items:" makes it take arguments
+ *
+ *   caption:                    # "- caption" puts both here
+ *     - latex: parameter square
+ *       at: caption_pos
+ *
+ *   figure:
+ *     params: {yrange: [0, 1], ylabel: value}   # a param left empty is required
+ *     items:
+ *       - board: $id            # the whole value, its type is kept
+ *         at: figure
+ *         yrange: $yrange
+ *       - latex: ${ylabel} (log)   # inside a string
+ *         at: ylabel
+ *
+ *   - figure: conv              # in a frame, the value after the name is
+ *     ylabel: residual          # the id, and the other keys are the args
+ *
+ * Only declared params and "id" are substituted, so the "$" of latex is left
+ * alone, and a "$name" naming no param is warned about. A key left empty at
+ * the call keeps its default. What the call places is tagged with the group
+ * name and the id, so "remove: conv" takes the instance off ; the target of a
+ * "set" inside the group is not. Ids inside the body are not prefixed : write
+ * "id: ${id}_legend" when two instances share a slide. A group is rebuilt at
+ * each use, and the same content is the same primitive, so a reuse moves it
+ * rather than cross-fading. Group and param names cannot be item types, and a
+ * param cannot be named like a group. A stack cannot call a group.
+ *
+ * A group may hold "- step" : its items after it land on the next step, and so
+ * do the frame's items after the call. The template cannot use such a group.
+ *
  * Placement of a screen item is one of
  *   at: label                # persistent, drag-editable LabelAnchor
  *   at: [x, y]               # fixed position
@@ -362,10 +396,25 @@ private:
     void loadLatexResources();
     void buildFrame(SlideManager& show, const json& items);
 
-    // top level lists, expanded where their bare name appears in a frame
-    std::map<std::string, json> deck_groups;
-    std::map<std::string, std::vector<PrimitiveInSlide>> built_groups;
-    void expandGroup(SlideManager& show, const std::string& name);
+    // top level groups, expanded where "- name" or "- name: value" appears
+    struct DeckGroup {
+        json items;
+        json params = json::object();   // name -> default, null when required
+    };
+    std::map<std::string, DeckGroup> deck_groups;
+    std::vector<std::string> expanding;  // call chain, to catch a group using itself
+    void declareGroup(const std::string& name, const json& val);
+    // the group an item calls, or null for a plain item
+    const std::string* groupCallOf(const json& item) const;
+    // what the call placed, for its tags
+    std::set<PrimitivePtr> expandGroup(SlideManager& show, const std::string& name,
+                                       const json& call);
+
+    // every primitive build() places, into used_primitives and any open collector
+    std::vector<std::set<PrimitivePtr>*> collectors;
+    void markUsed(const PrimitivePtr& ptr);
+    // what run() places, a primitive reused from an earlier slide included
+    std::set<PrimitivePtr> collect(const std::function<void()>& run);
     void addItem(SlideManager& show, const json& item);
     void buildStackChildren(SlideManager& show, const Stack2DPtr& stack, const json& items);
     AnchorPtr makeHandleAnchor(const json& item);

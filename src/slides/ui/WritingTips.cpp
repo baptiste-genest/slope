@@ -200,9 +200,11 @@ void deckTips(ImFont* mono, float px)
 template:          # every frame
   - image: logo.png
     at: logo
-figures:           # a group
-  - image: plot.png
-    at: fig
+figure:            # a group
+  params: {file: plot.png}
+  items:
+    - image: $file
+      at: fig
 slides:
   - frame:
       - title: A title
@@ -213,7 +215,8 @@ slides:
         below: intro
   - frame:
       - title: Results
-      - figures)", mono, px, "#");
+      - figure: results
+        file: other.png)", mono, px, "#");
     }
 
     auto docRows = [&](const KeyDoc& keys) {
@@ -223,11 +226,14 @@ slides:
     if (ImGui::CollapsingHeader("Top level", ImGuiTreeNodeFlags_DefaultOpen)) {
         docRows(deckTopLevelKeys());
         apiRow("<name>:", "any other list is a group of items, used as \"- name\" in a frame", mono, px);
+        apiRow("  params:", "a map of name: default, empty when required", mono, px);
+        apiRow("  items:", "the group's items, steps included, reading $name or ${name} inside a string", mono, px);
     }
     if (ImGui::CollapsingHeader("In slides", ImGuiTreeNodeFlags_DefaultOpen)) {
         docRows(frameKeys());
         apiRow("- step", "what follows shows on the next slide", mono, px);
         apiRow("- <name>", "puts a top-level group here", mono, px);
+        apiRow("- <name>: id", "the same with args as the other keys, remove: id takes it off", mono, px);
     }
     if (ImGui::CollapsingHeader("config:", ImGuiTreeNodeFlags_DefaultOpen))
         docRows(deckConfigKeys());
