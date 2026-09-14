@@ -102,6 +102,8 @@ target_compile_features(slope PUBLIC cxx_std_20)
 # MSVC's <cmath> only defines M_PI etc. when this is set, unlike glibc/libc++
 target_compile_definitions(slope PUBLIC $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>)
 target_include_directories(slope PUBLIC src/ PRIVATE)
+# the .ply reader polyscope ships with
+target_include_directories(slope SYSTEM PRIVATE ${polyscope_SOURCE_DIR}/deps/happly)
 set_target_properties(slope PROPERTIES PUBLIC_HEADER "${HEADER_LIST}")
 
 ##INSTALL

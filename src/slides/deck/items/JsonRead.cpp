@@ -1,4 +1,5 @@
 #include "slides/deck/items/JsonRead.h"
+#include "content/authoring/color_tools.h"
 
 namespace slope {
 
@@ -57,6 +58,16 @@ RGBA parseColor(const json& c)
         throw std::runtime_error("color must be [r,g,b(,a)] or \"#rrggbb\"");
     auto hex = [&](int i) { return std::stoi(s.substr(i, 2), nullptr, 16); };
     return RGBA(hex(1)/255.f, hex(3)/255.f, hex(5)/255.f, 1.f);
+}
+
+Color readColor(const json& c, const glm::vec4& def)
+{
+    if (c.is_boolean())
+        throw std::runtime_error("\"color\" read as a boolean. Quote names like \"on\" or \"off\"");
+    if (c.is_string() && !c.get<std::string>().starts_with('#'))
+        return Color(c.get<std::string>(), def);
+    const RGBA v = parseColor(c);
+    return Color(v.Value.x, v.Value.y, v.Value.z, v.Value.w);
 }
 
 }

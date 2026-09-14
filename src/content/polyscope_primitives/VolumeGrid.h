@@ -41,7 +41,7 @@ public:
 public:
     void initPolyscope() {
         pc = polyscope::registerVolumeGrid(getPolyscopeName(),{Nx,Ny,Nz},{low(0),low(1),low(2)},{high(0),high(1),high(2)});
-        initPolyscopeData(pc);
+        initPolyscopeData(pc, false);
     }
 };
 

@@ -75,7 +75,6 @@ public:
 
     // Primitive interface
 public:
-    void initPolyscope() override;
     void draw(const TimeObject& t, const StateInSlide& sis) override;
     void playIntro(const TimeObject& t, const StateInSlide& sis) override;
     void playOutro(const TimeObject& t, const StateInSlide& sis) override;
@@ -84,8 +83,6 @@ private:
     Spec sp;
     int nu = 0, nv = 0;                 // grid the current topology was built on
     Snippet::fn<vec(vec2)> f;
-    bool registered = false;
-    glm::vec3 surface_color;
 
     // the parameter point of grid node (i, j)
     vec2 node(int i, int j) const;
@@ -156,8 +153,6 @@ private:
     Spec sp;
     int n = 0;                          // subdivision the nodes were built on
     Snippet::fn<vec(scalar)> f;
-    bool registered = false;
-    glm::vec3 curve_color;
 
     // a closed curve drops its last sample, the loop closing it instead
     int samples() const {return sp.closed ? n : n + 1;}

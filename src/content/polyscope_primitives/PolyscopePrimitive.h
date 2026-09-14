@@ -15,7 +15,8 @@ class PolyscopePrimitive : public Primitive
 public:
     PolyscopePrimitive();
 
-    void initPolyscopeData(polyscope::Structure* pcptr);
+    // palette = false keeps the colour polyscope gave the structure
+    void initPolyscopeData(polyscope::Structure* pcptr, bool palette = true);
 
     std::string getPolyscopeName() const;
 
@@ -41,9 +42,17 @@ public:
     void forceEnable() override;
     bool isScreenSpace() const override;
 
+    // Color(r,g,b), or Color("name") which is tunable or owned by a snippet
+    void setColor(const Color& c);
+    const Color& getColor() const {return color;}
+    // the colour it was registered with
+    glm::vec3 getDefaultColor() const {return default_color;}
+    void resetColor();
+
     static void resetColorId();
 
-    static glm::vec3 getColor();
+    // the next palette entry, handed to new structures in creation order
+    static glm::vec3 nextPaletteColor();
 
     void setTransform(const StateInSlide& sis);
 
@@ -51,12 +60,22 @@ public:
 
     bool isPolyscopePrimitive() const override { return true; }
 protected:
-    polyscope::Structure* polyscope_ptr;
+    polyscope::Structure* polyscope_ptr = nullptr;
+
+    // for a structure registered again without initPolyscopeData
+    void reapplyColor();
 
     static size_t count;
     static std::vector<glm::vec3> colors;
     static int current_color_id;
 
+private:
+    Color color;
+    glm::vec3 default_color = glm::vec3(1);
+    bool colored = false;
+    std::optional<glm::vec3> applied;
+
+    void syncColor();
 };
 template<class T>
 class PolyscopeQuantity : public Primitive

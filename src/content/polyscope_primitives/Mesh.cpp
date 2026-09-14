@@ -1,4 +1,5 @@
 #include "content/polyscope_primitives/Mesh.h"
+#include "math/utils.h"
 
 
 slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,bool smooth)
@@ -101,18 +102,7 @@ void slope::Mesh::updateMesh(const vecs &X)
 
 void slope::Mesh::normalize()
 {
-    //scale bounding box to fit in unit cube
-    vec minv = vec::Constant(std::numeric_limits<double>::max());
-    vec maxv = vec::Constant(std::numeric_limits<double>::lowest());
-    for (const auto& v : vertices) {
-        minv = minv.cwiseMin(v);
-        maxv = maxv.cwiseMax(v);
-    }
-    vec center = 0.5 * (minv + maxv);
-    double max_extent = (maxv - minv).maxCoeff();
-    for (auto& v : vertices) {
-        v = (v - center) / max_extent;
-    }
+    normalizeToUnitCube(vertices);
     updateMesh(vertices);
 }
 
@@ -122,7 +112,6 @@ void slope::Mesh::initPolyscope()
     pc->setBackFacePolicy(polyscope::BackFacePolicy::Identical);
     initPolyscopeData(pc);
     setSmooth(smooth);
-    pc->setSurfaceColor(getColor());
 }
 
 

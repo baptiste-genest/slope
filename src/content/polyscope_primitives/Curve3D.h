@@ -63,6 +63,7 @@ public:
         this->E = E;
         pc = polyscope::registerCurveNetwork(getPolyscopeName(),nodes,E);
         polyscope_ptr = pc;
+        reapplyColor();
     }
 
     void updateSegments(const vecs& V) {

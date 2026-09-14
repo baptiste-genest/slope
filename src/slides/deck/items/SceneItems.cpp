@@ -3,9 +3,26 @@
 #include "content/polyscope_primitives/Mesh.h"
 #include "content/polyscope_primitives/PolyscopeSnippets.h"
 #include "content/polyscope_primitives/Point.h"
+#include "content/polyscope_primitives/PointCloud.h"
 #include <filesystem>
 
 namespace slope {
+
+// "color:" of any scene item, the palette colour when left out
+static void applyColor(const PrimitivePtr& p, const json& item)
+{
+    auto& poly = static_cast<PolyscopePrimitive&>(*p);
+    if (item.contains("color"))
+        poly.setColor(readColor(item["color"], ColorType(poly.getDefaultColor(), 1)));
+    else
+        poly.resetColor();
+}
+
+// for the items cached on content, where another colour is another object
+static std::string colorKey(const json& item)
+{
+    return item.contains("color") ? ":color=" + item["color"].dump() : "";
+}
 
 static SnippetSurface::Spec surfaceSpec(const json& item)
 {
@@ -54,16 +71,17 @@ std::vector<ItemSpec> sceneItemSpecs()
     std::vector<ItemSpec> specs;
 
     specs.push_back({
-        "mesh", ItemSpec::Kind::Scene, {"id","at","alpha","smooth","normalize","group"},
+        "mesh", ItemSpec::Kind::Scene, {"id","at","alpha","smooth","normalize","color","group"},
         [](const json& i) {
             return "mesh:" + i["mesh"].get<std::string>()
                  + (i.value("smooth", true) ? ":smooth" : "")
-                 + (i.value("normalize", false) ? ":norm" : "");
+                 + (i.value("normalize", false) ? ":norm" : "") + colorKey(i);
         },
         [](const json& i) -> PrimitivePtr {
             auto m = Mesh::Add(i["mesh"].get<std::string>(), i.value("smooth", true));
             if (i.value("normalize", false))
                 m->normalize();
+            applyColor(m, i);
             return m;
         },
         nullptr,
@@ -76,7 +94,7 @@ std::vector<ItemSpec> sceneItemSpecs()
     // reconfigures the object in place instead of building a second one
     specs.push_back({
         "surface", ItemSpec::Kind::Scene,
-        {"id","at","alpha","smooth","u","v","resolution","closed","group"},
+        {"id","at","alpha","smooth","u","v","resolution","closed","color","group"},
         [](const json& i) {
             auto spec = surfaceSpec(i);
             return "surface:" + spec.name + ":" + spec.fn;
@@ -84,13 +102,14 @@ std::vector<ItemSpec> sceneItemSpecs()
         [](const json& i) -> PrimitivePtr { return SnippetSurface::Add(surfaceSpec(i)); },
         [](const PrimitivePtr& p, const json& i, const std::string&) {
             std::static_pointer_cast<SnippetSurface>(p)->configure(surfaceSpec(i));
+            applyColor(p, i);
         },
         [](const json& i) { return surfaceSpec(i).name; },
     });
 
     specs.push_back({
         "curve", ItemSpec::Kind::Scene,
-        {"id","at","alpha","u","resolution","closed","radius","group"},
+        {"id","at","alpha","u","resolution","closed","radius","color","group"},
         [](const json& i) {
             auto spec = curveSpec(i);
             return "curve:" + spec.name + ":" + spec.fn;
@@ -98,24 +117,48 @@ std::vector<ItemSpec> sceneItemSpecs()
         [](const json& i) -> PrimitivePtr { return SnippetCurve::Add(curveSpec(i)); },
         [](const PrimitivePtr& p, const json& i, const std::string&) {
             std::static_pointer_cast<SnippetCurve>(p)->configure(curveSpec(i));
+            applyColor(p, i);
         },
         [](const json& i) { return curveSpec(i).name; },
     });
 
     // "point: <snippet>" rides a snippet variable, "point: [x,y,z]" sits still
     specs.push_back({
-        "point", ItemSpec::Kind::Scene, {"id","at","alpha","radius","group"},
+        "point", ItemSpec::Kind::Scene, {"id","at","alpha","radius","color","group"},
         [](const json& i) {
-            return "point:" + i["point"].dump() + ":" + std::to_string(i.value("radius", 0.05));
+            return "point:" + i["point"].dump() + ":" + std::to_string(i.value("radius", 0.05))
+                 + colorKey(i);
         },
         [](const json& i) -> PrimitivePtr {
             LiveVec p = readLiveVec(i["point"], "point");
-            return Point::Add(DynamicParam([p](const TimeObject&) { return p.value(); }),
-                              i.value("radius", 0.05));
+            auto pt = Point::Add(DynamicParam([p](const TimeObject&) { return p.value(); }),
+                                 i.value("radius", 0.05));
+            applyColor(pt, i);
+            return pt;
         },
         nullptr,
         [](const json& i) {
             return i["point"].is_string() ? i["point"].get<std::string>() : "point";
+        },
+    });
+
+    specs.push_back({
+        "cloud", ItemSpec::Kind::Scene, {"id","at","alpha","radius","normalize","color","group"},
+        [](const json& i) {
+            return "cloud:" + i["cloud"].get<std::string>()
+                 + ":" + std::to_string(i.value("radius", -1.))
+                 + (i.value("normalize", false) ? ":norm" : "") + colorKey(i);
+        },
+        [](const json& i) -> PrimitivePtr {
+            auto c = PointCloud::Add(i["cloud"].get<std::string>(), i.value("radius", -1.));
+            if (i.value("normalize", false))
+                c->normalize();
+            applyColor(c, i);
+            return c;
+        },
+        nullptr,
+        [](const json& i) {
+            return std::filesystem::path(i["cloud"].get<std::string>()).stem().string();
         },
     });
 

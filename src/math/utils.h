@@ -15,6 +15,21 @@ inline T lerp(const T& a,const T& b,scalar t) {
     return T(a + (b-a)*t);
 }
 
+// centers the bounding box and scales its longest side to 1
+inline void normalizeToUnitCube(vecs& X) {
+    if (X.empty())
+        return;
+    vec lo = X[0], hi = X[0];
+    for (const auto& x : X) {
+        lo = lo.cwiseMin(x);
+        hi = hi.cwiseMax(x);
+    }
+    const vec center = 0.5*(lo + hi);
+    const scalar extent = (hi - lo).maxCoeff();
+    for (auto& x : X)
+        x = extent > 0 ? vec((x - center)/extent) : vec(x - center);
+}
+
 }
 
 #endif // UTILS_H

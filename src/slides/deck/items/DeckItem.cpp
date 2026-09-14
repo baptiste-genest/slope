@@ -60,7 +60,7 @@ std::string itemValueHint(const std::string& type)
         {"board", "board name"}, {"plot", "curve name"}, {"scatter", "cloud name"},
         {"legend", "board name"},
         {"mesh", "mesh file"}, {"surface", "snippet function"}, {"curve", "snippet function"},
-        {"point", "snippet or [x, y, z]"},
+        {"point", "snippet or [x, y, z]"}, {"cloud", "point cloud file, .ply or .obj"},
         {"keyframe", "keyframe name"}, {"remove", "id or [ids]"}, {"set", "id"},
         {"replace", "id"}, {"object", "C++ object name"}, {"arrow", "map, keys below"},
         {"box", "[items]"}, {"stack", "[items]"}, {"camera", "camera view name"},

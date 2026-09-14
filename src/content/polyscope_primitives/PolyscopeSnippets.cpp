@@ -102,19 +102,6 @@ void SnippetSurface::update()
     pc->updateVertexPositions(vertices);
 }
 
-void SnippetSurface::initPolyscope()
-{
-    if (!registered) {
-        surface_color = getColor();
-        registered = true;
-    }
-    pc = polyscope::registerSurfaceMesh(getPolyscopeName(), vertices, faces);
-    pc->setBackFacePolicy(polyscope::BackFacePolicy::Identical);
-    initPolyscopeData(pc);
-    setSmooth(smooth);
-    pc->setSurfaceColor(surface_color);
-}
-
 void SnippetSurface::draw(const TimeObject& t, const StateInSlide& sis)
 {
     update();
@@ -222,15 +209,10 @@ void SnippetCurve::update()
 
 void SnippetCurve::initPolyscope()
 {
-    if (!registered) {
-        curve_color = getColor();
-        registered = true;
-    }
     pc = loop ? polyscope::registerCurveNetworkLoop(getPolyscopeName(), nodes)
               : polyscope::registerCurveNetworkLine(getPolyscopeName(), nodes);
     if (radius > 0)
         pc->setRadius(radius, false);
-    pc->setColor(curve_color);
     initPolyscopeData(pc);
 }
 

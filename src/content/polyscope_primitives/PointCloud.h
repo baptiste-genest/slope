@@ -13,6 +13,8 @@ public:
     using PointCloudPtr = std::shared_ptr<PointCloud>;
 
     static PointCloudPtr Add(const vecs& P,scalar radius = -1);
+    // the vertices of a .ply (ascii or binary) or of a .obj
+    static PointCloudPtr Add(const std::string& file,scalar radius = -1);
     PointCloudPtr apply(const mapping& phi);
     PointCloudPtr applyDynamic(const VertexTimeMap& phi);
 
@@ -22,6 +24,8 @@ public:
         points = X;
         pc->updatePointPositions(points);
     }
+
+    void normalize();
 private:
     vecs points,original_points;
     scalar radius = -1;
