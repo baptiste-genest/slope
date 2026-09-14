@@ -36,6 +36,10 @@ public:
 
     PrimitiveInSlide at(const std::string& label,scalar alpha = 1);
 
+    // pos, scale, axis and angle, each a value or a snippet name read every frame
+    PrimitiveInSlide at(const LiveTransform& T,scalar alpha = 1);
+    // the same inside the label's frame, which the gizmo still moves
+    PrimitiveInSlide at(const std::string& label,const LiveTransform& T,scalar alpha = 1);
 
     void forceDisable() override;
 

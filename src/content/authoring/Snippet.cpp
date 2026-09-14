@@ -1088,6 +1088,11 @@ vec LiveVec::value() const
     return live() ? Snippet::get(snippet).v3() : fixed;
 }
 
+scalar LiveScalar::value() const
+{
+    return live() ? Snippet::get(snippet).num() : fixed;
+}
+
 std::string LiveVec::key() const
 {
     if (live())

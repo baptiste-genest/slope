@@ -1,5 +1,7 @@
 #include "slides/deck/items/JsonRead.h"
 #include "content/authoring/color_tools.h"
+#include "content/polyscope_primitives/LiveTransform.h"
+#include <spdlog/spdlog.h>
 
 namespace slope {
 
@@ -29,6 +31,42 @@ LiveVec readLiveVec(const json& v, const std::string& what)
     else
         l.fixed = readVec3(v, what);
     return l;
+}
+
+LiveScalar readLiveScalar(const json& v, const std::string& what)
+{
+    if (v.is_boolean())
+        throw std::runtime_error("\"" + what + "\" read as a boolean. Quote snippet names "
+                                 "like \"n\", \"y\", \"on\" or \"off\"");
+    if (v.is_string())
+        return LiveScalar(v.get<std::string>());
+    if (!v.is_number())
+        throw std::runtime_error("\"" + what + "\" must be a number or a snippet name");
+    return LiveScalar(v.get<scalar>());
+}
+
+LiveTransform readTransform(const json& t)
+{
+    if (!t.is_object())
+        throw std::runtime_error("\"transform\" must be a map of pos, scale, axis and angle");
+    for (const auto& [key, val] : t.items())
+        if (key != "pos" && key != "scale" && key != "axis" && key != "angle")
+            spdlog::warn("deck: ignored key \"{}\" in \"transform\", which takes pos, scale, "
+                         "axis and angle", key);
+
+    LiveTransform T;
+    if (t.contains("pos"))
+        T.pos = readLiveVec(t["pos"], "transform.pos");
+    if (t.contains("scale")) {
+        const json& s = t["scale"];
+        T.scale = s.is_number() ? LiveVec(vec::Constant(s.get<scalar>()))
+                                : readLiveVec(s, "transform.scale");
+    }
+    if (t.contains("axis"))
+        T.axis = readLiveVec(t["axis"], "transform.axis");
+    if (t.contains("angle"))
+        T.angle = readLiveScalar(t["angle"], "transform.angle");
+    return T;
 }
 
 vec2 parseVec2(const json& v)

@@ -71,7 +71,7 @@ std::vector<ItemSpec> sceneItemSpecs()
     std::vector<ItemSpec> specs;
 
     specs.push_back({
-        "mesh", ItemSpec::Kind::Scene, {"id","at","alpha","smooth","normalize","color","group"},
+        "mesh", ItemSpec::Kind::Scene, {"id","at","transform","alpha","smooth","normalize","color","group"},
         [](const json& i) {
             return "mesh:" + i["mesh"].get<std::string>()
                  + (i.value("smooth", true) ? ":smooth" : "")
@@ -94,7 +94,7 @@ std::vector<ItemSpec> sceneItemSpecs()
     // reconfigures the object in place instead of building a second one
     specs.push_back({
         "surface", ItemSpec::Kind::Scene,
-        {"id","at","alpha","smooth","u","v","resolution","closed","color","group"},
+        {"id","at","transform","alpha","smooth","u","v","resolution","closed","color","group"},
         [](const json& i) {
             auto spec = surfaceSpec(i);
             return "surface:" + spec.name + ":" + spec.fn;
@@ -109,7 +109,7 @@ std::vector<ItemSpec> sceneItemSpecs()
 
     specs.push_back({
         "curve", ItemSpec::Kind::Scene,
-        {"id","at","alpha","u","resolution","closed","radius","color","group"},
+        {"id","at","transform","alpha","u","resolution","closed","radius","color","group"},
         [](const json& i) {
             auto spec = curveSpec(i);
             return "curve:" + spec.name + ":" + spec.fn;
@@ -124,7 +124,7 @@ std::vector<ItemSpec> sceneItemSpecs()
 
     // "point: <snippet>" rides a snippet variable, "point: [x,y,z]" sits still
     specs.push_back({
-        "point", ItemSpec::Kind::Scene, {"id","at","alpha","radius","color","group"},
+        "point", ItemSpec::Kind::Scene, {"id","at","transform","alpha","radius","color","group"},
         [](const json& i) {
             return "point:" + i["point"].dump() + ":" + std::to_string(i.value("radius", 0.05))
                  + colorKey(i);
@@ -143,7 +143,7 @@ std::vector<ItemSpec> sceneItemSpecs()
     });
 
     specs.push_back({
-        "cloud", ItemSpec::Kind::Scene, {"id","at","alpha","radius","normalize","color","group"},
+        "cloud", ItemSpec::Kind::Scene, {"id","at","transform","alpha","radius","normalize","color","group"},
         [](const json& i) {
             return "cloud:" + i["cloud"].get<std::string>()
                  + ":" + std::to_string(i.value("radius", -1.))

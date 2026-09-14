@@ -7,6 +7,7 @@
 #include "content/screen_primitives/layout/Anchor.h"
 
 #include "content/polyscope_primitives/Transform.h"
+#include "content/polyscope_primitives/LiveTransform.h"
 #include "content/screen_primitives/gpu/PlaneWarp.h"
 #include <optional>
 
@@ -27,6 +28,8 @@ struct StateInSlide {
     Transform LocalToWorld;
     // a screen primitive reads persistentTransform as the plane it is pasted on
     PersistentTransform persistentTransform;
+    // a scene primitive's transform, evaluated every frame inside the label's frame
+    std::optional<LiveTransform> liveTransform;
 
     PlanePlacement plane;
 
@@ -42,11 +45,9 @@ struct StateInSlide {
     StateInSlide(AnchorPtr p) : anchor(p) {}
 
     Transform getLocalToWorld() const {
-        if (persistentTransform.isActive()) {
-            Transform T = persistentTransform.readFromLabel();
-            return T;
-        }
-        return LocalToWorld;
+        Transform T = persistentTransform.isActive() ? persistentTransform.readFromLabel()
+                                                     : LocalToWorld;
+        return liveTransform ? liveTransform->within(T) : T;
     }
 
     StateInSlide(const vec2& x)  {

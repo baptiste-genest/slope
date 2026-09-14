@@ -305,10 +305,31 @@ struct LiveVec {
     vec fixed = vec::Zero();
     std::string snippet;
 
+    LiveVec() = default;
+    LiveVec(const vec& v) : fixed(v) {}
+    LiveVec(std::string name) : snippet(std::move(name)) {}
+    LiveVec(const char* name) : snippet(name) {}
+
     bool live() const {return !snippet.empty();}
     vec value() const;
     // identifies the source, so a consumer can cache on it
     std::string key() const;
+};
+
+// a number given outright, or named by a snippet variable read each frame
+struct LiveScalar {
+    scalar fixed = 0;
+    std::string snippet;
+
+    LiveScalar() = default;
+    LiveScalar(scalar v) : fixed(v) {}
+    // keeps a literal 0 from being taken for a name
+    LiveScalar(int v) : fixed(v) {}
+    LiveScalar(std::string name) : snippet(std::move(name)) {}
+    LiveScalar(const char* name) : snippet(name) {}
+
+    bool live() const {return !snippet.empty();}
+    scalar value() const;
 };
 
 /*

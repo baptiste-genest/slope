@@ -116,6 +116,19 @@ slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const std::string &label, 
     return {get(pid),sis};
 }
 
+slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const LiveTransform &T, scalar alpha){
+    StateInSlide sis;
+    sis.alpha = alpha;
+    sis.liveTransform = T;
+    return {get(pid),sis};
+}
+
+slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const std::string &label, const LiveTransform &T, scalar alpha){
+    auto pis = at(label,alpha);
+    pis.second.liveTransform = T;
+    return pis;
+}
+
 void slope::PolyscopePrimitive::forceDisable() {
     polyscope_ptr->setEnabled(false);
 }

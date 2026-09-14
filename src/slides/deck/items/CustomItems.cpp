@@ -24,7 +24,7 @@ std::vector<ItemSpec> customItemSpecs()
                             "below","above","right_of","left_of","padding",
                             "reveal","focus"}),
         custom("replace",  {"with"}),
-        custom("object",   {"id","at","follow","offset","alpha","rot","zoom","view",
+        custom("object",   {"id","at","transform","follow","offset","alpha","rot","zoom","view",
                             "group","uniforms","textures"}),
         custom("arrow",    {"id","alpha","group"}),
         custom("box",      {"id","alpha","padding","padx","pady","thickness","color",

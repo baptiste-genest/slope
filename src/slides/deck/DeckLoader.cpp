@@ -1092,6 +1092,20 @@ static const ItemSpec* sceneSpecOf(const json& item)
     return spec && spec->kind == ItemSpec::Kind::Scene ? spec : nullptr;
 }
 
+// "at:" is the gizmo label, "transform:" what snippets drive inside its frame
+static PrimitiveInSlide placeSceneItem(const PolyscopePrimitivePtr& poly, const json& item)
+{
+    scalar alpha = item.value("alpha", 1.);
+    if (item.contains("at") && !item["at"].is_string())
+        throw std::runtime_error("\"at:\" of a scene item names a transform label. A position "
+                                 "goes in \"transform: {pos: [x, y, z]}\"");
+    const std::string label = item.value("at", "");
+    if (!item.contains("transform"))
+        return label.empty() ? poly->at(alpha) : poly->at(label, alpha);
+    const LiveTransform T = readTransform(item["transform"]);
+    return label.empty() ? poly->at(T, alpha) : poly->at(label, T, alpha);
+}
+
 void DeckLoader::addItem(SlideManager& show, const json& item)
 {
     warnUnknownKeys(item);
@@ -1175,9 +1189,9 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             placeScreenItem(show, std::static_pointer_cast<ScreenPrimitive>(pis.first), item, name);
             return;
         }
-        if (item.contains("at") && item["at"].is_string() && pis.first->isPolyscopePrimitive())
-            pis = std::static_pointer_cast<PolyscopePrimitive>(pis.first)
-                      ->at(item["at"].get<std::string>(), item.value("alpha", 1.));
+        if (pis.first->isPolyscopePrimitive()
+            && (item.contains("at") || item.contains("transform")))
+            pis = placeSceneItem(std::static_pointer_cast<PolyscopePrimitive>(pis.first), item);
         show.addToLastSlide(pis);
         markUsed(pis.first);
     }
@@ -1187,12 +1201,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         if (spec->configure)
             spec->configure(prim, item, name);
         named[name] = prim;
-        scalar alpha = item.value("alpha", 1.);
-        auto poly = std::static_pointer_cast<PolyscopePrimitive>(prim);
-        auto pis = item.contains("at") && item["at"].is_string()
-            ? poly->at(item["at"].get<std::string>(), alpha)
-            : poly->at(alpha);
-        show.addToLastSlide(pis);
+        show.addToLastSlide(placeSceneItem(std::static_pointer_cast<PolyscopePrimitive>(prim), item));
         markUsed(prim);
     }
     else if (item.contains("arrow")) {
