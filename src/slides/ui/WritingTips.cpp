@@ -232,7 +232,7 @@ slides:
     if (ImGui::CollapsingHeader("In slides", ImGuiTreeNodeFlags_DefaultOpen)) {
         docRows(frameKeys());
         apiRow("- step", "what follows shows on the next slide", mono, px);
-        apiRow("- <name>", "puts a top-level group here", mono, px);
+        apiRow("- <name>", "a group puts it here, an item id replays it at its last placement", mono, px);
         apiRow("- <name>: id", "the same with args as the other keys, remove: id takes it off", mono, px);
     }
     if (ImGui::CollapsingHeader("config:", ImGuiTreeNodeFlags_DefaultOpen))

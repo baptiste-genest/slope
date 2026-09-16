@@ -782,8 +782,33 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
             continue;
         }
         if (item.is_string()) {
-            expandGroup(show, item.get<std::string>(), json());
-            continue;
+            std::string s = item.get<std::string>();
+            if (deck_groups.count(s)) {
+                if (named.count(s))
+                    spdlog::warn("deck: \"{}\" is both a group and an item id, \"- {}\" puts "
+                                 "the group here", s, s);
+                expandGroup(show, s, json());
+                continue;
+            }
+            if (named.count(s)) {
+                // no state was recorded for it, so replay wherever it was last placed
+                auto prim = named[s];
+                std::optional<StateInSlide> last;
+                for (int i = show.getNumberSlides() - 1; i >= 0; --i) {
+                    Slide& sl = show.getSlide(i);
+                    auto it = sl.find(prim);
+                    if (it != sl.end()) {
+                        last = it->second;
+                        break;
+                    }
+                }
+                if (!last)
+                    throw std::runtime_error("\"" + s + "\" has not been placed on any slide yet");
+                show.addToLastSlide({prim, *last});
+                markUsed(prim);
+                continue;
+            }
+            throw std::runtime_error("deck references unknown group or item id \"" + s + "\"");
         }
         if (!item.is_object())
             throw std::runtime_error("deck items must be yaml maps, the bare \"- step\" marker, "
