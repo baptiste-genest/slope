@@ -419,11 +419,8 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
             lab->writeScaleAtLabel(dir > 0 ? lab->getScale()*zoom : lab->getScale()/zoom, true);
     }
 
-    if (horizontal) { x_offset = 0.5 - x; x = 0.5; }
-    if (vertical)   { y_offset = 0.5 - y; y = 0.5; }
-
-    float cx = float(x + x_offset);
-    float cy = float(y + y_offset);
+    float cx = horizontal ? 0.5f : float(x + x_offset);
+    float cy = vertical   ? 0.5f : float(y + y_offset);
 
     auto drag_sp = std::static_pointer_cast<ScreenPrimitive>(selected_primitive);
     float dhw = drag_sp->getRelativeSize()(0) * float(pis.getScale()) * 0.5f;
