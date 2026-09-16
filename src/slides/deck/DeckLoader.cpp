@@ -1219,19 +1219,32 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         markUsed(prim);
     }
     else if (item.contains("arrow")) {
-        const json& spec = item["arrow"];
-        if (!spec.is_object() || !spec.contains("from") || !spec.contains("to"))
-            throw std::runtime_error("\"arrow\" item needs {from: ..., to: ...}");
-        for (const auto& [key, val] : spec.items())
-            if (!arrowFields().count(key))
-                spdlog::warn("deck: ignored key \"{}\" on an \"arrow\" item", key);
+        const json& raw = item["arrow"];
+        // "arrow: id" needs no from/to, registering "id/tail" and "id/tip" as params instead
+        const bool shorthand = raw.is_string();
+        const std::string id = shorthand ? raw.get<std::string>() : item.value("id", std::string());
+        const json& spec = shorthand ? item : raw;
+        if (!shorthand) {
+            if (!spec.is_object() || !spec.contains("from") || !spec.contains("to"))
+                throw std::runtime_error("\"arrow\" item needs {from: ..., to: ...}, or just an id");
+            for (const auto& [key, val] : spec.items())
+                if (!arrowFields().count(key))
+                    spdlog::warn("deck: ignored key \"{}\" on an \"arrow\" item", key);
+        }
 
-        // an endpoint is [x,y], the name of a previous item (attached at its
-        // boundary, following it live), or otherwise a persistent label
-        auto endpoint = [&](const json& v) -> Arrow2D::Endpoint {
+        // an endpoint is [x,y] (a param when id'd), an item name (attached live), or a label
+        auto endpoint = [&](const char* key, const char* suffix, const vec2& def) -> Arrow2D::Endpoint {
+            const json v = spec.contains(key) ? spec[key] : json{def(0), def(1)};
             if (v.is_array()) {
                 Arrow2D::Endpoint e;
-                e.fixed = readVec2(v, "arrow endpoint");
+                vec2 p0 = readVec2(v, "arrow endpoint");
+                if (id.empty()) {
+                    e.fixed = p0;
+                } else {
+                    // the param is y-up like a shader uv, the arrow is y-down screen space
+                    auto param = Params::AddVec2(id + "/" + suffix, vec2(p0(0), 1 - p0(1)));
+                    e.follow = [param] { vec2 uv = param; return vec2(uv(0), 1 - uv(1)); };
+                }
                 return e;
             }
             std::string s = v;
@@ -1247,11 +1260,12 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
 
         auto prim = std::static_pointer_cast<Arrow2D>(
             cached("arrow:" + item.dump(), [&]() -> PrimitivePtr {
-                return Arrow2D::Add(endpoint(spec["from"]), endpoint(spec["to"]));
+                return Arrow2D::Add(endpoint("from", "tail", vec2(0.4, 0.5)),
+                                    endpoint("to", "tip", vec2(0.6, 0.5)));
             }));
         // endpoints may have been recreated, so re-resolve and restyle here
-        prim->from = endpoint(spec["from"]);
-        prim->to = endpoint(spec["to"]);
+        prim->from = endpoint("from", "tail", vec2(0.4, 0.5));
+        prim->to = endpoint("to", "tip", vec2(0.6, 0.5));
         auto offset = [&](const char* key) {
             return spec.contains(key) ? readVec2(spec[key], key) : vec2(0, 0);
         };
@@ -1262,9 +1276,9 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         prim->margin = spec.value("margin", 0.01);
         prim->style.thickness = spec.value("thickness", 3.);
         if (spec.contains("color"))
-            prim->style.color = parseColor(spec["color"]);
-        if (item.contains("id"))
-            named[item["id"].get<std::string>()] = prim;
+            prim->style.color = readColor(spec["color"], glm::vec4(0.f, 0.f, 0.f, 1.f));
+        if (!id.empty())
+            named[id] = prim;
         StateInSlide sis;
         sis.alpha = item.value("alpha", 1.);
         show.addToLastSlide({prim, sis});
@@ -1302,9 +1316,9 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         prim->style.thickness = item.value("thickness", 3.);
         prim->style.filled = item.value("filled", false);
         if (item.contains("color"))
-            prim->style.color = parseColor(item["color"]);
+            prim->style.color = readColor(item["color"], glm::vec4(0.f, 0.f, 0.f, 1.f));
         if (item.contains("fill_color")) {
-            prim->setFillColor(parseColor(item["fill_color"]));
+            prim->setFillColor(readColor(item["fill_color"], glm::vec4(0.f, 0.f, 0.f, 0.25f)));
             prim->style.filled = true;
         }
 

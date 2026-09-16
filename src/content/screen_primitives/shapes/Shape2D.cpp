@@ -10,6 +10,10 @@ static ImU32 withAlpha(const RGBA& c, float alpha) {
     return ImGui::ColorConvertFloat4ToU32(v);
 }
 
+static ImU32 withAlpha(const Color& c, float alpha) {
+    return withAlpha(c.getImColor(), alpha);
+}
+
 static float pixelThickness(float thickness) {
     return thickness * ImGui::GetWindowSize().y / 1080.f;
 }
@@ -220,12 +224,11 @@ void Box2D::drawBox(parameter t, float alpha)
         ImVec2(hi(0)*W.x, hi(1)*W.y), ImVec2(lo(0)*W.x, hi(1)*W.y),
         ImVec2(lo(0)*W.x, lo(1)*W.y)};
     if (style.filled && t >= 1) {
-        RGBA fill = use_background_fill
-            ? RGBA(polyscope::view::bgColor[0], polyscope::view::bgColor[1],
-                   polyscope::view::bgColor[2], 1.f)
-            : style.fill_color;
-        ImGui::GetWindowDrawList()->AddConvexPolyFilled(
-            px.data(), 4, withAlpha(fill, alpha));
+        ImU32 fill = use_background_fill
+            ? withAlpha(RGBA(polyscope::view::bgColor[0], polyscope::view::bgColor[1],
+                             polyscope::view::bgColor[2], 1.f), alpha)
+            : withAlpha(style.fill_color, alpha);
+        ImGui::GetWindowDrawList()->AddConvexPolyFilled(px.data(), 4, fill);
     }
     strokePolylinePrefix(px, t, withAlpha(style.color, alpha),
                          pixelThickness(style.thickness), t >= 1);
@@ -272,6 +275,8 @@ vec2 Arrow2D::Endpoint::center() const
     }
     if (anchor)
         return anchor->getPos();
+    if (follow)
+        return follow();
     return fixed;
 }
 
@@ -319,16 +324,28 @@ vec2 Arrow2D::attachPoint(const Endpoint& e, const vec2& other, scalar margin)
     return c + d * t;
 }
 
+vec2 Arrow2D::controlPoint(const vec2& a, const vec2& b) const
+{
+    vec2 mid = (a + b) * 0.5;
+    if (bend == 0)
+        return mid;
+    const vec2 aspect(Options::ScreenResolutionWidth, Options::ScreenResolutionHeight);
+    vec2 d_px = (b - a).cwiseProduct(aspect);
+    if (d_px.norm() < 1e-9)
+        return mid;
+    vec2 perp_px = vec2(-d_px(1), d_px(0)).normalized() * (bend * d_px.norm());
+    return mid + perp_px.cwiseQuotient(aspect);
+}
+
 void Arrow2D::drawArrow(parameter t, float alpha) const
 {
     vec2 ca = from.center(), cb = to.center();
     vec2 a = attachPoint(from, cb, margin) + from.offset;
     vec2 b = attachPoint(to, ca, margin) + to.offset;
 
-    vec2 d = b - a;
-    if (d.norm() < 1e-9)
+    if ((b - a).norm() < 1e-9)
         return;
-    vec2 control = (a + b) * 0.5 + bend * d.norm() * vec2(-d(1), d(0)).normalized();
+    vec2 control = controlPoint(a, b);
 
     auto W = ImGui::GetWindowSize();
     constexpr int N = 48;
@@ -364,10 +381,8 @@ void Arrow2D::getBoundingBox(vec2& lo, vec2& hi) const
     hi = a.cwiseMax(b);
     if (bend != 0) {
         // the curve stays in the hull of {a, control, b}
-        vec2 d = b - a;
-        if (d.norm() > 1e-9) {
-            vec2 control = (a + b) * 0.5
-                + bend * d.norm() * vec2(-d(1), d(0)).normalized();
+        if ((b - a).norm() > 1e-9) {
+            vec2 control = controlPoint(a, b);
             lo = lo.cwiseMin(control);
             hi = hi.cwiseMax(control);
         }

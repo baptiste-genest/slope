@@ -2,6 +2,7 @@
 #define SHAPE2D_H
 
 #include "content/screen_primitives/ScreenPrimitive.h"
+#include "content/authoring/color_tools.h"
 
 namespace slope {
 
@@ -21,8 +22,10 @@ namespace slope {
  */
 
 struct ShapeStyle {
-    RGBA color = RGBA(0.f, 0.f, 0.f, 1.f);
-    RGBA fill_color = RGBA(0.f, 0.f, 0.f, 0.25f);
+    // a literal Color by default; give it a name (or a deck "color id") to
+    // make it live in the Tuner, like CodeStyle's colours
+    Color color = Color(0.f, 0.f, 0.f, 1.f);
+    Color fill_color = Color(0.f, 0.f, 0.f, 0.25f);
     float thickness = 3;   // pixels at 1080p, scaled with the window
     bool filled = false;
 };
@@ -74,7 +77,7 @@ public:
     // until a fill color is chosen, a filled box is painted in the current
     // background color (opaque), so it masks what it covers
     bool use_background_fill = true;
-    void setFillColor(const RGBA& c) {
+    void setFillColor(const Color& c) {
         style.fill_color = c;
         use_background_fill = false;
     }
@@ -121,6 +124,7 @@ public:
         vec2 fixed = vec2(0.5, 0.5);
         ScreenPrimitivePtr prim = nullptr; // attach to its bbox when set
         AnchorPtr anchor = nullptr;        // else follow this anchor if set
+        std::function<vec2()> follow = nullptr; // else this, e.g. a live param
         vec2 offset = vec2(0, 0);          // shift applied after attachment
 
         vec2 center() const;
@@ -145,6 +149,9 @@ protected:
     // clips the segment [c, other] against the endpoint's bounding box
     // (plus margin), so connectors attach at the boundary of their target
     static vec2 attachPoint(const Endpoint& e, const vec2& other, scalar margin);
+
+    // bend, corrected for the screen's aspect ratio so the bulge looks the same in any direction
+    vec2 controlPoint(const vec2& a, const vec2& b) const;
 };
 
 }
