@@ -1,5 +1,6 @@
 #include "content/polyscope_primitives/CameraView.h"
 #include "extern/json.hpp"
+#include <stdexcept>
 
 slope::CameraViewPtr slope::CameraView::Add(const vec& f,const vec& t, const vec &up,bool flyTo)
 {
@@ -10,10 +11,8 @@ slope::CameraViewPtr slope::CameraView::Add(std::string file, bool flyTo)
 {
     file = formatCameraFilename(file);
     std::ifstream camfile(file);
-    if (!camfile.is_open()){
-        std::cerr << "invalid path " << file << std::endl;
-        throw ;
-    }
+    if (!camfile.is_open())
+        throw std::runtime_error("no camera view at \"" + file + "\"");
     std::string str((std::istreambuf_iterator<char>(camfile)),
                     std::istreambuf_iterator<char>());
     str = removeResolutionFromCamfile(str);
