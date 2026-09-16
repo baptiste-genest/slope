@@ -841,7 +841,8 @@ void slope::Slideshow::transformEditor()
         if (pt.guizmo == nullptr){
             auto T = pt.stored();
             if (!T) T = LastPlaneDrawn(pt.getLabel());
-            if (!T) continue;
+            // a scene object has no plane to note, so fall back to identity, its actual current pose
+            if (!T) T = Transform();
             // grabbing an unplaced plane freezes the billboard it was drawn as
             if (!pt.stored())
                 pt.writeAtLabel(*T);
