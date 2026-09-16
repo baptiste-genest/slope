@@ -61,6 +61,8 @@ const KeyDoc& deckTopLevelKeys();
 const KeyDoc& frameKeys();
 // settings read from the top-level "config:" map
 const KeyDoc& deckConfigKeys();
+// keys several scene items share, with what they take
+const KeyDoc& sceneKeys();
 // what an item type's own key takes, "tex formula" for "formula:"; "" if unknown
 std::string itemValueHint(const std::string& type);
 

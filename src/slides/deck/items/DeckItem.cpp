@@ -50,6 +50,20 @@ const KeyDoc& deckConfigKeys()
     return k;
 }
 
+const KeyDoc& sceneKeys()
+{
+    static const KeyDoc k = {
+        {"transform",  "name is either param or snippet"},
+        {"  pos",      "[x, y, z], or name"},
+        {"  scale",    "a number, or [x, y, z], or name"},
+        {"  axis",     "[x, y, z] or name, rotation axis, z by default"},
+        {"  angle",    "a number, or name, in degrees"},
+        {"color",      "[r, g, b], \"#rrggbb\", or name"},
+        {"normalize",  "scale and reduce mesh or cloud"},
+};
+    return k;
+}
+
 std::string itemValueHint(const std::string& type)
 {
     static const std::map<std::string, std::string> hints = {

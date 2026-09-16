@@ -260,6 +260,8 @@ slides:
             if (spec.type == "arrow")
                 keyRow("  inside arrow:", joined(arrowFields()), mono, px);
         }
+        if (kind == ItemSpec::Kind::Scene)
+            docRows(sceneKeys());
     }
 }
 
