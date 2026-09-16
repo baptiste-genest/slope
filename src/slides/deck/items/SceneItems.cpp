@@ -146,11 +146,14 @@ std::vector<ItemSpec> sceneItemSpecs()
         "cloud", ItemSpec::Kind::Scene, {"id","at","transform","alpha","radius","normalize","color","group"},
         [](const json& i) {
             return "cloud:" + i["cloud"].get<std::string>()
-                 + ":" + std::to_string(i.value("radius", -1.))
+                 + (i.contains("radius") ? ":radius=" + i["radius"].dump() : "")
                  + (i.value("normalize", false) ? ":norm" : "") + colorKey(i);
         },
         [](const json& i) -> PrimitivePtr {
-            auto c = PointCloud::Add(i["cloud"].get<std::string>(), i.value("radius", -1.));
+            // a name is read every frame, so tuning it never builds a second cloud
+            auto c = PointCloud::Add(i["cloud"].get<std::string>(),
+                                     i.contains("radius") ? readLiveScalar(i["radius"], "radius")
+                                                          : LiveScalar(-1));
             if (i.value("normalize", false))
                 c->normalize();
             applyColor(c, i);
