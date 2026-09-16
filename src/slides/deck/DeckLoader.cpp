@@ -239,6 +239,8 @@ void DeckLoader::hotReload(Slideshow& show)
 
     spdlog::info("{} changed, rebuilding slides...",
                  deck_changed ? "deck file" : (cams_changed ? "camera view" : "latex source"));
+    // a fixed formula's old, broken Latex primitive lingers forever in Primitive::primitives
+    const std::set<PrimitivePtr> previously_used = used_primitives;
     const bool ok = show.recompose(
         [this](SlideManager& sm) {
             try {
@@ -256,8 +258,20 @@ void DeckLoader::hotReload(Slideshow& show)
             source = last_good_source;
             build(sm);
         });
-    if (ok)
+    if (ok) {
         ReloadErrors::clear(source_path, "deck");
+        bool dropped_latex_error = false;
+        for (const auto& p : previously_used) {
+            if (used_primitives.count(p))
+                continue;
+            if (auto l = std::dynamic_pointer_cast<Latex>(p); l && !l->compile_error.empty()) {
+                l->compile_error.clear();
+                dropped_latex_error = true;
+            }
+        }
+        if (dropped_latex_error)
+            Latex::PublishErrors();
+    }
 
     LabelAnchor::takeFreshLabels();
 }
