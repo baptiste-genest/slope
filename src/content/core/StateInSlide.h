@@ -24,6 +24,8 @@ struct StateInSlide {
     scalar angle=0;
     scalar scale = 1;
     bool offseted = false;
+    // added after the placer, so it composes with any placement
+    vec2 shift = vec2::Zero();
 
     Transform LocalToWorld;
     // a screen primitive reads persistentTransform as the plane it is pasted on
@@ -75,7 +77,7 @@ struct StateInSlide {
 
 
     vec2 getPosition() const {
-        return placer(anchor->getPos());
+        return placer(anchor->getPos()) + shift;
     }
 
     scalar getScale() const {

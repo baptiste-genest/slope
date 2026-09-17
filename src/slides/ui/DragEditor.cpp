@@ -419,15 +419,17 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
             lab->writeScaleAtLabel(dir > 0 ? lab->getScale()*zoom : lab->getScale()/zoom, true);
     }
 
-    float cx = horizontal ? 0.5f : float(x + x_offset);
-    float cy = vertical   ? 0.5f : float(y + y_offset);
+    // an "offset:" item is drawn away from the label it drags
+    const float sx = float(pis.shift(0)), sy = float(pis.shift(1));
+    float cx = horizontal ? 0.5f - sx : float(x + x_offset);
+    float cy = vertical   ? 0.5f - sy : float(y + y_offset);
 
     auto drag_sp = std::static_pointer_cast<ScreenPrimitive>(selected_primitive);
     float dhw = drag_sp->getRelativeSize()(0) * float(pis.getScale()) * 0.5f;
     float dhh = drag_sp->getRelativeSize()(1) * float(pis.getScale()) * 0.5f;
     // guides line up what is drawn, which for a formula is not the anchor
-    float dcx = cx + float(drag_sp->getDrawOffset()(0) * pis.getScale()) / S.x;
-    float dcy = cy + float(drag_sp->getDrawOffset()(1) * pis.getScale()) / S.y;
+    float dcx = cx + sx + float(drag_sp->getDrawOffset()(0) * pis.getScale()) / S.x;
+    float dcy = cy + sy + float(drag_sp->getDrawOffset()(1) * pis.getScale()) / S.y;
     float d_ax[3] = { dcx - dhw, dcx, dcx + dhw };
     float d_ay[3] = { dcy - dhh, dcy, dcy + dhh };
 
@@ -477,5 +479,5 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
     lab->writePosAtLabel(cx, cy, true);
 
     float pulse = float((std::cos(TimeFrom(time_at_pick) * 5) + 1) * 0.5);
-    drawSelectionBox(selected_primitive, pis, S, cx, cy, pulse);
+    drawSelectionBox(selected_primitive, pis, S, cx + sx, cy + sy, pulse);
 }

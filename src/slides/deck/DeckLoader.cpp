@@ -878,6 +878,15 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
 
 // children of a "stack" are laid out by the stack (below one another),
 // so they are screen items without placement; "- step" works as usual, and
+// "offset: [x, y]" shifts an item from wherever it is placed, so two items
+// can share a label without overlapping
+static void applyShift(StateInSlide& sis, const json& item)
+{
+    if (!item.contains("offset"))
+        return;
+    sis.shift = readVec2(item["offset"], "offset");
+}
+
 // an item with an explicit "at" escapes the layout
 void DeckLoader::buildStackChildren(SlideManager& show, const Stack2DPtr& stack,
                                     const json& items)
@@ -1048,8 +1057,10 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         show << PlaceRelative(prim, other, rel.X, rel.Y, padding, padding);
         auto& slide = show.getLastSlide();
         auto placed = slide.find(std::static_pointer_cast<Primitive>(prim));
-        if (placed != slide.end())
+        if (placed != slide.end()) {
             applyStateOptions(placed->second, item);
+            applyShift(placed->second, item);
+        }
         markUsed(prim);
         return;
     }
@@ -1064,12 +1075,6 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                                      "point");
         pis = prim->at(resolveFollow(item["follow"].get<std::string>()));
         pis.second.alpha = alpha;
-        if (item.contains("offset")) {
-            const json& o = item["offset"];
-            if (!o.is_array() || o.size() != 2)
-                throw std::runtime_error("\"offset\" must be [x, y]");
-            pis.second.setOffset(vec2(o[0].get<scalar>(), o[1].get<scalar>()));
-        }
     }
     else if (item.contains("at") && item["at"].is_array())
         pis = prim->at(readVec2(item["at"], "at"), alpha);
@@ -1115,6 +1120,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         return;
     }
     applyStateOptions(pis.second, item);
+    applyShift(pis.second, item);
     show.addToLastSlide(pis);
     // a "set" re-places an item it does not own, so no group or box claims it
     if (keep_placement)

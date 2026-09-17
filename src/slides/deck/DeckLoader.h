@@ -213,6 +213,8 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *                            # flush to that screen edge/corner, size-aware,
  *                            # "config: margin" away
  *   below/above/right_of/left_of: other_item   (optional padding: p)
+ * Any of them takes "offset: [x, y]", a shift in screen units from that
+ * placement, so two items can share a label without overlapping.
  * When omitted, load/image items default to a label derived from their
  * key/filename, so everything is drag-editable out of the box.
  *
