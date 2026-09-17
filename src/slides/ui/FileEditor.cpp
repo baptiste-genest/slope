@@ -66,6 +66,50 @@ std::string shortName(const std::filesystem::path& p)
                           : (parent / p.filename()).string();
 }
 
+struct OutlineEntry {
+    std::string text;
+    int offset;   // start of its line in the buffer
+    int frame;    // its index among the frames, -1 for a top-level key
+};
+
+// top-level keys, and each frame named by its first title
+std::vector<OutlineEntry> deckOutline(const std::string& buf)
+{
+    std::vector<OutlineEntry> out;
+    int frames = 0;
+    int untitled = -1;   // the last frame, until its title is seen
+    for (size_t b = 0; b <= buf.size();) {
+        size_t e = buf.find('\n', b);
+        if (e == std::string::npos)
+            e = buf.size();
+        std::string_view line(buf.data() + b, e - b);
+        const size_t n = line.find_first_not_of(" \t\r");
+        if (n != std::string_view::npos) {
+            std::string_view rest = line.substr(n);
+            while (!rest.empty() && (rest.back() == '\r' || rest.back() == ' '))
+                rest.remove_suffix(1);
+            if (n == 0 && rest[0] != '#' && rest[0] != '-' && rest.find(':') != std::string_view::npos) {
+                out.push_back({std::string(rest.substr(0, rest.find(':'))), int(b), -1});
+                untitled = -1;
+            } else if (rest.starts_with("- frame:")) {
+                ++frames;
+                out.push_back({std::to_string(frames) + "  (untitled)", int(b), frames - 1});
+                untitled = int(out.size()) - 1;
+            } else if (untitled >= 0 && rest.starts_with("- title:")) {
+                std::string_view t = rest.substr(8);
+                t.remove_prefix(std::min(t.find_first_not_of(' '), t.size()));
+                if (t.size() >= 2 && (t.front() == '"' || t.front() == '\'') && t.back() == t.front())
+                    t = t.substr(1, t.size() - 2);
+                if (!t.empty())
+                    out[untitled].text = std::to_string(frames) + "  " + std::string(t);
+                untitled = -1;
+            }
+        }
+        b = e + 1;
+    }
+    return out;
+}
+
 } // namespace
 
 void FileEditor::registerExtra(const std::filesystem::path& p)
@@ -142,6 +186,8 @@ void FileEditor::loadFromDisk()
     indent_pending = false;
     pending_insert.clear();
     comment_pending = false;
+    jump_to = -1;
+    scroll_line = -1;
     hl_hash = 0;
     runs.clear();
     if (current.empty())
@@ -546,6 +592,14 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
             self->comment_pending = false;
             self->toggleComment(data);
         }
+        if (self->jump_to >= 0) {
+            data->CursorPos = data->SelectionStart = data->SelectionEnd = std::min(self->jump_to, data->BufTextLen);
+            int line = 0;
+            for (int i = 0; i < data->CursorPos; ++i)
+                line += data->Buf[i] == '\n';
+            self->scroll_line = line;
+            self->jump_to = -1;
+        }
         if (self->tab_pending) {
             self->tab_pending = false;
             self->indentSelection(data, false);
@@ -611,8 +665,11 @@ void FileEditor::draw(WindowManager& wm)
     const bool has_tips = !current.empty() && WritingTips::available(current);
     const auto errors = ReloadErrors::all();
 
-    // ── left: the file list ────────────────────────────────────────────────
-    ImGui::BeginChild("list", ImVec2(260, 0), ImGuiChildFlags_Borders);
+    // ── left: the file list, and the open deck's outline below it ──────────
+    const auto outline = !current.empty() && isYaml() ? deckOutline(buffer) : std::vector<OutlineEntry>{};
+    ImGui::BeginChild("left", ImVec2(260, 0));
+    ImGui::BeginChild("list", ImVec2(0, outline.empty() ? 0 : ImGui::GetContentRegionAvail().y * 0.4f),
+                      ImGuiChildFlags_Borders);
     if (files.empty())
         ImGui::TextDisabled("nothing watched yet");
     for (const auto& p : files) {
@@ -628,6 +685,26 @@ void FileEditor::draw(WindowManager& wm)
             ImGui::PopStyleColor();
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", p.string().c_str());
+    }
+    ImGui::EndChild();
+    if (!outline.empty()) {
+        ImGui::BeginChild("outline", ImVec2(0, 0), ImGuiChildFlags_Borders);
+        ImGui::TextDisabled("outline");
+        for (int i = 0; i < int(outline.size()); ++i) {
+            const auto& o = outline[i];
+            ImGui::PushID(i);
+            if (o.frame >= 0)
+                ImGui::Indent();
+            if (ImGui::Selectable(o.text.c_str())) {
+                jump_to = o.offset;
+                if (o.frame >= 0 && onFrameJump)
+                    onFrameJump(current, o.frame);
+            }
+            if (o.frame >= 0)
+                ImGui::Unindent();
+            ImGui::PopID();
+        }
+        ImGui::EndChild();
     }
     ImGui::EndChild();
 
@@ -773,6 +850,9 @@ void FileEditor::draw(WindowManager& wm)
         ImGui::PushStyleColor(ImGuiCol_Text,           IM_COL32(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(0x44, 0x47, 0x5A, 255));
 
+        // the field takes the cursor from the callback, which only runs while it is active
+        if (jump_to >= 0 && ImGui::GetActiveID() != body_id)
+            ImGui::SetKeyboardFocusHere();
         if (ImGui::InputTextMultiline("##body", buffer.data(), buffer.size() + 1,
                                       avail,
                                       ImGuiInputTextFlags_AllowTabInput
@@ -794,6 +874,10 @@ void FileEditor::draw(WindowManager& wm)
                            edit_win->Name, body_id);
             ImGuiWindow* body_win = ImGui::FindWindowByName(child_name);
             ImVec2 scroll = body_win ? body_win->Scroll : ImVec2(0.f, 0.f);
+            if (scroll_line >= 0 && body_win) {
+                ImGui::SetScrollY(body_win, float(scroll_line) * ImGui::GetFontSize());
+                scroll_line = -1;
+            }
             // the state outlives the field's focus, and may describe another file
             const bool active = ImGui::GetActiveID() == body_id;
             ImGuiInputTextState* st = active ? ImGui::GetInputTextState(body_id) : nullptr;

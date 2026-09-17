@@ -8,6 +8,7 @@
 #include <vector>
 #include <set>
 #include <filesystem>
+#include <functional>
 
 struct ImFont;
 struct ImGuiInputTextCallbackData;
@@ -38,6 +39,9 @@ public:
     const std::filesystem::path& currentFile() const { return current; }
     // shows p, asking first when the open file has edits
     void open(const std::filesystem::path& p) { requestOpen(p); }
+
+    // an outline frame was clicked, its 0-based index in that file
+    std::function<void(const std::filesystem::path& file, int frame)> onFrameJump;
 
 private:
     enum class Pending { None, Switch, Reload, Overwrite };
@@ -73,6 +77,8 @@ private:
     bool                               comment_pending = false; // Ctrl+/ was pressed, applied at the next callback
     bool                               tab_pending = false;      // Tab was pressed, indent at the next callback
     bool                               shift_tab_pending = false; // Shift+Tab, dedent at the next callback
+    int                                jump_to = -1;          // outline click, cursor offset set at the next callback
+    int                                scroll_line = -1;      // the line that jump puts at the top
     bool                               enter_raw = false;      // Enter pressed this frame in the active field
     bool                               enter_handled = false;  // and ImGui turned it into a newline itself
     int                                logged_mods = -1;       // modifiers of the last Enter inserted by hand

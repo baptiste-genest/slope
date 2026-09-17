@@ -490,6 +490,7 @@ void DeckLoader::build(SlideManager& show)
     bool template_built = false;
 
     bool first = true;
+    std::vector<int> frame_starts;
     for (const auto& frame : source["slides"]) {
         const json* items = nullptr;
         bool same_title = false;
@@ -507,6 +508,7 @@ void DeckLoader::build(SlideManager& show)
         if (!first)
             show << (same_title ? newFrameSameTitle : newFrame);
         first = false;
+        frame_starts.push_back(std::max(0, show.getNumberSlides() - 1));
         step_primitives.clear();
         if (tmpl && !no_template) {
             if (!template_built) {
@@ -527,6 +529,7 @@ void DeckLoader::build(SlideManager& show)
     }
     if (show.getNumberSlides() == 0)
         show.addSlide(Slide());
+    show.setFrameStarts(source_path, std::move(frame_starts));
     // an id is a name too, and a suggestion clashing with one is unusable
     std::set<std::string> taken;
     for (const auto& [n, prim] : named)

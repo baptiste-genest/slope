@@ -19,6 +19,8 @@ using PlacementTemplate = std::function<void(SlideManager&,ScreenPrimitivePtr)>;
 
 class SlideManager {
 protected:
+    path frame_deck;
+    std::vector<int> frame_starts;
 
     std::vector<Slide> slides;
     bool initialized = false;
@@ -99,6 +101,14 @@ public:
     void markKeyframe(const std::string& name);
     const std::map<std::string, int>& getKeyframes() const {return keyframes;}
     void clearKeyframes() {keyframes.clear();}
+
+    // the first slide of each frame of the deck file that built this show
+    void setFrameStarts(const path& deck, std::vector<int> starts) {
+        frame_deck = deck;
+        frame_starts = std::move(starts);
+    }
+    const path& getFrameDeck() const {return frame_deck;}
+    const std::vector<int>& getFrameStarts() const {return frame_starts;}
 
     Slide& getLastSlide();
 

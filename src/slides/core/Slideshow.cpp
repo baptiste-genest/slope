@@ -357,6 +357,14 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
     addKeyboardInputs();
     input_manager.printInputs();
 
+    file_editor.onFrameJump = [this](const path& file, int frame) {
+        std::error_code a, b;
+        if (std::filesystem::weakly_canonical(file, a) != std::filesystem::weakly_canonical(getFrameDeck(), b))
+            return;
+        if (frame < (int)getFrameStarts().size())
+            goToSlide(getFrameStarts()[frame]);
+    };
+
 
     polyscope::options::allowHeadlessBackends = slope::Options::ExportMode;
     polyscope::view::windowWidth  = (int)Options::ScreenResolutionWidth;
