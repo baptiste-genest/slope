@@ -414,6 +414,63 @@ void FileEditor::toggleComment(ImGuiInputTextCallbackData* d) const
     }
 }
 
+// like toggleComment, but widens/narrows the indent instead of a comment marker
+void FileEditor::indentSelection(ImGuiInputTextCallbackData* d, bool dedent) const
+{
+    constexpr int width = 2;   // spaces per indent level, matches yaml's own
+
+    if (d->SelectionStart == d->SelectionEnd) {
+        if (dedent)
+            return;   // nothing sensible to remove without a selection
+        const std::string ins(width, ' ');
+        const int at = d->CursorPos;
+        d->InsertChars(at, ins.c_str());
+        d->CursorPos = d->SelectionStart = d->SelectionEnd = at + int(ins.size());
+        return;
+    }
+
+    int a = std::min(d->SelectionStart, d->SelectionEnd);
+    int b = std::max(d->SelectionStart, d->SelectionEnd);
+    if (b > a && d->Buf[b - 1] == '\n')
+        --b;
+
+    auto lineStart = [&](int p) { while (p > 0 && d->Buf[p - 1] != '\n') --p; return p; };
+    auto lineEnd = [&](int p) { while (p < d->BufTextLen && d->Buf[p] != '\n') ++p; return p; };
+
+    std::vector<int> starts;
+    for (int s = lineStart(a);;) {
+        starts.push_back(s);
+        const int e = lineEnd(s);
+        if (e >= b || e >= d->BufTextLen)
+            break;
+        s = e + 1;
+    }
+
+    const int first = starts.front();
+    const int last_end = lineEnd(starts.back());
+    int delta = 0;
+    // bottom up, so the lines still to edit keep their offsets
+    for (auto it = starts.rbegin(); it != starts.rend(); ++it) {
+        const int s = *it;
+        if (dedent) {
+            int n = 0;
+            while (n < width && s + n < d->BufTextLen
+                   && (d->Buf[s + n] == ' ' || d->Buf[s + n] == '\t'))
+                ++n;
+            if (n == 0)
+                continue;
+            d->DeleteChars(s, n);
+            delta -= n;
+        } else {
+            const std::string ins(width, ' ');
+            d->InsertChars(s, ins.c_str());
+            delta += int(ins.size());
+        }
+    }
+    d->SelectionStart = first;
+    d->SelectionEnd = d->CursorPos = last_end + delta;
+}
+
 // a shader gets the smallest body that compiles, so creating it is not an error
 bool FileEditor::createFile()
 {
@@ -459,8 +516,9 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
             self->indent_pending = true;
             self->enter_handled = true;
         }
-        else if (data->EventChar == '\t' && self->isYaml()) {
-            self->pending_insert = "  ";   // a tab is not yaml indentation
+        else if (data->EventChar == '\t') {
+            // never insert a literal tab; indentSelection adds spaces below
+            self->tab_pending = true;
             return 1;
         }
         break;
@@ -487,6 +545,14 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
         if (self->comment_pending) {
             self->comment_pending = false;
             self->toggleComment(data);
+        }
+        if (self->tab_pending) {
+            self->tab_pending = false;
+            self->indentSelection(data, false);
+        }
+        if (self->shift_tab_pending) {
+            self->shift_tab_pending = false;
+            self->indentSelection(data, true);
         }
         if (self->indent_pending) {
             self->indent_pending = false;
@@ -588,6 +654,11 @@ void FileEditor::draw(WindowManager& wm)
     if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl
         && (ImGui::IsKeyPressed(ImGuiKey_Slash, false) || ImGui::IsKeyPressed(ImGuiKey_Period, false)))
         comment_pending = true;
+
+    // this ImGui build's AllowTabInput only implements plain Tab, so dedent is caught here
+    if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyShift
+        && ImGui::IsKeyPressed(ImGuiKey_Tab, false))
+        shift_tab_pending = true;
 
     // N types a letter here, so Ctrl+N puts the free label in at the cursor
     if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl

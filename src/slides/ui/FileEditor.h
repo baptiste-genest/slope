@@ -55,6 +55,8 @@ private:
     bool isYaml() const;
     std::string commentMarker() const;   // "" when the language has no line comment
     void toggleComment(ImGuiInputTextCallbackData* data) const;
+    // Tab indents, Shift+Tab dedents; a selection applies to every line it touches
+    void indentSelection(ImGuiInputTextCallbackData* data, bool dedent) const;
     bool createFile();
     static const CodeStyle& editorStyle();
 
@@ -69,6 +71,8 @@ private:
     bool                               indent_pending = false; // Enter was typed, indent at the next callback
     std::string                        pending_insert;        // what a filtered key stands for, spaces for a yaml tab
     bool                               comment_pending = false; // Ctrl+/ was pressed, applied at the next callback
+    bool                               tab_pending = false;      // Tab was pressed, indent at the next callback
+    bool                               shift_tab_pending = false; // Shift+Tab, dedent at the next callback
     bool                               enter_raw = false;      // Enter pressed this frame in the active field
     bool                               enter_handled = false;  // and ImGui turned it into a newline itself
     int                                logged_mods = -1;       // modifiers of the last Enter inserted by hand
