@@ -1,6 +1,7 @@
 #include "slides/ui/DragEditor.h"
 #include "content/screen_primitives/layout/Anchor.h"
 #include <spdlog/spdlog.h>
+#include <set>
 
 std::vector<slope::PrimitivePtr> slope::DragEditor::getPrimitivesUnderMouse(Slide& s, scalar x, scalar y) const
 {
@@ -437,8 +438,23 @@ void slope::DragEditor::handle(Slide& cs, WindowManager& wm)
     float snap_dx = snap_thr, snap_dy = snap_thr;
     float guide_x = -1.f, guide_y = -1.f;
 
-    for (auto& [pptr, sis] : cs.getScreenPrimitives()) {
-        if (pptr == drag_sp) continue;
+    // what moves with the dragged item would snap it to itself, a feedback loop
+    std::set<std::string> moving_labels = {lab->getLabel()};
+    std::set<AnchorPtr> moving_anchors = {drag_sp->getAnchor()};
+    const auto screen = cs.getScreenPrimitives();
+    auto moves = [&](const StateInSlide& sis) {
+        auto l = std::dynamic_pointer_cast<LabelAnchor>(sis.anchor);
+        return moving_anchors.count(sis.anchor) || (l && moving_labels.count(l->getLabel()));
+    };
+    for (bool grew = true; grew;) {
+        grew = false;
+        for (auto& [pptr, sis] : screen)
+            if (moves(sis) && moving_anchors.insert(pptr->getAnchor()).second)
+                grew = true;
+    }
+
+    for (auto& [pptr, sis] : screen) {
+        if (pptr == drag_sp || moves(sis)) continue;
         auto op = sis.getPosition();
         float ohw = pptr->getRelativeSize()(0) * float(sis.getScale()) * 0.5f;
         float ohh = pptr->getRelativeSize()(1) * float(sis.getScale()) * 0.5f;
