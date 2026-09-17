@@ -230,7 +230,12 @@ void slope::Slideshow::renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T)
 
 void slope::Slideshow::noteSlideArrival()
 {
-    slide_times.emplace(state.current, TimeFrom(from_begin));
+    const TimeTypeSec now = TimeFrom(from_begin);
+    // a jump skips the slides before it, so back-fill them as settled
+    constexpr TimeTypeSec settle_time = 10;
+    for (int k = 0; k < (int)state.current; k++)
+        slide_times.emplace(k, now - settle_time);
+    slide_times.emplace(state.current, now);
     // anything past the current slide has been left, so a second visit is a
     // fresh arrival rather than the original one
     slide_times.erase(slide_times.upper_bound(state.current), slide_times.end());
