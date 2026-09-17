@@ -3,6 +3,7 @@
 
 #include "content/screen_primitives/ScreenPrimitive.h"
 #include "content/authoring/color_tools.h"
+#include <optional>
 
 namespace slope {
 
@@ -69,9 +70,15 @@ class Box2D : public ScreenPrimitive
 {
 public:
     ShapeStyle style;
-    // gap kept around the targets, relative units, per axis
+    // default gap kept around the targets, relative units, per axis; used on
+    // any side whose per-side override below is left unset
     vec2 padding = vec2(0.02, 0.02);
     void setPadding(scalar p) { padding = vec2(p, p); }
+
+    // per-side overrides of padding; nullopt falls back to padding.x (left,
+    // right) or padding.y (top, bottom)
+    std::optional<scalar> pad_left, pad_right, pad_top, pad_bot;
+
     std::vector<ScreenPrimitivePtr> targets;
 
     // until a fill color is chosen, a filled box is painted in the current

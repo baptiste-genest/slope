@@ -207,8 +207,10 @@ bool Box2D::bounds(vec2& lo, vec2& hi) const
     }
     if (first)
         return false;
-    lo -= padding;
-    hi += padding;
+    lo(0) -= pad_left.value_or(padding(0));
+    lo(1) -= pad_top.value_or(padding(1));
+    hi(0) += pad_right.value_or(padding(0));
+    hi(1) += pad_bot.value_or(padding(1));
     return true;
 }
 

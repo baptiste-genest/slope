@@ -1338,6 +1338,14 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             prim->padding(0) = item["padx"].get<scalar>();
         if (item.contains("pady"))
             prim->padding(1) = item["pady"].get<scalar>();
+        prim->pad_left = item.contains("pad_left")
+            ? std::optional<scalar>(item["pad_left"].get<scalar>()) : std::nullopt;
+        prim->pad_right = item.contains("pad_right")
+            ? std::optional<scalar>(item["pad_right"].get<scalar>()) : std::nullopt;
+        prim->pad_top = item.contains("pad_top")
+            ? std::optional<scalar>(item["pad_top"].get<scalar>()) : std::nullopt;
+        prim->pad_bot = item.contains("pad_bot")
+            ? std::optional<scalar>(item["pad_bot"].get<scalar>()) : std::nullopt;
         prim->style.thickness = item.value("thickness", 3.);
         prim->style.filled = item.value("filled", false);
         if (item.contains("color"))

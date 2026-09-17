@@ -122,7 +122,10 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *           - latex: framed content      # following them live; optional
  *           - image: fig.png             # padding, color, thickness,
  *         padding: 0.02                  # filled, fill_color, id, alpha;
- *         padx: 0.05                     # padx/pady override one axis
+ *         padx: 0.05                     # padx/pady override one axis,
+ *         pad_left: 0.05                 # pad_left/right/top/bot override
+ *         pad_top: 0.03                  # one side; padding stays the
+ *                                        # default for any side left unset
  *       - stack:                         # children laid out below one
  *           - latex: first paragraph     # another, block centered on the
  *           - step                       # handle; layout reserves space
