@@ -40,6 +40,8 @@ public:
     AnchorPtr getAnchor() const;
 
     void updateAnchor(const vec2& p);
+    // position, scale and angle, so a primitive not drawn yet still measures right
+    void syncToState(const StateInSlide& sis);
 
 
     ScreenPrimitiveInSlide at(const vec2& p,scalar alpha=1);

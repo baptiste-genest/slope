@@ -15,23 +15,17 @@ bool slope::ScreenPrimitive::isScreenSpace() const {
 }
 
 void slope::ScreenPrimitive::play(const TimeObject &t, const StateInSlide &sis) {
-    anchor->updatePos(sis.getPosition());
-    drawn_scale = sis.getScale();
-    drawn_angle = sis.getAngle();
+    syncToState(sis);
     Primitive::play(t,sis);
 }
 
 void slope::ScreenPrimitive::intro(const TimeObject &t, const StateInSlide &sis) {
-    anchor->updatePos(sis.getPosition());
-    drawn_scale = sis.getScale();
-    drawn_angle = sis.getAngle();
+    syncToState(sis);
     Primitive::intro(t,sis);
 }
 
 void slope::ScreenPrimitive::outro(const TimeObject &t, const StateInSlide &sis) {
-    anchor->updatePos(sis.getPosition());
-    drawn_scale = sis.getScale();
-    drawn_angle = sis.getAngle();
+    syncToState(sis);
     Primitive::outro(t,sis);
 }
 
@@ -39,6 +33,12 @@ slope::AnchorPtr slope::ScreenPrimitive::getAnchor() const {return anchor;}
 
 void slope::ScreenPrimitive::updateAnchor(const vec2 &p){
     anchor->updatePos(p);
+}
+
+void slope::ScreenPrimitive::syncToState(const StateInSlide &sis){
+    anchor->updatePos(sis.getPosition());
+    drawn_scale = sis.getScale();
+    drawn_angle = sis.getAngle();
 }
 
 slope::ScreenPrimitiveInSlide slope::ScreenPrimitive::at(const vec2 &p, scalar alpha) {

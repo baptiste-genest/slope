@@ -71,7 +71,7 @@ void slope::SlideManager::computeFirstSlideNumbers()
             p.first->upFirstSlideNumber(i);
             if (p.first->isScreenSpace() && seen.insert(p.first).second)
                 std::static_pointer_cast<ScreenPrimitive>(p.first)
-                    ->updateAnchor(p.second.getPosition());
+                    ->syncToState(p.second);
         }
         i++;
     }
