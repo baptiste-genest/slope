@@ -79,7 +79,8 @@ public:
 
     void addToLastSlide(const PrimitiveInSlide& pis);
 
-    void addToLastSlide(PrimitivePtr ptr,const StateInSlide& sis);
+    // forced_order pins the re-added primitive's depth tie-break rank
+    void addToLastSlide(PrimitivePtr ptr,const StateInSlide& sis,int forced_order = -1);
 
 
     void removeFromCurrentSlide(PrimitivePtr ptr);

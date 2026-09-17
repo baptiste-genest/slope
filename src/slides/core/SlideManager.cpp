@@ -117,7 +117,7 @@ void slope::SlideManager::addToLastSlide(const PrimitiveInSlide &pis) {
     addToLastSlide(pis.first,pis.second);
 }
 
-void slope::SlideManager::addToLastSlide(PrimitivePtr ptr, const StateInSlide &sis) {
+void slope::SlideManager::addToLastSlide(PrimitivePtr ptr, const StateInSlide &sis, int forced_order) {
     initialized = false;
     if (slides.empty())
         slides.push_back(Slide());
@@ -131,7 +131,7 @@ void slope::SlideManager::addToLastSlide(PrimitivePtr ptr, const StateInSlide &s
         }
     }
     last_primitive_inserted = ptr;
-    slides.back().add(ptr,sis);
+    slides.back().add(ptr,sis,forced_order);
 }
 
 void slope::SlideManager::removeFromCurrentSlide(PrimitivePtr ptr) {
@@ -228,8 +228,10 @@ slope::SlideManager &slope::operator<<(SlideManager &SM, const Replace &R) {
         throw std::runtime_error("Replace: target primitive is not on the current slide");
     }
     auto pos = it->second;
+    int order = slide.orderOf(target);
+    R.ptr->setDepth(target->getDepth());
     SM.removeFromCurrentSlide(target);
-    SM.addToLastSlide(R.ptr,pos);
+    SM.addToLastSlide(R.ptr,pos,order);
     return SM;
 }
 

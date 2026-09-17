@@ -23,6 +23,9 @@ struct Slide : public std::map<PrimitivePtr,StateInSlide> {
     void add(PrimitivePtr p,const StateInSlide& sis = {});
     void add(PrimitivePtr p,const vec2& pos);
 
+    // as add(), but forced_order overrides the fresh insertion rank
+    void add(PrimitivePtr p,const StateInSlide& sis,int forced_order);
+
     // draw order, by depth then by insertion, so the first added is behind
     std::vector<PrimitiveInSlide> getDepthSorted();
 

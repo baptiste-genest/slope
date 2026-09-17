@@ -1,6 +1,10 @@
 #include "slides/core/Slide.h"
 
 void slope::Slide::add(PrimitivePtr p, const StateInSlide &sis){
+    add(p,sis,-1);
+}
+
+void slope::Slide::add(PrimitivePtr p, const StateInSlide &sis, int forced_order){
     if (p->isScreenSpace())
         if (p->isExclusive()){
             if (title_primitive != nullptr){
@@ -11,7 +15,7 @@ void slope::Slide::add(PrimitivePtr p, const StateInSlide &sis){
         }
     bool already_present = this->contains(p);
     if (!already_present)
-        insertion_order[p] = insertion_counter++;
+        insertion_order[p] = forced_order >= 0 ? forced_order : insertion_counter++;
     StateInSlide old_sis;
     if (already_present)
         old_sis = (*this)[p];
