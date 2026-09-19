@@ -399,7 +399,7 @@ slides: [{frame: [{stack: [card]}]}]
 
     expectError(R"(
 slides: [{frame: [nothing_declared]}]
-)", "unknown group \"nothing_declared\"", __LINE__);
+)", "unknown group or item id \"nothing_declared\"", __LINE__);
 
     fs::remove_all(dir);
     if (failures == 0)
