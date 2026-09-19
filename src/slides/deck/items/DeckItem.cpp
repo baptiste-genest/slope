@@ -7,7 +7,7 @@ namespace slope {
 const std::set<std::string>& placementFields()
 {
     static const std::set<std::string> f =
-        {"id","at","on","two_sided","follow","offset","alpha","rot","zoom",
+        {"id","at","on","two_sided","follow","offset","alpha","rot","zoom","depth",
          "below","above","right_of","left_of","padding","group"};
     return f;
 }

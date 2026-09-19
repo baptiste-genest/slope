@@ -34,8 +34,9 @@ static std::pair<ImVec2, ImVec2> strokePolylinePrefix(
         if (closed && n > 2 && px.front().x == px.back().x
                             && px.front().y == px.back().y)
             n--;
-        dl->AddPolyline(px.data(), n, col,
-                        closed ? ImDrawFlags_Closed : ImDrawFlags_None, th);
+        if (th > 0)
+            dl->AddPolyline(px.data(), n, col,
+                            closed ? ImDrawFlags_Closed : ImDrawFlags_None, th);
         ImVec2 tip = px.back();
         ImVec2 prev = px[px.size() - 2];
         return {tip, ImVec2(tip.x - prev.x, tip.y - prev.y)};
@@ -62,7 +63,7 @@ static std::pair<ImVec2, ImVec2> strokePolylinePrefix(
                                 px[i-1].y + u * (px[i].y - px[i-1].y)));
         break;
     }
-    if (prefix.size() >= 2)
+    if (prefix.size() >= 2 && th > 0)
         dl->AddPolyline(prefix.data(), prefix.size(), col, ImDrawFlags_None, th);
 
     ImVec2 tip = prefix.back();
@@ -225,11 +226,12 @@ void Box2D::drawBox(parameter t, float alpha)
         ImVec2(lo(0)*W.x, lo(1)*W.y), ImVec2(hi(0)*W.x, lo(1)*W.y),
         ImVec2(hi(0)*W.x, hi(1)*W.y), ImVec2(lo(0)*W.x, hi(1)*W.y),
         ImVec2(lo(0)*W.x, lo(1)*W.y)};
-    if (style.filled && t >= 1) {
+    if (style.filled) {
+        float fill_alpha = alpha * std::min<float>(1.f, t); // fades in with the intro
         ImU32 fill = use_background_fill
             ? withAlpha(RGBA(polyscope::view::bgColor[0], polyscope::view::bgColor[1],
-                             polyscope::view::bgColor[2], 1.f), alpha)
-            : withAlpha(style.fill_color, alpha);
+                             polyscope::view::bgColor[2], 1.f), fill_alpha)
+            : withAlpha(style.fill_color, fill_alpha);
         ImGui::GetWindowDrawList()->AddConvexPolyFilled(px.data(), 4, fill);
     }
     strokePolylinePrefix(px, t, withAlpha(style.color, alpha),

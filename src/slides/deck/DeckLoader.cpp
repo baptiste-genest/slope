@@ -874,6 +874,8 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
         spec->configure(prim, item, name);
 
     auto sp = std::static_pointer_cast<ScreenPrimitive>(prim);
+    if (item.contains("depth"))
+        sp->setDepth(item["depth"].get<int>());
     if (name != "")
         named[name] = sp;
     return {sp, name};
@@ -1185,6 +1187,8 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
     else if (item.contains("set")) {
         // re-places or restyles an already defined item, without redefining it
         auto prim = resolveScreen(item["set"]);
+        if (item.contains("depth"))
+            prim->setDepth(item["depth"].get<int>());
         placeScreenItem(show, prim, item, "", true);
     }
     else if (item.contains("replace")) {
@@ -1313,6 +1317,8 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             prim->style.color = readColor(spec["color"], glm::vec4(0.f, 0.f, 0.f, 1.f));
         if (!id.empty())
             named[id] = prim;
+        if (item.contains("depth"))
+            prim->setDepth(item["depth"].get<int>());
         StateInSlide sis;
         sis.alpha = item.value("alpha", 1.);
         show.addToLastSlide({prim, sis});

@@ -154,6 +154,9 @@ using ShaderPtr = std::shared_ptr<Shader>;
  *         rot: 20                        # the slide state so they animate
  *         zoom: 1.5                      # between steps. zoom multiplies the
  *                                        # wheel-set anchor scale
+ *       - latex: in front                # depth (integer, 0 by default) sets
+ *         depth: 5                       # the draw order, higher is in front,
+ *                                        # ties follow the order in the yaml
  *       - remove: [key_in_latex_json, registered_name, groupA]
  *       - replace: fig
  *         with: {image: other.png}
