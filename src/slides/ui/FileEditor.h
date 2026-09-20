@@ -40,8 +40,14 @@ public:
     // shows p, asking first when the open file has edits
     void open(const std::filesystem::path& p) { requestOpen(p); }
 
+    // puts the caret on the frame the show sits on, for when the window opens
+    void jumpToCurrentFrame();
+
     // an outline frame was clicked, its 0-based index in that file
     std::function<void(const std::filesystem::path& file, int frame)> onFrameJump;
+
+    // which frame of that file the show sits on, -1 when it is another deck
+    std::function<int(const std::filesystem::path& file)> currentFrameOf;
 
 private:
     enum class Pending { None, Switch, Reload, Overwrite };

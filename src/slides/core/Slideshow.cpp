@@ -365,6 +365,18 @@ void slope::Slideshow::init(std::string project_name,int argc,char** argv)
             goToSlide(getFrameStarts()[frame]);
     };
 
+    file_editor.currentFrameOf = [this](const path& file) {
+        std::error_code a, b;
+        if (std::filesystem::weakly_canonical(file, a) != std::filesystem::weakly_canonical(getFrameDeck(), b))
+            return -1;
+        // the last frame that started at or before the slide on screen
+        int frame = -1;
+        for (int i = 0; i < (int)getFrameStarts().size(); ++i)
+            if (getFrameStarts()[i] <= (int)state.current)
+                frame = i;
+        return frame;
+    };
+
 
     polyscope::options::allowHeadlessBackends = slope::Options::ExportMode;
     polyscope::view::windowWidth  = (int)Options::ScreenResolutionWidth;
@@ -969,7 +981,11 @@ void slope::Slideshow::addKeyboardInputs()
     input_manager.addInput("show polyscope GUI","D",ImGuiKey_D,
         [this](){wm.Toggle(WindowType::PolyscopeGUI);},true);
     input_manager.addInput("edit hot-reloaded files","E",ImGuiKey_E,
-        [this](){wm.Toggle(WindowType::FileEditor);},true);
+        [this](){
+            // Toggle says whether it just opened, which is when the caret moves
+            if (wm.Toggle(WindowType::FileEditor))
+                file_editor.jumpToCurrentFrame();
+        },true);
     input_manager.addInput("reset timings","R",ImGuiKey_R,
         [this](){ time_tracker.reset(); },true);
     input_manager.addInput("pause/resume the rehearsal timer","space",ImGuiKey_Space,

@@ -174,6 +174,7 @@ void FileEditor::openFile(const std::filesystem::path& p)
 {
     current = p;
     loadFromDisk();
+    jumpToCurrentFrame();
 }
 
 void FileEditor::loadFromDisk()
@@ -628,6 +629,25 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
         break;
     }
     return 0;
+}
+
+// only scrolls, where the outline click also takes the caret : focusing the
+// field here would feed the next E to the text instead of closing the window
+void FileEditor::jumpToCurrentFrame()
+{
+    if (current.empty() || !isYaml() || !currentFrameOf)
+        return;
+    const int frame = currentFrameOf(current);
+    if (frame < 0)
+        return;
+    for (const auto& o : deckOutline(buffer))
+        if (o.frame == frame) {
+            int line = 0;
+            for (int i = 0; i < o.offset && i < int(buffer.size()); ++i)
+                line += buffer[i] == '\n';
+            scroll_line = line;
+            return;
+        }
 }
 
 void FileEditor::draw(WindowManager& wm)
