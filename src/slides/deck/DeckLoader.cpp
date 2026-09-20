@@ -261,6 +261,7 @@ void DeckLoader::hotReload(Slideshow& show)
     if (ok) {
         ReloadErrors::clear(source_path, "deck");
         bool dropped_latex_error = false;
+        std::set<PrimitivePtr> dropped_polyscope;
         for (const auto& p : previously_used) {
             if (used_primitives.count(p))
                 continue;
@@ -268,7 +269,12 @@ void DeckLoader::hotReload(Slideshow& show)
                 l->compile_error.clear();
                 dropped_latex_error = true;
             }
+            if (auto poly = std::dynamic_pointer_cast<PolyscopePrimitive>(p)) {
+                poly->unregisterFromPolyscope();
+                dropped_polyscope.insert(p);
+            }
         }
+        forgetPrimitives(dropped_polyscope);
         if (dropped_latex_error)
             Latex::PublishErrors();
     }
@@ -284,6 +290,24 @@ PrimitivePtr DeckLoader::cached(const std::string& key, const std::function<Prim
     auto ptr = create();
     primitive_cache[key] = ptr;
     return ptr;
+}
+
+// every cache that outlives a build has to let go, or the next one hands back a
+// primitive whose polyscope structure was taken off
+void DeckLoader::forgetPrimitives(const std::set<PrimitivePtr>& gone)
+{
+    if (gone.empty())
+        return;
+    for (auto it = primitive_cache.begin(); it != primitive_cache.end(); )
+        it = gone.count(it->second) ? primitive_cache.erase(it) : std::next(it);
+    for (auto it = instantiated_objects.begin(); it != instantiated_objects.end(); )
+        it = gone.count(it->second.first) ? instantiated_objects.erase(it) : std::next(it);
+    for (auto it = instantiated_groups.begin(); it != instantiated_groups.end(); ) {
+        bool holds_one = false;
+        for (const auto& [ptr, sis] : it->second.buffer)
+            holds_one = holds_one || gone.count(ptr);
+        it = holds_one ? instantiated_groups.erase(it) : std::next(it);
+    }
 }
 
 // an "id:" names a primitive like a C++ variable, so the rank identifies the rest

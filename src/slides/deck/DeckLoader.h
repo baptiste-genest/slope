@@ -461,6 +461,9 @@ private:
 
     PrimitivePtr cached(const std::string& key, const std::function<PrimitivePtr()>& create);
 
+    // drops primitives a rebuild stopped using from every cache holding them
+    void forgetPrimitives(const std::set<PrimitivePtr>& gone);
+
     // every item goes through this, which is where identity is decided
     PrimitivePtr cachedItem(const json& item, const std::string& key,
                             const std::function<PrimitivePtr()>& create);

@@ -46,6 +46,9 @@ public:
     void forceEnable() override;
     bool isScreenSpace() const override;
 
+    // for a primitive the deck dropped, which must never be drawn again
+    void unregisterFromPolyscope();
+
     // Color(r,g,b), or Color("name") which is tunable or owned by a snippet
     void setColor(const Color& c);
     const Color& getColor() const {return color;}

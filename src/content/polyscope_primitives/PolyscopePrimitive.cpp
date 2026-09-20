@@ -130,10 +130,21 @@ slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const std::string &label, 
 }
 
 void slope::PolyscopePrimitive::forceDisable() {
-    polyscope_ptr->setEnabled(false);
+    if (polyscope_ptr)
+        polyscope_ptr->setEnabled(false);
+}
+
+// disabling is not enough because polyscope still measures a disabled structure
+void slope::PolyscopePrimitive::unregisterFromPolyscope() {
+    if (!polyscope_ptr)
+        return;
+    polyscope_ptr->remove();
+    polyscope_ptr = nullptr;
 }
 
 void slope::PolyscopePrimitive::forceEnable() {
+    if (!polyscope_ptr)
+        return;
     polyscope_ptr->setEnabled(true);
     polyscope_ptr->setTransparency(0);
 }
