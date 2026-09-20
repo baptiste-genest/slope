@@ -286,6 +286,16 @@ PrimitivePtr DeckLoader::cached(const std::string& key, const std::function<Prim
     return ptr;
 }
 
+// an "id:" names a primitive like a C++ variable, so the rank identifies the rest
+PrimitivePtr DeckLoader::cachedItem(const json& item, const std::string& key,
+                                    const std::function<PrimitivePtr()>& create)
+{
+    std::string cache_key = "id=" + item.value("id", std::string()) + ":" + key;
+    if (!item.contains("id"))
+        cache_key += "#" + std::to_string(occurrences[key]++);
+    return cached(cache_key, create);
+}
+
 PrimitivePtr DeckLoader::resolve(const std::string& name) const
 {
     auto it = named.find(name);
@@ -461,6 +471,7 @@ void DeckLoader::build(SlideManager& show)
                                          "group \"" + param + "\", rename one");
 
     used_primitives.clear();
+    occurrences.clear();
     named.clear();
     show.clearGroups();
     show.clearKeyframes();
@@ -780,7 +791,7 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
     for (const auto& item : items) {
         if (item.is_string() && item == "step") {
             show << inNextFrame;
-            // the next step inherits these items, re-placing one there moves it
+            // the next step inherits these items, re-placing one by its id moves it
             step_primitives.clear();
             continue;
         }
@@ -865,10 +876,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
         throw std::runtime_error("expected a screen item (" + screenItemTypes()
                                  + "), got: " + item.dump());
 
-    // the id is part of the cache key, so two items with the same content
-    // but different ids are distinct primitives (shown simultaneously)
-    PrimitivePtr prim = cached("id=" + item.value("id", std::string()) + ":" + spec->key(item),
-                               [&] { return spec->make(item); });
+    PrimitivePtr prim = cachedItem(item, spec->key(item), [&] { return spec->make(item); });
     std::string name = item.value("id", spec->name(item));
     if (spec->configure)
         spec->configure(prim, item, name);
@@ -1031,13 +1039,12 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
     // the placement branches return
     applyCodeCues(show, prim, item);
 
-    // Two items of the same content are one cached primitive, and a slide holds
-    // each once, so the second placement would move the first rather than show a
-    // copy. A "set", or an item repeated after a "- step", re-places on purpose.
+    // items sharing an "id:" are one primitive, which a slide can hold only once
     if (!keep_placement && !step_primitives.insert(prim).second)
-        spdlog::warn("deck: \"{}\" is placed twice on the same step. Both are the same "
-                     "primitive, so the second placement moves the first rather than adding "
-                     "a copy. Give them different \"id:\" to show both",
+        spdlog::warn("deck: \"{}\" is placed twice on the same step. Both carry the same "
+                     "\"id:\", so they are one primitive and the second placement moves the "
+                     "first rather than adding a copy. Give them different ids, or drop the "
+                     "ids to show both",
                      default_label.empty() ? item.dump() : default_label);
 
     if (item.contains("on"))
@@ -1248,7 +1255,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         markUsed(pis.first);
     }
     else if (const ItemSpec* spec = sceneSpecOf(item)) {
-        auto prim = cached(spec->key(item), [&] { return spec->make(item); });
+        auto prim = cachedItem(item, spec->key(item), [&] { return spec->make(item); });
         std::string name = item.value("id", spec->name(item));
         if (spec->configure)
             spec->configure(prim, item, name);
@@ -1297,7 +1304,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         };
 
         auto prim = std::static_pointer_cast<Arrow2D>(
-            cached("arrow:" + item.dump(), [&]() -> PrimitivePtr {
+            cachedItem(item, "arrow:" + item.dump(), [&]() -> PrimitivePtr {
                 return Arrow2D::Add(endpoint("from", "tail", vec2(0.4, 0.5)),
                                     endpoint("to", "tip", vec2(0.6, 0.5)));
             }));
@@ -1329,7 +1336,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             throw std::runtime_error("\"box\" item needs a list of items to englobe");
 
         auto prim = std::static_pointer_cast<Box2D>(
-            cached("box:" + item.dump(), [&]() -> PrimitivePtr { return Box2D::Add(); }));
+            cachedItem(item, "box:" + item.dump(), [&]() -> PrimitivePtr { return Box2D::Add(); }));
 
         // inserted before its content, so it stays behind what it englobes
         StateInSlide sis;
@@ -1378,7 +1385,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             throw std::runtime_error("\"stack\" item needs a list of items to lay out");
 
         auto prim = std::static_pointer_cast<Stack2D>(
-            cached("stack:" + item.dump(), [&]() -> PrimitivePtr { return Stack2D::Add(); }));
+            cachedItem(item, "stack:" + item.dump(), [&]() -> PrimitivePtr { return Stack2D::Add(); }));
         prim->handle = makeHandleAnchor(item);
         prim->spacing = item.value("spacing", 0.015);
         std::string align = item.value("align", "left");

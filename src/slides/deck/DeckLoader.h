@@ -201,8 +201,8 @@ using ShaderPtr = std::shared_ptr<Shader>;
  * name and the id, so "remove: conv" takes the instance off ; the target of a
  * "set" inside the group is not. Ids inside the body are not prefixed : write
  * "id: ${id}_legend" when two instances share a slide. A group is rebuilt at
- * each use, and the same content is the same primitive, so a reuse moves it
- * rather than cross-fading. Group and param names cannot be item types, and a
+ * each use, so every use is its own instance. Give the body "id: ${id}_..."
+ * to keep one across frames. Group and param names cannot be item types, and a
  * param cannot be named like a group. A stack cannot call a group.
  *
  * A group may hold "- step" : its items after it land on the next step, and so
@@ -299,7 +299,13 @@ using ShaderPtr = std::shared_ptr<Shader>;
  * Items are referenced (by remove/replace/below/...) through their key
  * (latex key, image filename stem, object name, "title") or an explicit
  * "id: name" field. References resolve to the most recent item with that
- * name, in manifest order.
+ * name, in manifest order. An "id:" names a primitive the way a C++ variable
+ * does, and every declaration carrying that id is the same one. Without an
+ * "id:" a declaration builds its own primitive, so writing the same content
+ * twice makes two of them wherever the steps and frames fall, each fading in
+ * and out on its own. To keep one across frames, name it and place it again
+ * with "set:", or reach for "same_title:" on a title and "template:" for what
+ * every frame carries.
  *
  * Reordering steps desyncs C++ updaters that branch on
  * t.relative_frame_number. Prefer marking the relevant frames with
@@ -392,9 +398,11 @@ private:
     // primitives used by the manifest at last build, to disable on rebuild
     std::set<PrimitivePtr> used_primitives;
 
-    // what the step being built has placed already, two items of the same
-    // content being one cached primitive a slide can only hold once
+    // what the step being built has placed, to catch an "id:" placed twice
     std::set<PrimitivePtr> step_primitives;
+
+    // how often each content was declared, so a rebuild finds its primitives
+    std::map<std::string, int> occurrences;
 
     std::unique_ptr<Slideshow> owned_show;
 
@@ -452,6 +460,10 @@ private:
     ScreenPrimitivePtr resolveScreen(const std::string& name) const;
 
     PrimitivePtr cached(const std::string& key, const std::function<PrimitivePtr()>& create);
+
+    // every item goes through this, which is where identity is decided
+    PrimitivePtr cachedItem(const json& item, const std::string& key,
+                            const std::function<PrimitivePtr()>& create);
 };
 
 }

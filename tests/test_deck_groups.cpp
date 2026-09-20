@@ -246,11 +246,11 @@ slides:
         CHECK(findTex(show, 8, "mover own") == nullptr);
     }
 
-    // ── the same content is the same primitive, on another slide and after a
-    //    rebuild, so neither a reuse nor a hot reload cross-fades it ─────────
+    // ── a declaration without an id is its own primitive, on every frame and
+    //    for every group use, while a rebuild lands on the same ones ─────────
     load(R"(
 tagged:
-  - latex: shared text
+  - latex: group text
     at: [0.5, 0.5]
 slides:
   - frame:
@@ -260,6 +260,8 @@ slides:
       - step
       - remove: t1
   - frame:
+      - latex: shared text
+        at: [0.5, 0.5]
       - tagged
 )");
     {
@@ -267,11 +269,92 @@ slides:
         deck.build(first);
         deck.build(second);
         auto a = findTex(first, 0, "shared text");
+        auto g = findTex(first, 0, "group text");
         CHECK(a != nullptr);
-        // tagged although it was on the slide before the call
-        CHECK(findTex(first, 1, "shared text") == nullptr);
-        CHECK(findTex(first, 2, "shared text") == a);
-        CHECK(findTex(second, 2, "shared text") == a);
+        CHECK(g != nullptr);
+        // the call owns its own item, so only that one comes off
+        CHECK(findTex(first, 1, "group text") == nullptr);
+        CHECK(findTex(first, 1, "shared text") == a);
+        // the next frame declares them again, so they are other primitives
+        auto a2 = findTex(first, 2, "shared text");
+        auto g2 = findTex(first, 2, "group text");
+        CHECK(a2 != nullptr);
+        CHECK(g2 != nullptr);
+        CHECK(a2 != a);
+        CHECK(g2 != g);
+        // a hot reload rebuilds the same deck, so nothing cross-fades
+        CHECK(findTex(second, 0, "shared text") == a);
+        CHECK(findTex(second, 2, "shared text") == a2);
+        CHECK(findTex(second, 2, "group text") == g2);
+    }
+
+    // ── an "id:" is the primitive's name, so it is one across frames ─────────
+    load(R"(
+slides:
+  - frame:
+      - latex: kept
+        id: k
+        at: [0.2, 0.5]
+  - frame:
+      - latex: kept
+        id: k
+        at: [0.8, 0.5]
+)");
+    {
+        SlideManager show;
+        deck.build(show);
+        auto k = findTex(show, 0, "kept");
+        CHECK(k != nullptr);
+        CHECK(findTex(show, 1, "kept") == k);
+        if (k)
+            CHECK(posOf(show, 1, k)(0) > posOf(show, 0, k)(0));
+    }
+
+    // ── the same content twice in one step is two primitives, so both show ───
+    load(R"(
+slides:
+  - frame:
+      - formula: x^2
+        at: [0.3, 0.5]
+      - formula: x^2
+        at: [0.7, 0.5]
+)");
+    {
+        SlideManager show;
+        deck.build(show);
+        std::vector<PrimitivePtr> both;
+        for (const auto& [ptr, sis] : show.getSlide(0))
+            if (auto l = std::dynamic_pointer_cast<Latex>(ptr); l && l->tex_source == "x^2")
+                both.push_back(ptr);
+        CHECK(both.size() == 2);
+        if (both.size() == 2)
+            CHECK(posOf(show, 0, both[0])(0) != posOf(show, 0, both[1])(0));
+    }
+
+    // ── repeated after a "- step" it is a second primitive, the step having
+    //    inherited the first, so moving one takes "id:" then "set:" ──────────
+    load(R"(
+slides:
+  - frame:
+      - latex: mover
+        at: [0.2, 0.2]
+      - step
+      - latex: mover
+        at: [0.8, 0.8]
+)");
+    {
+        SlideManager show;
+        deck.build(show);
+        auto first = findTex(show, 0, "mover");
+        CHECK(first != nullptr);
+        std::vector<PrimitivePtr> both;
+        for (const auto& [ptr, sis] : show.getSlide(1))
+            if (auto l = std::dynamic_pointer_cast<Latex>(ptr); l && l->tex_source == "mover")
+                both.push_back(ptr);
+        CHECK(both.size() == 2);
+        // the first one stayed where it was put
+        if (first)
+            CHECK(posOf(show, 1, first)(0) == posOf(show, 0, first)(0));
     }
 
     // ── "group:" on a call tags what it placed ──────────────────────────────
