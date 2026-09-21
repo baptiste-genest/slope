@@ -40,7 +40,7 @@ std::vector<ItemSpec> customItemSpecs()
 const std::set<std::string>& arrowFields()
 {
     static const std::set<std::string> f =
-        {"from","to","from_offset","to_offset","bend","thickness","color","head","margin"};
+        {"id","from","to","from_offset","to_offset","bend","thickness","color","head","margin"};
     return f;
 }
 

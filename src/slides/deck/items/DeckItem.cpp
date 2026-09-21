@@ -76,7 +76,7 @@ std::string itemValueHint(const std::string& type)
         {"mesh", "mesh file"}, {"surface", "snippet function"}, {"curve", "snippet function"},
         {"point", "snippet or [x, y, z]"}, {"cloud", "point cloud file, .ply or .obj"},
         {"keyframe", "keyframe name"}, {"remove", "id or [ids]"}, {"set", "id"},
-        {"replace", "id"}, {"object", "C++ object name"}, {"arrow", "map, keys below"},
+        {"replace", "id, with: id or an item"}, {"object", "C++ object name"}, {"arrow", "map, keys below"},
         {"box", "[items]"}, {"stack", "[items]"}, {"camera", "camera view name"},
         {"pause", "seconds"},
     };
@@ -127,8 +127,8 @@ void warnUnknownKeys(const json& item)
     const ItemSpec* spec = findItemSpec(item);
     if (!spec)
         return;
-    // "arrow: id" takes its fields beside it, "arrow: {...}" inside
-    const bool flat_arrow = spec->type == "arrow" && item["arrow"].is_string();
+    // "arrow: id" or a bare "arrow:" takes its fields beside it, "arrow: {...}" inside
+    const bool flat_arrow = spec->type == "arrow" && !item["arrow"].is_object();
     for (const auto& [key, val] : item.items())
         if (key != spec->type && !spec->fields.count(key) && !(flat_arrow && arrowFields().count(key)))
             spdlog::warn("deck: ignored key \"{}\" on a \"{}\" item", key, spec->type);

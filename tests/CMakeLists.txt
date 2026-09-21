@@ -45,3 +45,7 @@ add_test(NAME label_suggest COMMAND test_label_suggest)
 add_executable(test_deck_groups test_deck_groups.cpp)
 target_link_libraries(test_deck_groups PRIVATE slope)
 add_test(NAME deck_groups COMMAND test_deck_groups)
+
+add_executable(test_deck_arrow_replace test_deck_arrow_replace.cpp)
+target_link_libraries(test_deck_arrow_replace PRIVATE slope)
+add_test(NAME deck_arrow_replace COMMAND test_deck_arrow_replace)

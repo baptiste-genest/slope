@@ -124,7 +124,7 @@ public:
     ShapeStyle style;
     scalar bend = 0;        // curvature, offset of the control point,
                             // as a fraction of the endpoint distance
-    scalar head = 0.015;    // arrowhead size, relative units
+    scalar head = 0.015;    // arrowhead size, relative units, 0 for a plain line
     scalar margin = 0.01;   // gap kept between an endpoint and its target
 
     struct Endpoint {

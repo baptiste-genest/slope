@@ -363,6 +363,8 @@ void Arrow2D::drawArrow(parameter t, float alpha) const
     ImU32 col = withAlpha(style.color, alpha);
     float th = pixelThickness(style.thickness);
     auto [tip, dir] = strokePolylinePrefix(px, t, col, th, false);
+    if (head <= 0)
+        return;
 
     float len = std::hypot(dir.x, dir.y);
     if (len < 1e-6f)

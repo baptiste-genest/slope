@@ -1227,7 +1227,14 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             throw std::runtime_error("\"replace\" item needs a \"with\" sub-item");
         std::string replaced = item["replace"];
         auto old = resolveScreen(replaced);
-        auto [prim, name] = makeScreenPrimitive(item["with"]);
+        // "with: id" swaps in an item defined earlier, a map defines a new one
+        ScreenPrimitivePtr prim;
+        if (item["with"].is_string()) {
+            prim = resolveScreen(item["with"].get<std::string>());
+            if (prim == old)
+                throw std::runtime_error("\"replace: " + replaced + "\" is replaced by itself");
+        } else
+            prim = makeScreenPrimitive(item["with"]).first;
         show << Replace(prim, old);
         // the name now refers to the replacement, or a second "replace" would
         // resolve to the primitive just taken off the slide
@@ -1290,8 +1297,10 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
     else if (item.contains("arrow")) {
         const json& raw = item["arrow"];
         // "arrow: id" needs no from/to, registering "id/tail" and "id/tip" as params instead
-        const bool shorthand = raw.is_string();
-        const std::string id = shorthand ? raw.get<std::string>() : item.value("id", std::string());
+        const bool shorthand = raw.is_string() || raw.is_null();
+        const std::string id = raw.is_string() ? raw.get<std::string>()
+            : item.contains("id") ? item.value("id", std::string())
+            : raw.is_object() ? raw.value("id", std::string()) : std::string();
         const json& spec = shorthand ? item : raw;
         if (!shorthand) {
             if (!spec.is_object() || !spec.contains("from") || !spec.contains("to"))
@@ -1303,7 +1312,31 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
 
         // an endpoint is [x,y] (a param when id'd), an item name (attached live), or a label
         auto endpoint = [&](const char* key, const char* suffix, const vec2& def) -> Arrow2D::Endpoint {
-            const json v = spec.contains(key) ? spec[key] : json{def(0), def(1)};
+            json v = spec.contains(key) ? spec[key] : json{def(0), def(1)};
+            // {follow: name} reads a live 2D or 3D point, [x,y,z] is a fixed one in the scene
+            if (v.is_object()) {
+                if (!v.contains("follow"))
+                    throw std::runtime_error(std::string("arrow \"") + key + "\" : a map is {follow: <name>}");
+                // {follow: [x,y,z]} is the same as the bare list
+                if (v["follow"].is_array())
+                    v = v["follow"];
+                else {
+                    Arrow2D::Endpoint e;
+                    e.follow = resolveFollow(v["follow"].get<std::string>());
+                    return e;
+                }
+            }
+            if (v.is_array() && v.size() == 3) {
+                Arrow2D::Endpoint e;
+                if (id.empty()) {
+                    const vec p = readVec3(v, "arrow endpoint");
+                    e.follow = [p] { return WorldToScreen(p); };
+                } else {
+                    auto param = Params::AddVec(id + "/" + suffix, readVec3(v, "arrow endpoint"));
+                    e.follow = [param] { return WorldToScreen(vec(param)); };
+                }
+                return e;
+            }
             if (v.is_array()) {
                 Arrow2D::Endpoint e;
                 vec2 p0 = readVec2(v, "arrow endpoint");
@@ -1324,6 +1357,23 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
                                              + "\" is not a screen primitive");
                 return Arrow2D::Attach(sp);
             }
+            // what "follow:" reads: a parameter, snippet variable or placer declared earlier
+            const auto snippets = Snippet::names();
+            if (Params::components(s) > 0 || placer_registry.count(s)
+                || std::find(snippets.begin(), snippets.end(), s) != snippets.end()) {
+                Arrow2D::Endpoint e;
+                e.follow = resolveFollow(s);
+                return e;
+            }
+            // a name nothing declares is a new 2D point, named after the arrow's id when it has
+            // one, unless a label of that name already has a .pos file
+            if (!io::file_exists(Options::ProjectViewsPath + s + ".pos")) {
+                Arrow2D::Endpoint e;
+                auto param = Params::AddVec2(id.empty() ? s : id + "/" + s,
+                                             vec2(def(0), 1 - def(1)));
+                e.follow = [param] { vec2 uv = param; return vec2(uv(0), 1 - uv(1)); };
+                return e;
+            }
             return Arrow2D::AttachLabel(s);
         };
 
@@ -1341,7 +1391,9 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         prim->from.offset = offset("from_offset");
         prim->to.offset = offset("to_offset");
         prim->bend = spec.value("bend", 0.);
-        prim->head = spec.value("head", 0.015);
+        // "head: false" (or 0) draws a plain line
+        const json h = spec.value("head", json(0.015));
+        prim->head = h.is_boolean() ? (h.get<bool>() ? 0.015 : 0.) : h.get<double>();
         prim->margin = spec.value("margin", 0.01);
         prim->style.thickness = spec.value("thickness", 3.);
         if (spec.contains("color"))

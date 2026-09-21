@@ -229,8 +229,16 @@ slope::SlideManager &slope::operator<<(SlideManager &SM, const Replace &R) {
     }
     auto pos = it->second;
     int order = slide.orderOf(target);
-    R.ptr->setDepth(target->getDepth());
+    // depth belongs to the primitive, so one a slide already showed keeps its own
+    bool shown = false;
+    for (int i = 0; i < SM.getNumberSlides() && !shown; ++i)
+        shown = SM.getSlide(i).contains(R.ptr);
+    if (!shown)
+        R.ptr->setDepth(target->getDepth());
     SM.removeFromCurrentSlide(target);
+    // already on the slide, it moves to the old one's place instead of appearing
+    if (R.ptr != target)
+        SM.removeFromCurrentSlide(R.ptr);
     SM.addToLastSlide(R.ptr,pos,order);
     return SM;
 }
