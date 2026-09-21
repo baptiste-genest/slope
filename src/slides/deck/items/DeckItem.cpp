@@ -127,8 +127,10 @@ void warnUnknownKeys(const json& item)
     const ItemSpec* spec = findItemSpec(item);
     if (!spec)
         return;
+    // "arrow: id" takes its fields beside it, "arrow: {...}" inside
+    const bool flat_arrow = spec->type == "arrow" && item["arrow"].is_string();
     for (const auto& [key, val] : item.items())
-        if (key != spec->type && !spec->fields.count(key))
+        if (key != spec->type && !spec->fields.count(key) && !(flat_arrow && arrowFields().count(key)))
             spdlog::warn("deck: ignored key \"{}\" on a \"{}\" item", key, spec->type);
 }
 
