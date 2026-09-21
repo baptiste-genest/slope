@@ -1,8 +1,30 @@
 #include "slides/deck/items/DeckItem.h"
 #include "spdlog/spdlog.h"
+#include <exception>
 #include <map>
 
 namespace slope {
+
+int& deckLine() { static int line = 0; return line; }
+int& deckErrorLine() { static int line = 0; return line; }
+
+std::string deckWhere()
+{
+    return deckLine() > 0 ? " (line " + std::to_string(deckLine()) + ")" : "";
+}
+
+DeckLineScope::DeckLineScope(int line) : prev(deckLine()), thrown(std::uncaught_exceptions())
+{
+    if (line > 0)
+        deckLine() = line;
+}
+
+DeckLineScope::~DeckLineScope()
+{
+    if (std::uncaught_exceptions() > thrown && deckErrorLine() == 0)
+        deckErrorLine() = deckLine();
+    deckLine() = prev;
+}
 
 const std::set<std::string>& placementFields()
 {
@@ -131,7 +153,7 @@ void warnUnknownKeys(const json& item)
     const bool flat_arrow = spec->type == "arrow" && !item["arrow"].is_object();
     for (const auto& [key, val] : item.items())
         if (key != spec->type && !spec->fields.count(key) && !(flat_arrow && arrowFields().count(key)))
-            spdlog::warn("deck: ignored key \"{}\" on a \"{}\" item", key, spec->type);
+            deckWarn("ignored key \"{}\" on a \"{}\" item", key, spec->type);
 }
 
 }

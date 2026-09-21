@@ -3,6 +3,7 @@
 
 #include "content/core/primitive.h"
 #include "extern/json.hpp"
+#include "spdlog/spdlog.h"
 #include <functional>
 #include <set>
 #include <string>
@@ -88,6 +89,28 @@ std::vector<ItemSpec> customItemSpecs();
 
 // the "arrow" item carries its own fields inside its value, one level down
 const std::set<std::string>& arrowFields();
+
+// The deck line of the item being built, 0 when unknown (an item a group call expanded
+// has none). Warnings write it with deckWhere(), " (line 12)" or nothing.
+int& deckLine();
+std::string deckWhere();
+
+// sets the current line for its scope. When an exception leaves the scope, the innermost
+// line is kept in deckErrorLine() so the loader can say where the deck failed.
+class DeckLineScope {
+    int prev, thrown;
+public:
+    explicit DeckLineScope(int line);
+    ~DeckLineScope();
+};
+int& deckErrorLine();
+
+// spdlog::warn for a deck problem, with the line of the item when it is known
+template<class... A>
+void deckWarn(fmt::format_string<A...> f, A&&... a)
+{
+    spdlog::warn("deck{}: {}", deckWhere(), fmt::format(f, std::forward<A>(a)...));
+}
 
 }
 

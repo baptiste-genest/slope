@@ -394,6 +394,16 @@ private:
 
     // name -> primitive references accumulated during build, in manifest order
     std::map<std::string, PrimitivePtr> named;
+    // deck line of every item of the parsed source, by address, for warnings and errors
+    std::unordered_map<const json*, int> line_of;
+    int lineOf(const json& item) const {
+        auto it = line_of.find(&item);
+        return it == line_of.end() ? 0 : it->second;
+    }
+    void buildImpl(SlideManager& show);
+    std::set<std::string> warned_names;   // ids already reported as clashing, once each
+    // records an item under its id, warning when the id already means something else
+    void nameItem(const std::string& name, const PrimitivePtr& prim, bool explicit_id);
 
     // primitives used by the manifest at last build, to disable on rebuild
     std::set<PrimitivePtr> used_primitives;
@@ -454,7 +464,7 @@ private:
     // keep_placement leaves an item where it is when no placement is given
     void placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                          const json& item, const std::string& default_label,
-                         bool keep_placement = false);
+                         bool keep_placement = false, const StateInSlide* own = nullptr);
 
     PrimitivePtr resolve(const std::string& name) const;
     ScreenPrimitivePtr resolveScreen(const std::string& name) const;

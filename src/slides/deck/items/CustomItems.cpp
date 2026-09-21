@@ -20,11 +20,12 @@ std::vector<ItemSpec> customItemSpecs()
     return {
         custom("keyframe", {}),
         custom("remove",   {}),
-        custom("set",      {"at","offset","on","two_sided","alpha","rot","zoom","depth",
+        custom("set",      {"at","transform","offset","on","two_sided","alpha","rot","zoom","depth",
                             "below","above","right_of","left_of","padding",
                             "reveal","focus"}),
         custom("replace",  {"with"}),
         custom("object",   {"id","at","transform","follow","offset","alpha","rot","zoom","view",
+                            "on","two_sided","below","above","right_of","left_of","padding",
                             "group","uniforms","textures"}),
         custom("arrow",    {"id","alpha","depth","group"}),
         custom("box",      {"id","alpha","padding","padx","pady",

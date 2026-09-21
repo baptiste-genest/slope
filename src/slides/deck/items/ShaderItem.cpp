@@ -172,7 +172,7 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
 
     for (const auto& [name, spec] : entries) {
         if (!validGLSLName(name)) {
-            spdlog::warn("deck: \"{}\" is not a usable GLSL uniform name, ignored", name);
+            deckWarn("\"{}\" is not a usable GLSL uniform name, ignored", name);
             continue;
         }
         // No type, so the name must already exist, as a parameter declared
@@ -292,7 +292,7 @@ void declareShaderTextures(const ShaderPtr& shader, const json& item)
                                      "name: file (or name: {file, filter, wrap})");
         for (const auto& [name, spec] : ts.items()) {
             if (!validGLSLName(name)) {
-                spdlog::warn("deck: \"{}\" is not a usable GLSL sampler name, ignored", name);
+                deckWarn("\"{}\" is not a usable GLSL sampler name, ignored", name);
                 continue;
             }
             std::string file;

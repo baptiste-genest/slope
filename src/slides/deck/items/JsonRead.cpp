@@ -1,4 +1,5 @@
 #include "slides/deck/items/JsonRead.h"
+#include "slides/deck/items/DeckItem.h"
 #include "content/authoring/color_tools.h"
 #include "content/polyscope_primitives/LiveTransform.h"
 #include <spdlog/spdlog.h>
@@ -51,7 +52,7 @@ LiveTransform readTransform(const json& t)
         throw std::runtime_error("\"transform\" must be a map of pos, scale, axis and angle");
     for (const auto& [key, val] : t.items())
         if (key != "pos" && key != "scale" && key != "axis" && key != "angle")
-            spdlog::warn("deck: ignored key \"{}\" in \"transform\", which takes pos, scale, "
+            deckWarn("ignored key \"{}\" in \"transform\", which takes pos, scale, "
                          "axis and angle", key);
 
     LiveTransform T;
