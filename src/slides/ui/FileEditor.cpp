@@ -874,6 +874,7 @@ void FileEditor::draw(WindowManager& wm)
         if (ImGui::InputTextMultiline("##body", buffer.data(), buffer.size() + 1,
                                       avail,
                                       ImGuiInputTextFlags_AllowTabInput
+                                          | ImGuiInputTextFlags_WordWrap
                                           | ImGuiInputTextFlags_CallbackResize
                                           | ImGuiInputTextFlags_CallbackCharFilter
                                           | ImGuiInputTextFlags_CallbackAlways,
@@ -892,14 +893,10 @@ void FileEditor::draw(WindowManager& wm)
                            edit_win->Name, body_id);
             ImGuiWindow* body_win = ImGui::FindWindowByName(child_name);
             ImVec2 scroll = body_win ? body_win->Scroll : ImVec2(0.f, 0.f);
-            if (scroll_line >= 0 && body_win) {
-                ImGui::SetScrollY(body_win, float(scroll_line) * ImGui::GetFontSize());
-                scroll_line = -1;
-            }
             // the state outlives the field's focus, and may describe another file
             const bool active = ImGui::GetActiveID() == body_id;
             ImGuiInputTextState* st = active ? ImGui::GetInputTextState(body_id) : nullptr;
-            if (st) scroll.x = st->Scroll.x;   // horizontal is tracked on the state
+            scroll.x = 0.f;   // wrapped text never scrolls sideways
 
             const ImGuiStyle& gs = ImGui::GetStyle();
             ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -912,20 +909,49 @@ void FileEditor::draw(WindowManager& wm)
                 return font->CalcTextSizeA(fs, FLT_MAX, 0.f, base + a, base + b).x;
             };
 
-            // [begin,end) of every line, trailing '\n' excluded
-            std::vector<std::pair<size_t, size_t>> lines;
-            for (size_t i = 0, b = 0; i <= buffer.size(); ++i)
-                if (i == buffer.size() || buffer[i] == '\n') { lines.push_back({b, i}); b = i + 1; }
+            // the width the widget wraps at: its content area, scrollbar or not
+            const float wrap_w = body_win
+                ? std::max(1.f, body_win->WorkRect.GetWidth() - (body_win->ScrollbarY ? 0.f : gs.ScrollbarSize))
+                : std::max(1.f, avail.x);
 
-            const int n = int(lines.size());
+            // one row per wrapped piece of a line, trailing '\n' excluded
+            struct Row { size_t b, e; int line; };
+            std::vector<Row> rows;
+            std::vector<int> line_row;   // first row of each line
+            for (size_t i = 0, b = 0; i <= buffer.size(); ++i) {
+                if (i != buffer.size() && buffer[i] != '\n')
+                    continue;
+                line_row.push_back(int(rows.size()));
+                const int li = int(line_row.size()) - 1;
+                size_t r = b;
+                do {
+                    size_t re = i;
+                    if (r < i) {
+                        re = size_t(ImFontCalcWordWrapPositionEx(font, fs, base + r, base + i, wrap_w,
+                                                                 ImDrawTextFlags_WrapKeepBlanks) - base);
+                        if (re <= r) re = r + 1;
+                    }
+                    rows.push_back({r, re, li});
+                    r = re;
+                } while (r < i);
+                b = i + 1;
+            }
+
+            if (scroll_line >= 0 && body_win) {
+                const int li = std::min(scroll_line, int(line_row.size()) - 1);
+                ImGui::SetScrollY(body_win, float(line_row[li]) * fs);
+                scroll_line = -1;
+            }
+
+            const int n = int(rows.size());
             const int first = std::max(0, int(scroll.y / fs) - 1);
             const int lastl = std::min(n, first + int((p_max.y - p_min.y) / fs) + 3);
 
-            int cpos = 0, cl = -1;
+            int cpos = 0, cr = -1;
             if (st) {
                 cpos = std::clamp(st->GetCursorPos(), 0, int(buffer.size()));
-                cl = 0;
-                while (cl + 1 < n && int(lines[cl + 1].first) <= cpos) ++cl;
+                cr = 0;
+                while (cr + 1 < n && int(rows[cr + 1].b) <= cpos) ++cr;
             }
 
             // right aligned, on the text's own line positions so they scroll with it
@@ -934,18 +960,21 @@ void FileEditor::draw(WindowManager& wm)
             dl->PushClipRect(g_min, g_max, true);
             const ImU32 muted = IM_COL32(0x62, 0x72, 0xA4, 255);
             char num[16];
-            for (int li = first; li < lastl; ++li) {
+            for (int ri = first; ri < lastl; ++ri) {
+                const int li = rows[ri].line;
+                if (line_row[li] != ri)
+                    continue;
                 const int len = std::snprintf(num, sizeof(num), "%d", li + 1);
                 const float w = font->CalcTextSizeA(fs, FLT_MAX, 0.f, num, num + len).x;
-                dl->AddText(font, fs, ImVec2(p_min.x - 0.75f * digit_w - w, origin.y + float(li) * fs),
-                            li == cl ? ink : muted, num, num + len);
+                dl->AddText(font, fs, ImVec2(p_min.x - 0.75f * digit_w - w, origin.y + float(ri) * fs),
+                            cr >= 0 && li == rows[cr].line ? ink : muted, num, num + len);
             }
             dl->PopClipRect();
 
             dl->PushClipRect(p_min, p_max, true);
-            for (int li = first; li < lastl; ++li) {
-                const auto [b, e] = lines[li];
-                const float y = origin.y + float(li) * fs;
+            for (int ri = first; ri < lastl; ++ri) {
+                const size_t b = rows[ri].b, e = rows[ri].e;
+                const float y = origin.y + float(ri) * fs;
                 float x = origin.x;
                 size_t seg = b;
                 // first run that reaches into this line
@@ -971,8 +1000,8 @@ void FileEditor::draw(WindowManager& wm)
 
             // our own caret, the widget's is transparent too
             if (st) {
-                const float cx = origin.x + measure(lines[cl].first, size_t(cpos));
-                const float cy = origin.y + float(cl) * fs;
+                const float cx = origin.x + measure(rows[cr].b, std::min(size_t(cpos), rows[cr].e));
+                const float cy = origin.y + float(cr) * fs;
                 if (std::fmod(st->CursorAnim, 1.2f) <= 0.8f)
                     dl->AddLine(ImVec2(cx, cy + 1.f), ImVec2(cx, cy + fs - 1.f), ink, 1.f);
             }
