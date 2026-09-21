@@ -32,7 +32,11 @@ public:
     const vecs& getNodes() const {return nodes;}
 
     scalar radius = 0.01;
+
+    size_t vertexCount() const override { return nodes.size(); }
 protected:
+    vec localVertex(size_t i) const override { return nodes[i]; }
+
     bool loop;
     vecs nodes;
 

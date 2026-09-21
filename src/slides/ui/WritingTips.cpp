@@ -239,7 +239,12 @@ slides:
         docRows(deckConfigKeys());
 
     if (ImGui::CollapsingHeader("Placement (every screen item)", ImGuiTreeNodeFlags_DefaultOpen))
+    {
         keyRow("keys", joined(placementFields()), mono, px);
+        apiRow("follow: name", "a param, snippet variable or placer, 2D or 3D", mono, px);
+        apiRow("follow: item.name", "a 2D point of that shader's view", mono, px);
+        apiRow("follow: {object: o, vertex: i}", "vertex i of a mesh, cloud or curve, as it moves", mono, px);
+    }
 
     const std::pair<ItemSpec::Kind, const char*> families[] = {
         {ItemSpec::Kind::Screen, "Screen items"},

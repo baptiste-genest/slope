@@ -166,3 +166,13 @@ void slope::PolyscopePrimitive::setTransform(const StateInSlide &sis)
 {
     polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
 }
+
+slope::vec slope::PolyscopePrimitive::worldVertex(size_t i) const
+{
+    const vec p = localVertex(i);
+    if (polyscope_ptr == nullptr)
+        return p;
+    // the transform the last draw pushed, so it matches what is on screen
+    const glm::vec4 w = polyscope_ptr->getTransform() * glm::vec4(p(0), p(1), p(2), 1);
+    return vec(w.x, w.y, w.z);
+}

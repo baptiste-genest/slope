@@ -30,6 +30,10 @@ public:
     }
 
     void normalize();
+
+    size_t vertexCount() const override { return points.size(); }
+protected:
+    vec localVertex(size_t i) const override { return points[i]; }
 private:
     vecs points,original_points;
     LiveScalar radius = -1;

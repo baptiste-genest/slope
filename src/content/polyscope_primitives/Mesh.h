@@ -50,7 +50,11 @@ class Mesh : public PolyscopePrimitive
 
     void normalize();
 
+    size_t vertexCount() const override { return vertices.size(); }
+
 protected:
+    vec localVertex(size_t i) const override { return vertices[i]; }
+
     vecs vertices;
     bool smooth = false;
     Faces faces;

@@ -63,6 +63,11 @@ public:
 
     void setTransform(const StateInSlide& sis);
 
+    // vertices, points or curve nodes, 0 for a structure without any
+    virtual size_t vertexCount() const { return 0; }
+    // vertex i where it is drawn now, the slide's placement included
+    vec worldVertex(size_t i) const;
+
     Transform localTransform;
 
     bool isPolyscopePrimitive() const override { return true; }
@@ -71,6 +76,9 @@ protected:
 
     // for a structure registered again without initPolyscopeData
     void reapplyColor();
+
+    // vertex i in the structure's own coordinates, i < vertexCount()
+    virtual vec localVertex(size_t i) const { return vec::Zero(); }
 
     static size_t count;
     static std::vector<glm::vec3> colors;

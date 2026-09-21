@@ -16,6 +16,8 @@ class Stack2D;
 using Stack2DPtr = std::shared_ptr<Stack2D>;
 class Shader;
 using ShaderPtr = std::shared_ptr<Shader>;
+class PolyscopePrimitive;
+using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
 
 /*
  * DeckLoader builds slides from a hot-reloadable YAML manifest, so the
@@ -459,6 +461,11 @@ private:
     std::map<std::string, std::pair<ShaderPtr, std::vector<std::string>>> object_uniforms;
     // resolves a "follow" spec to a live screen position
     std::function<vec2()> resolveFollow(const std::string& spec);
+    // the same, also taking {object: name, vertex: i}
+    std::function<vec2()> resolveFollow(const json& spec);
+    // the scene structure a name places now, null when there is none
+    PolyscopePrimitivePtr findSceneObject(const std::string& name) const;
+    bool knowsObject(const std::string& name) const;
 
     // applies at/below/above/right_of/left_of placement and adds to the slide
     // keep_placement leaves an item where it is when no placement is given

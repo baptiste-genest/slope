@@ -434,6 +434,80 @@ std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec)
     };
 }
 
+bool DeckLoader::knowsObject(const std::string& name) const
+{
+    return named.count(name) || instantiated_objects.count(name) || object_registry.count(name)
+        || instantiated_groups.count(name) || group_registry.count(name);
+}
+
+PolyscopePrimitivePtr DeckLoader::findSceneObject(const std::string& name) const
+{
+    auto scene = [](const PrimitivePtr& p) -> PolyscopePrimitivePtr {
+        auto pp = std::dynamic_pointer_cast<PolyscopePrimitive>(p);
+        return pp && pp->vertexCount() > 0 ? pp : nullptr;
+    };
+    if (auto it = named.find(name); it != named.end())
+        if (auto pp = scene(it->second))
+            return pp;
+    if (auto it = instantiated_objects.find(name); it != instantiated_objects.end())
+        if (auto pp = scene(it->second.first))
+            return pp;
+    // a group's first structure with vertices, the mesh its quantities sit on
+    if (auto it = instantiated_groups.find(name); it != instantiated_groups.end())
+        for (const auto& [ptr, sis] : it->second.buffer)
+            if (auto pp = scene(ptr))
+                return pp;
+    return nullptr;
+}
+
+std::function<vec2()> DeckLoader::resolveFollow(const json& spec)
+{
+    if (spec.is_string())
+        return resolveFollow(spec.get<std::string>());
+    if (!spec.is_object() || !spec.contains("object") || !spec.contains("vertex"))
+        throw std::runtime_error("\"follow:\" is a name, or {object: <name>, vertex: <index>}, got "
+                                 + spec.dump());
+    for (const auto& [key, val] : spec.items())
+        if (key != "object" && key != "vertex")
+            throw std::runtime_error("\"follow:\" : unknown key \"" + key
+                                     + "\", a vertex is {object: <name>, vertex: <index>}");
+    if (!spec["object"].is_string())
+        throw std::runtime_error("\"follow:\" : \"object\" is the name of a scene item, got "
+                                 + spec["object"].dump());
+    if (!spec["vertex"].is_number_integer() || spec["vertex"].get<long long>() < 0)
+        throw std::runtime_error("\"follow:\" : \"vertex\" is an index from 0, got "
+                                 + spec["vertex"].dump());
+
+    const std::string object = spec["object"];
+    const size_t vertex = spec["vertex"].get<size_t>();
+    if (!knowsObject(object))
+        throw std::runtime_error("\"follow:\" : no item or registered object called \""
+                                 + object + "\"");
+
+    // looked up every frame, the object being rebuilt on a reload
+    auto said = std::make_shared<bool>(false);
+    return [this, object, vertex, said]() -> vec2 {
+        auto pp = findSceneObject(object);
+        if (!pp) {
+            if (!*said) {
+                *said = true;
+                spdlog::error("\"follow: {{object: {}}}\" : \"{}\" is not a mesh, point cloud "
+                              "or curve", object, object);
+            }
+            return vec2(0.5, 0.5);
+        }
+        if (vertex >= pp->vertexCount()) {
+            if (!*said) {
+                *said = true;
+                spdlog::error("\"follow: {{object: {}, vertex: {}}}\" : \"{}\" has {} vertices",
+                              object, vertex, object, pp->vertexCount());
+            }
+            return vec2(0.5, 0.5);
+        }
+        return WorldToScreen(pp->worldVertex(vertex));
+    };
+}
+
 ScreenPrimitivePtr DeckLoader::resolveScreen(const std::string& name) const
 {
     auto sp = std::dynamic_pointer_cast<ScreenPrimitive>(resolve(name));
@@ -1168,7 +1242,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
             throw std::runtime_error("a \"follow:\" item has no \"at:\" (it rides a moving "
                                      "point) : use \"offset: [x, y]\" to shift it from that "
                                      "point");
-        pis = prim->at(resolveFollow(item["follow"].get<std::string>()));
+        pis = prim->at(resolveFollow(item["follow"]));
         pis.second.alpha = alpha;
     }
     else if (item.contains("at") && item["at"].is_array())
@@ -1526,7 +1600,8 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         // an endpoint is [x,y] (a param when id'd), an item name (attached live), or a label
         auto endpoint = [&](const char* key, const char* suffix, const vec2& def) -> Arrow2D::Endpoint {
             json v = spec.contains(key) ? spec[key] : json{def(0), def(1)};
-            // {follow: name} reads a live 2D or 3D point, [x,y,z] is a fixed one in the scene
+            // {follow: name} reads a live 2D or 3D point, [x,y,z] is a fixed one in the scene,
+            // {follow: {object: name, vertex: i}} a vertex of a scene item
             if (v.is_object()) {
                 if (!v.contains("follow"))
                     throw std::runtime_error(std::string("arrow \"") + key + "\" : a map is {follow: <name>}");
@@ -1535,7 +1610,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
                     v = v["follow"];
                 else {
                     Arrow2D::Endpoint e;
-                    e.follow = resolveFollow(v["follow"].get<std::string>());
+                    e.follow = resolveFollow(v["follow"]);
                     return e;
                 }
             }
