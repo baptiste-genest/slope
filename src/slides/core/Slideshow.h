@@ -76,6 +76,7 @@ private:
     CameraExporter camera_exporter;
     HUD hud;
     FileEditor file_editor;
+    int editor_jump_slide = -1; // slide the editor last opened on
 
     void setInnerTime();
     // How far the slide change has got, 0 to 1, the deck wide reading of what

@@ -174,7 +174,6 @@ void FileEditor::openFile(const std::filesystem::path& p)
 {
     current = p;
     loadFromDisk();
-    jumpToCurrentFrame();
 }
 
 void FileEditor::loadFromDisk()
@@ -631,8 +630,7 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
     return 0;
 }
 
-// only scrolls, where the outline click also takes the caret : focusing the
-// field here would feed the next E to the text instead of closing the window
+// no focus: it would feed the next E to the text instead of closing the window
 void FileEditor::jumpToCurrentFrame()
 {
     if (current.empty() || !isYaml() || !currentFrameOf)

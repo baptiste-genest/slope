@@ -982,9 +982,11 @@ void slope::Slideshow::addKeyboardInputs()
         [this](){wm.Toggle(WindowType::PolyscopeGUI);},true);
     input_manager.addInput("edit hot-reloaded files","E",ImGuiKey_E,
         [this](){
-            // Toggle says whether it just opened, which is when the caret moves
-            if (wm.Toggle(WindowType::FileEditor))
+            // Toggle says whether it just opened; jump only if the slide changed since
+            if (wm.Toggle(WindowType::FileEditor) && editor_jump_slide != (int)state.current) {
+                editor_jump_slide = (int)state.current;
                 file_editor.jumpToCurrentFrame();
+            }
         },true);
     input_manager.addInput("reset timings","R",ImGuiKey_R,
         [this](){ time_tracker.reset(); },true);

@@ -40,7 +40,7 @@ public:
     // shows p, asking first when the open file has edits
     void open(const std::filesystem::path& p) { requestOpen(p); }
 
-    // puts the caret on the frame the show sits on, for when the window opens
+    // scrolls to the frame the show sits on
     void jumpToCurrentFrame();
 
     // an outline frame was clicked, its 0-based index in that file
