@@ -985,6 +985,8 @@ void slope::Slideshow::addKeyboardInputs()
             // Toggle says whether it just opened; jump only if the slide changed since
             if (wm.Toggle(WindowType::FileEditor) && editor_jump_slide != (int)state.current) {
                 editor_jump_slide = (int)state.current;
+                if (file_editor.currentFile().empty())
+                    file_editor.open(getFrameDeck());
                 file_editor.jumpToCurrentFrame();
             }
         },true);
