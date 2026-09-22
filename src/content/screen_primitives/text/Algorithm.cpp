@@ -138,7 +138,6 @@ void Algorithm::HotReloadIfModified()
 // "L n ypos pageheight boxheight" in sp, "M name n"
 void Algorithm::parseLines()
 {
-    parsed_for = full_content;
     baseline_px.clear();
     edge_px.clear();
     marks.clear();
@@ -147,6 +146,7 @@ void Algorithm::parseLines()
         spdlog::warn("[algo] no line positions for {}, focus disabled", key);
         return;
     }
+    parsed_for = full_content;
     const double px_per_sp = Options::PDFtoPNGDensity / 72.27 / 65536.;
     std::map<int, double> ys;
     std::string tag;
