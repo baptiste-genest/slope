@@ -1,5 +1,8 @@
 #include "content/core/primitive.h"
 
+// the Eigen slope is built with, see libslope.h
+extern "C" const int SLOPE_EIGEN_ABI_SYMBOL = 0;
+
 std::vector<slope::PrimitivePtr> slope::Primitive::primitives;
 
 slope::TimeObject slope::TimeObject::operator()(Primitive* p) const {

@@ -4,6 +4,16 @@
 #include "common.hpp"
 #include "extern/json_fwd.hpp"
 
+// Two Eigen versions or alignments in one binary silently corrupt fixed-size vectors.
+// Each file needs the symbol named after the Eigen it sees; libslope defines only its own,
+// so a mismatch fails to link and names the Eigen this file was compiled with.
+#define SLOPE_EIGEN_ABI_NAME_(w, M, m, a) slope_built_with_another_eigen__this_file_sees_##w##_##M##_##m##_align##a
+#define SLOPE_EIGEN_ABI_NAME(w, M, m, a) SLOPE_EIGEN_ABI_NAME_(w, M, m, a)
+#define SLOPE_EIGEN_ABI_SYMBOL SLOPE_EIGEN_ABI_NAME(EIGEN_WORLD_VERSION, EIGEN_MAJOR_VERSION, \
+                                                    EIGEN_MINOR_VERSION, EIGEN_MAX_STATIC_ALIGN_BYTES)
+extern "C" const int SLOPE_EIGEN_ABI_SYMBOL;
+[[gnu::used]] static const int* const slope_eigen_abi_check = &SLOPE_EIGEN_ABI_SYMBOL;
+
 namespace slope {
 
 class Widget;
