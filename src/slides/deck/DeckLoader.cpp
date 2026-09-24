@@ -212,9 +212,11 @@ bool DeckLoader::sourceModified()
         if (source_last_modified < last_write) {
             source_last_modified = last_write;
             parse();
+            source_unparsed = false;
             return true;
         }
     } catch (std::exception& e) {
+        source_unparsed = true;
         spdlog::warn("deck file unavailable or invalid: {}", e.what());
         ReloadErrors::report(source_path, "deck", e.what());
     }
@@ -281,7 +283,9 @@ void DeckLoader::hotReload(Slideshow& show)
             build(sm);
         });
     if (ok) {
-        ReloadErrors::clear(source_path, "deck");
+        // a camera or latex rebuild ran on the old source, the yaml error still stands
+        if (!source_unparsed)
+            ReloadErrors::clear(source_path, "deck");
         bool dropped_latex_error = false;
         std::set<PrimitivePtr> dropped_polyscope;
         for (const auto& p : previously_used) {
@@ -573,10 +577,16 @@ void DeckLoader::build(SlideManager& show)
     try {
         buildImpl(show);
     } catch (const std::exception& e) {
-        const std::string msg = e.what();
+        std::string msg = e.what();
+        // yaml reads unquoted 2024, 1.5 or yes as a number or a boolean
+        const bool unquoted = msg.find("type must be string, but is") != std::string::npos;
+        if (unquoted)
+            msg += ". A text written as a number or yes/no needs quotes, like \"2024\"";
         if (deckErrorLine() > 0 && msg.find("(line ") == std::string::npos)
-            throw std::runtime_error(msg + " (line " + std::to_string(deckErrorLine()) + ")");
-        throw;
+            msg += " (line " + std::to_string(deckErrorLine()) + ")";
+        if (msg == e.what())
+            throw;
+        throw std::runtime_error(msg);
     }
 }
 

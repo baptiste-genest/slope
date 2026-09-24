@@ -158,8 +158,10 @@ void FileEditor::refreshFileList()
     }
 }
 
-void FileEditor::requestOpen(const std::filesystem::path& p)
+void FileEditor::requestOpen(const std::filesystem::path& raw)
 {
+    // the list and the reload errors are keyed by canonical paths
+    const auto p = normalized(raw);
     if (p == current)
         return;
     if (dirty) {
@@ -790,7 +792,8 @@ void FileEditor::draw(WindowManager& wm)
         else if (dirty)
             ImGui::TextColored(ImVec4(1.f, 0.7f, 0.2f, 1.f), "[modified]");
 
-        const bool ctrl_s = ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false);
+        // only when focused, Ctrl+S on the slide saves labels and params
+        const bool ctrl_s = win_focused && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false);
         if (ImGui::Button("Save") || (ctrl_s && dirty)) {
             if (stale) pending = Pending::Overwrite;
             else saveToDisk();

@@ -370,6 +370,7 @@ private:
     json source;
     json last_good_source;   // rebuilt when an edited source fails to build
     std::filesystem::file_time_type source_last_modified;
+    bool source_unparsed = false;   // the file on disk does not parse, whatever still builds
     // last LatexLoader::generation this deck was built against
     int latex_generation = 0;
     bool initialized = false;
