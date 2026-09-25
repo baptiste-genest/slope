@@ -9,6 +9,7 @@ namespace slope {
 class FixedBox;
 using AbsoluteBoxPtr = std::shared_ptr<FixedBox>;
 
+// Color and corner roundness shared by the box primitives.
 class Box {
 public:
     Color color;
@@ -18,9 +19,11 @@ public:
     Box(){}
 protected:
 
+    // Draws a filled rounded rectangle.
     void drawBox(const vec2& pos,const vec2& size,Color c,float roundness,float alpha) const;
 };
 
+// A rectangle of fixed size, in relative units.
 class FixedBox : public ScreenPrimitive, public Box
 {
 public:
@@ -28,6 +31,7 @@ public:
     FixedBox(vec2 _size,Color _color,float r) : Box(_color,r),size(_size) {
     }
 
+    // Builds a box of the given relative size.
     static AbsoluteBoxPtr Add(vec2 size,Color color = Color(1,0.3,1),float round = Options::DefaultBoxRoundness)
     {
         return NewPrimitive<FixedBox>(size,color,round);
@@ -50,6 +54,7 @@ protected:
 
     // ScreenPrimitive interface
 public:
+    // Size in pixels.
     virtual vec2 getSize() const override;
 };
 
@@ -57,13 +62,16 @@ class EnglobingBox;
 using EnglobingBoxPtr = std::shared_ptr<EnglobingBox>;
 
 
+// A box drawn behind a set of primitives that covers all of them, with a padding around.
 class EnglobingBox : public ScreenPrimitive, public Box
 {
     using InsideType = ScreenPrimitiveInSlide;
+    // Center and size of the box, and the smallest depth among the primitives inside.
     struct EnglobingParams {
         vec2 pos,bbox;
         int min_depth;
     };
+    // Computes the box that covers the primitives.
     EnglobingParams ComputeEnglobing(const std::vector<InsideType>& primitives) const;
     std::vector<InsideType> primitivesInside;
     scalar padding;
@@ -72,6 +80,7 @@ class EnglobingBox : public ScreenPrimitive, public Box
 public:
 
 
+    // Builds a box with color c, roundness r and a padding in relative units.
     EnglobingBox(Color c,float r, float padding, const std::vector<InsideType>& primitives) : primitivesInside(primitives) {
         this->color = c;
         roundness = r;
@@ -79,6 +88,7 @@ public:
         this->padding = padding;
     }
 
+    // Builds a box around the primitives, drawn behind the deepest one.
     static EnglobingBoxPtr Add(Color c,float r,float padding, const std::vector<InsideType>& primitives)
     {
         auto rslt = NewPrimitive<EnglobingBox>(c,r,padding,primitives);
@@ -89,6 +99,7 @@ public:
         return rslt;
     }
 
+    // Same, with the primitives given as separate arguments.
     template<typename... Args>
     static EnglobingBoxPtr Add(Color c, float r,float padding, const Args&... primitives)
     {
@@ -99,6 +110,7 @@ public:
         return Add(c,r,padding,pack);
     }
 
+    // Size in pixels.
     vec2 getSize() const override {
         vec2 rslt = ComputeEnglobing(primitivesInside).bbox;
         auto W = ImGui::GetWindowSize();

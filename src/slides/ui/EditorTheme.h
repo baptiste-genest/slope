@@ -7,10 +7,11 @@
 namespace slope::theme {
 
 /*
- * The Dracula palette of the file editor, shared by its window and the
- * Documentation panel beside it so both read as one tool.
+ * The Dracula palette of the file editor. Its window and the Documentation panel beside it share it,
+ * so both look like one tool.
  */
 
+// Color from a hex value such as 0x282A36.
 inline ImVec4 rgb(int hex, float a = 1.f)
 {
     return ImVec4(((hex >> 16) & 0xFF) / 255.f, ((hex >> 8) & 0xFF) / 255.f, (hex & 0xFF) / 255.f, a);
@@ -27,9 +28,10 @@ inline const ImVec4 Orange     = rgb(0xFFB86C);
 inline const ImVec4 Purple     = rgb(0xBD93F9);
 inline const ImVec4 Green      = rgb(0x50FA7B);
 
+// Number of colors pushed by push().
 inline constexpr int kColors = 29;
 
-// around a window's Begin/End; bg_alpha in 0..1
+// Applies the theme. Call it before Begin of a window and call pop() after End. bg_alpha is between 0 and 1.
 inline void push(float bg_alpha)
 {
     const std::pair<ImGuiCol, ImVec4> colors[kColors] = {
@@ -67,6 +69,7 @@ inline void push(float bg_alpha)
         ImGui::PushStyleColor(col, value);
 }
 
+// Removes the theme.
 inline void pop()
 {
     ImGui::PopStyleColor(kColors);

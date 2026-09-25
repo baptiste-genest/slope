@@ -7,49 +7,61 @@
 
 namespace slope {
 
+// LaTeX source text.
 using TexObject = std::string;
 
+// Helpers that build LaTeX source.
 namespace tex {
 
+// A / B as a fraction.
 inline TexObject frac(const TexObject& A,const TexObject& B) {
     return "\\frac{" + A +"}{" + B + "}";
 }
 
+// Scalar product <A,B>.
 inline TexObject dot(const TexObject& A,const TexObject& B) {
     return "\\langle{" + A +"," + B + "\\rangle}";
 }
 
+// A transposed.
 inline TexObject transpose(const TexObject& A) {
     return A + "^t";
 }
 
+// A as plain text inside a formula.
 inline TexObject text(const TexObject& A) {
     return "\\text{" + A + "}";
 }
 
 
+// A centered on the line.
 inline TexObject center(const TexObject& A) {
     return "\\begin{center} \n" + A + "\n\\end{center}";
 }
 
+// A as a displayed equation, numbered when number is true.
 inline TexObject equation(const TexObject& A,bool number = false) {
     if (number)
         return "\\begin{equation} \n" + A + "\n\\end{equation}";
     return "\\begin{equation*} \n" + A + "\n\\end{equation*}";
 }
 
+// A to the power B.
 inline TexObject pow(const TexObject& A,const TexObject& B) {
     return A + "^{" + B + "}";
 }
 
+// A written above B.
 inline TexObject AaboveB(const TexObject& A,const TexObject& B) {
     return "\\overset{" + A + "}{" + B + "}";
 }
 
+// A written below B.
 inline TexObject AbelowB(const TexObject& A,const TexObject& B) {
     return "\\underset{" + A + "}{" + B + "}";
 }
 
+// Partial derivative of order N with respect to the coordinate i, written x, y and z or x_i.
 template<int N = 1>
 inline TexObject del(int i,bool xyz = true) {
     TexObject D;
@@ -67,6 +79,7 @@ inline TexObject del(int i,bool xyz = true) {
     return D + "x_{"+std::to_string(i)+"}";
 }
 
+// Aligned equations, one per line.
 inline TexObject align(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{align*}\n";
     for (int i= 0;i<texs.size()-1;i++)
@@ -85,6 +98,7 @@ TexObject align(ARGS... arguments) {
 }
 
 
+// Column vector.
 inline TexObject Vec(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{pmatrix}\n";
     for (int i= 0;i<texs.size()-1;i++)
@@ -102,6 +116,7 @@ TexObject Vec(ARGS... arguments) {
     return Vec(data);
 }
 
+// Piecewise definition. The list alternates a value and its condition.
 inline TexObject cases(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{cases}\n";
     for (int i= 0;i<texs.size();i+=2)
@@ -118,6 +133,7 @@ TexObject cases(ARGS... arguments) {
     return cases(data);
 }
 
+// Numbered list.
 inline TexObject enumerate(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{enumerate}\n";
     for (int i= 0;i<texs.size();i++)
@@ -136,6 +152,7 @@ TexObject enumerate(ARGS... arguments) {
 
 
 
+// Matrix with col columns and row rows, given row by row.
 template <int col,int row>
 inline TexObject Mat(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{pmatrix}\n";

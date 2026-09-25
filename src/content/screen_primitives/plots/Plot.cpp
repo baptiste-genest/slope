@@ -149,8 +149,8 @@ PlotPtr Plot::FromSnippet(const std::string& name, BoardRef board,
     return c;
 }
 
-// Just under the rectangle, where a value a log axis cannot show is sent : the
-// curve dives out of the picture rather than stopping. Not to its real depth,
+// Just under the rectangle, where a value that a log axis cannot show is sent, so the
+// curve leaves the picture and does not stop. Not to its real depth,
 // which for an underflowed value is hundreds of decades down and reads, in the
 // linearisation the shader draws with, as a line straight through the frame.
 static float offScale(const vec2& yview)

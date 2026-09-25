@@ -1,5 +1,4 @@
 #pragma once
-// ─────────────────────────────────────────────────────────────────────────────
 // Curves, grids and frames in data coordinates, at widths that stay put in
 // pixels however the axes are scaled.
 //
@@ -9,28 +8,30 @@
 // two axes scale independently, so every distance here is in pixels.
 //
 // Needs the built-in prelude (iResolution, iWorld, iPixelXY).
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── compositing ──────────────────────────────────────────────────────────────
+// compositing
 // A plot is blitted over the slide, so it accumulates coverage instead of
 // painting a background. Premultiplied while stacking, straight alpha out.
 // What is put in first stays on top.
 struct Ink { vec4 acc; };
 
+// Empty ink.
 Ink inkClear() { Ink k; k.acc = vec4(0.0); return k; }
 
+// Adds a color with coverage a under what is already in the ink.
 void inkOver(inout Ink k, vec3 col, float a)
 {
     a = clamp(a, 0.0, 1.0);
     k.acc += (1.0 - k.acc.a) * vec4(col * a, a);
 }
 
+// Final color of the ink, with straight alpha.
 vec4 inkResolve(Ink k)
 {
     return k.acc.a > 1e-5 ? vec4(k.acc.rgb / k.acc.a, k.acc.a) : vec4(0.0);
 }
 
-// ── distances, in pixels ─────────────────────────────────────────────────────
+// distances, in pixels
 // Signed distance in pixels from p to the graph y = f(x). The slope term is
 // what keeps a steep curve from drawing thicker than a flat one.
 float sdGraph(vec2 p, float fx, float dfx, vec2 px)
@@ -46,7 +47,7 @@ float stroke(float d_px, float width_px)
     return smoothstep(0.5 * width_px + 0.5, 0.5 * width_px - 0.5, abs(d_px));
 }
 
-// ── dashes ───────────────────────────────────────────────────────────────────
+// dashes
 // A dash pattern along x in pixels. `d` is (mark, gap), a zero mark is solid.
 float dashMask(vec2 p, vec2 d, vec2 px)
 {
@@ -56,7 +57,7 @@ float dashMask(vec2 p, vec2 d, vec2 px)
     return smoothstep(d.x + 0.5, d.x - 0.5, s);
 }
 
-// ── grid, axes, frame ────────────────────────────────────────────────────────
+// grid, axes, frame
 // lines every `step` data units, one axis
 float gridAxis(float v, float step, float pxv, float width_px)
 {
@@ -84,7 +85,7 @@ float frameMask(vec2 p, vec2 lo, vec2 hi, vec2 px, float width_px)
     return smoothstep(width_px, width_px - 1.0, min(d.x, d.y));
 }
 
-// ── sampled data ─────────────────────────────────────────────────────────────
+// sampled data
 // A curve uploaded as a 1-D texture of values over `span`. See inSpan for
 // what happens outside it.
 float dataAt(sampler2D tex, vec2 span, float x)
@@ -107,7 +108,7 @@ float inSpan(float x, vec2 span, float pxx)
          * smoothstep(0.5, -0.5, (x - span.y) / pxx);
 }
 
-// ── revealing ────────────────────────────────────────────────────────────────
+// revealing
 // A curve drawn on from left to right as `u` goes 0 -> 1 over `span`.
 float revealMask(float x, vec2 span, float u, float pxx)
 {

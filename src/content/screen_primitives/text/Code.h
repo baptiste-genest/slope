@@ -11,15 +11,14 @@ namespace slope {
 /*
  * Source code as a screen primitive.
  *
- * Drawn with ImGui rather than through the LaTeX pipeline, so line positions
- * are known exactly and a reload costs no pdflatex round-trip. Highlighting
- * comes from tree-sitter, see cmake/treesitter.cmake.
+ * It is drawn with ImGui and not with LaTeX, so line positions are exact
+ * and a reload does not need pdflatex. Highlighting comes from tree-sitter, see cmake/treesitter.cmake.
  *
  *   auto code = Code::FromFile("newton.py");
- *   show << code->at("listing") << code->reveal(START);
+ *   show << code->at("code") << code->reveal(START);
  *   show << inNextFrame << code->reveal("loop") << code->focus("loop");
  *
- * A file may carry named regions and points, stripped from what is shown:
+ * A file can hold named regions and points. They are removed from the displayed text.
  *
  *   # slope:begin relax
  *   for v in verts: ...
@@ -29,24 +28,30 @@ namespace slope {
 class Code;
 using CodePtr = std::shared_ptr<Code>;
 
-// Languages are declared with slope_language() in cmake/treesitter.cmake.
+// A language for highlighting. Languages are declared with slope_language() in cmake/treesitter.cmake.
 struct CodeLanguage {
     std::string name;
 
+    // True when the language exists.
     bool valid() const { return !name.empty(); }
 
+    // No highlighting.
     static const CodeLanguage& PlainText();
+    // Language with this name.
     static const CodeLanguage& ForName(const std::string& name);
-    // extension without the dot, e.g. "py"
+    // Links a file extension, written without the dot as in "py", to a language.
     static void Register(const std::string& extension, const CodeLanguage& lang);
+    // Language linked to an extension.
     static const CodeLanguage& ForExtension(const std::string& extension);
+    // Names of the declared languages.
     static std::vector<std::string> Available();
 };
 
-// defined by the cmake-generated Grammars.cpp
+// Registers the declared grammars. It is defined by Grammars.cpp, which cmake generates.
 void RegisterDeclaredGrammars();
 
-// Named colours are live in the Tuner. A literal Color opts one listing out.
+// Colors and layout of a code block.
+// Named colors can be tuned in the Tuner. A fixed Color removes a block from the tuning.
 struct CodeStyle {
     Color text        = Color("code/text",        ColorType(0.10f, 0.10f, 0.12f, 1.f));
     Color keyword     = Color("code/keyword",     ColorType(0.60f, 0.15f, 0.55f, 1.f));
@@ -62,22 +67,24 @@ struct CodeStyle {
     Color highlight   = Color("code/highlight",   ColorType(1.00f, 0.85f, 0.30f, 0.35f));
     Color background  = Color("code/background",  ColorType(0.00f, 0.00f, 0.00f, 0.00f));
 
-    // null falls back on Options::CodeFont, then on polyscope's monospace font
+    // When null, Options::CodeFont is used, then the monospace font of polyscope.
     ImFont* font       = nullptr;
-    float font_scale   = 2.2f;  // on top of the slide state's scale
-    // multiplies each glyph's advance, 1 keeps the font's own metrics
+    // Applied on top of the scale of the slide state.
+    float font_scale   = 2.2f;
+    // Multiplies the advance of each glyph. 1 keeps the metrics of the font.
     float tracking     = 1.0f;
     float line_spacing = 1.15f;
-    float padding      = 12.f;  // pixels, around the text block
+    // Space around the text, in pixels.
+    float padding      = 12.f;
     bool  line_numbers = false;
-    // numbers a file-backed listing by its lines in the file rather than from
-    // 1. Display only, reveal and focus stay relative to the loaded portion
+    // For a block loaded from a file, numbers the lines as in the file instead of from 1.
+    // It only changes the display. Reveal and focus still count from the loaded part.
     bool  absolute_line_numbers = false;
-    // lines outside the highlighted range are dimmed to this factor; 1 keeps
-    // them fully opaque and only draws the highlight band
+    // Opacity of the lines outside the highlighted range. 1 keeps them fully visible and only draws the highlight band.
     float dim_factor   = 0.35f;
 };
 
+// Start or end of a code block, used by reveal.
 enum CodeAnchor { START, END };
 
 class Code : public TextualPrimitive
@@ -87,17 +94,18 @@ public:
 
     CodeStyle style;
 
-    // language defaults to plain text for inline sources, and to whatever the
-    // file extension maps to for file-backed ones
+    // Builds a code block from a string. The default language is plain text.
+    // For a file, the default language comes from the extension.
     static CodePtr Add(const std::string& source,
                        const CodeLanguage& lang = CodeLanguage::PlainText());
+    // Builds a code block from a file, which is reloaded when it changes.
     static CodePtr FromFile(const path& file);
     static CodePtr FromFile(const path& file, const CodeLanguage& lang);
-    // lines first..last of the file, 1-based, last <= 0 for "to the end"
+    // Only the lines from first_line to last_line, counted from 1. A last_line of 0 or less means the end of the file.
     static CodePtr FromFile(const path& file, int first_line, int last_line);
     static CodePtr FromFile(const path& file, int first_line, int last_line,
                             const CodeLanguage& lang);
-    // only the part between the two marker lines, markers excluded
+    // Only the part between two marker lines, without the markers.
     static CodePtr FromFile(const path& file,
                             const std::string& begin_marker,
                             const std::string& end_marker);
@@ -106,12 +114,14 @@ public:
                             const std::string& end_marker,
                             const CodeLanguage& lang);
 
+    // Changes the language and highlights again.
     void setLanguage(const CodeLanguage& lang);
 
-    // Sets the highlight on the primitive itself, i.e. on every slide showing
-    // it. 1-based, inclusive; an empty range means "no highlight".
+    // Highlights lines on the primitive itself, so on every slide that shows it.
+    // Lines are counted from 1 and both ends are included. An empty range removes the highlight.
     void highlight(int first_line, int last_line);
     void highlight(const std::string& region);
+    // Removes the highlight.
     void clearHighlight() { hl_first = hl_last = 0; }
 
     /*
@@ -123,48 +133,56 @@ public:
      * A slide with no cue keeps the last one set.
      */
 
-    // a label, the end of a region, START / END, or a line of the listing
+    // Reveal writes the block progressively up to a point.
+    // A point is a label, the end of a region, START, END or a line number.
+    // The cues below apply from the slide where they are added.
     SlideCue reveal(CodeAnchor where);
     SlideCue reveal(const std::string& label);
     SlideCue reveal(int line);
 
-    // a region, a span between two labels, or a line range
+    // Focus highlights a region, the span between two labels or a line range, and dims the other lines.
     SlideCue focus(const std::string& region);
     SlideCue focus(const std::string& from, const std::string& to);
     SlideCue focus(int first_line, int last_line);
+    // Removes the focus.
     SlideCue unfocus();
 
+    // True when the code defines this region.
     bool hasRegion(const std::string& name) const { return regions.contains(name); }
+    // True when the code defines this point.
     bool hasPoint(const std::string& name) const { return points.contains(name); }
 
-    // re-reads any file-backed Code whose source changed on disk
+    // Reads again the code blocks whose file changed.
     static void HotReloadIfModified();
 
-    // every source file currently watched for hot reload. Absolute, de-duplicated.
+    // Absolute paths of the source files that are watched, with no duplicate.
     static std::vector<path> WatchedFiles();
 
-    // loads a ttf into the atlas once and hands back the same font after that
+    // Loads a ttf file into the font atlas the first time, and returns the same font on later calls.
     static ImFont* LoadFont(const path& file, float size = 18.f);
 
-    // Tree-sitter highlight of an arbitrary buffer, for callers that draw their
-    // own text (the in-app file editor). Runs are disjoint, sorted, and cover
-    // only the coloured spans; the gaps between them are default text. `color`
-    // is a packed ImU32 resolved from the live CodeStyle palette.
+    // Highlights any text with tree-sitter, for code that draws its own text, such as the file editor.
+    // The runs do not overlap, are sorted and cover only the colored spans.
+    // The text between two runs has the default color.
+    // The color is a packed ImU32 taken from the current CodeStyle.
     struct HighlightRun { size_t begin, end; ImU32 color; };
     static std::vector<HighlightRun> HighlightRuns(const std::string& text,
                                                    const CodeLanguage& lang,
                                                    const CodeStyle& style = CodeStyle());
 
-    // a deck recomposes the whole show on every reload, so the cues of the
-    // previous composition have to go with it
+    // Removes the cues of this block. A deck builds the whole show again at every reload,
+    // so the cues of the previous build must be removed.
     void clearCues() { reveal_at.clear(); focus_at.clear(); }
+    // Removes the cues of every block.
     static void ClearAllCues();
 
-    // opaque so this header stays clear of tree-sitter
+    // Function returning the tree-sitter grammar. Its type is opaque so this header does not include tree-sitter.
     using GrammarFn = const void* (*)();
+    // Declares a language with its grammar and the file extensions it applies to.
     static void RegisterGrammar(const std::string& name, GrammarFn grammar,
                                 const std::vector<std::string>& extensions);
 
+    // Size in pixels.
     vec2 getSize() const override;
 
     void draw(const TimeObject& t, const StateInSlide& sis) override;
@@ -172,64 +190,86 @@ public:
     void playOutro(const TimeObject& t, const StateInSlide& sis) override;
 
 private:
+    // Kind of a colored token.
     enum class Tok { Plain, Keyword, Type, Comment, Literal, Preproc,
                      Function, Constant, Variable, Operator };
+    // Token kind for a tree-sitter capture name.
     static Tok tokenOfCapture(std::string_view capture);
+    // A range of characters in a line with its token kind.
     struct Span { size_t begin, end; Tok tok; };
     struct Line { std::string text; std::vector<Span> spans; int file_line; };
 
     std::vector<Line> lines;
-    std::map<std::string, std::pair<int,int>> regions; // name -> 1-based [first,last]
+    // Named regions, each as the first and last line counted from 1.
+    std::map<std::string, std::pair<int,int>> regions;
     CodeLanguage language;
 
-    int hl_first = 0, hl_last = 0; // target highlight, 0 means no highlight
+    // Target highlight. 0 means no highlight.
+    int hl_first = 0, hl_last = 0;
 
-    // label -> number of lines before it. A region also leaves X.begin, X.end
+    // Number of lines before each label. A region also defines X.begin and X.end.
     std::map<std::string, int> points;
 
-    // filled when a slide is composed
-    std::map<int, int> reveal_at;                    // slide -> point
-    std::map<int, std::pair<int,int>> focus_at;      // slide -> lit line range
+    // Set when a slide is composed.
+    // Point to reveal on each slide.
+    std::map<int, int> reveal_at;
+    // Line range to focus on each slide.
+    std::map<int, std::pair<int,int>> focus_at;
 
-    // typed characters of lines 1..p, so a point becomes a write budget
+    // Number of typed characters in lines 1 to p, which turns a point into an amount of typing.
     std::vector<float> unit_prefix;
 
-    // characters written past the indentation, -1 for a whole line
+    // Characters written after the indentation of each line, or -1 for a whole line.
     std::vector<int> written_chars;
     int caret_line = -1;
 
-    // a line break costs this much budget, so it reads as a beat
+    // Typing cost of a line break, so it reads as a pause.
     static constexpr float kNewlineCost = 6.f;
 
+    // Fills points and unit_prefix.
     void buildPoints();
+    // Number of characters typed for a line.
     static int typedChars(const std::string& text);
+    // Number of indentation characters of a line.
     static size_t indentOf(const std::string& text);
-    // -1 if unknown. A region resolves to its end
+    // Number of lines before a label, or -1 if unknown. A region gives its end.
     int pointOf(const std::string& label) const;
+    // Point revealed on a slide.
     int revealOn(int slide) const;
+    // Gives the focused lines of a slide. Returns false when there is no focus.
     bool focusOn(int slide, int& first, int& last) const;
+    // Updates the reveal and focus for the current time.
     void updateFromShow(const TimeObject& t);
 
-    // interpolated between the cues of the two slides, never accumulated
+    // Current band, computed between the cues of the two slides and never accumulated.
     float band_first = 0, band_last = 0;
-    float focus_amt = 0;                 // 0 unfocused .. 1 focused, drives dim+band
+    // From 0 for unfocused to 1 for focused. It sets the dimming and the band.
+    float focus_amt = 0;
 
-    // file backing, for hot reload
+    // Data used to read the file again.
     path source_file;
     std::string begin_marker, end_marker;
-    int slice_first = 0, slice_last = 0;   // 1-based line range, 0 for unset
-    int source_base = 1;                   // file line of the first line loaded
+    // Line range counted from 1, 0 when unset.
+    int slice_first = 0, slice_last = 0;
+    // Line of the file that holds the first loaded line.
+    int source_base = 1;
     std::filesystem::file_time_type last_modified;
     bool from_file = false;
 
-    // base_line is the file line the source starts on, for the gutter
+    // Sets the source text. base_line is the line of the file where it starts, used for the line numbers.
     void setSource(const std::string& source, int base_line = 1);
+    // Number shown for line i.
     int lineNumberOf(size_t i) const;
+    // Width of the column of line numbers.
     float gutterWidth(ImFont* font, float fs) const;
+    // Reads the file again.
     void reloadFromFile();
+    // Draws the block with opacity global_alpha.
     void display(const StateInSlide& sis, float global_alpha);
+    // Height of a line in pixels.
     float lineHeight() const;
 
+    // Every block that reads from a file.
     inline static std::vector<Code*> file_backed;
 };
 

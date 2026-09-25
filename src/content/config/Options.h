@@ -10,15 +10,16 @@
 namespace slope {
 struct Options{
 
-/// Global slope build prefix
-//static   std::string SlopePath;
+/// Folder of the project data, where relative paths are resolved
 static   std::string ProjectDataPath;
 static   std::string ProjectName;
 static   std::string ProjectPath;
+/// Folder of the .pos view files
 static   std::string ProjectViewsPath;
 static   std::string CachePath;
 static   std::string LogPath;
 
+/// Render the slides to images and quit
 static bool ExportMode;
 
 /// Samples per slide change for --export_transitions, 0 for one still per slide
@@ -31,10 +32,10 @@ static int RecordFPS;
 /// Seconds each settled slide is held, clocks still running, for --record
 static double RecordDwell;
 
-/// Report unused/duplicated/defaulted anchor labels at startup (--check_labels)
+/// Report unused, duplicated or defaulted anchor labels at startup (--check_labels)
 static bool CheckLabels;
 
-/// Rehearsal timer, records timings and compares against the previous run
+/// Rehearsal timer that records timings and compares them with the previous run
 static bool Rehearse;
 
 /// Hide the slide number in the bottom right corner (--no_slide_numbers)
@@ -44,40 +45,43 @@ static bool HideSlideNumbers;
 static std::string PathToPDFLATEX;
 static std::string PathToCONVERT;
 
-/// Video decoding, optional, a bare name still resolves through PATH
+/// Video decoding, optional. A bare name is searched in PATH
 static std::string PathToFFMPEG;
 static std::string PathToFFPROBE;
 
-/// TTF a Code listing is drawn with, empty for polyscope's monospace font
+/// TTF font used to draw code blocks, empty for the monospace font of polyscope
 static std::string CodeFont;
 
-/// Where a shader's "#include <...>" finds the shader stdlib
+/// Folder searched by the "#include <...>" of a shader, holding the shader standard library
 static std::string ShaderPath;
-// one <language>.scm per declared language
+/// Folder with one <language>.scm file per declared language
 static std::string QueryPath;
 
-///Window size
+///Window size in pixels
 static size_t ScreenResolutionWidth;
 static size_t ScreenResolutionHeight;
 
-///Density for the PDF -> PNG export
+///Density for the PDF to PNG conversion
 static size_t PDFtoPNGDensity;
 
+/// Corner roundness of boxes
 static float DefaultBoxRoundness;
 
+/// Rebuild cached files even when they exist
 static bool ignore_cache;
 
-/// Copy a label for every newly placed item to the clipboard (--auto-suggest)
+/// Copy a label to the clipboard for every newly placed item (--auto-suggest)
 static bool AutoSuggest;
 
-/// Height ratio for title
+/// Height of the title relative to the slide
 static double TitleScale;
+/// Scale of LaTeX items when none is given
 static double DefaultLatexScale;
 
-/// (x, y) gap the TOP_LEFT / ... edge anchors leave to the window border
+/// (x, y) gap left between the edge anchors (TOP_LEFT and others) and the window border
 static vec2 ScreenMargin;
 
-// compiled defaults, the value a dropped "config:" key falls back to
+// Compiled defaults, used when a "config:" key is removed
 static constexpr double DefaultTitleScale       = 1.5;
 static constexpr double DefaultLatexScaleValue  = 1.0;
 static constexpr float  DefaultBoxRoundnessValue = 1.f;

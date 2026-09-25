@@ -614,7 +614,7 @@ void slope::Slideshow::exportTransitions()
     for (size_t i = 0; i < slides.size(); i++) {
         spdlog::info("exporting transition into slide {} / {}", i+1, slides.size());
 
-        // what a key press leaves behind: previous slide up, change unhandled
+        // Same state as after a key press, with the previous slide up and the change not handled.
         state.current = i;
         state.locked = true;
         state.done = false;
@@ -982,7 +982,7 @@ void slope::Slideshow::addKeyboardInputs()
         [this](){wm.Toggle(WindowType::PolyscopeGUI);},true);
     input_manager.addInput("edit hot-reloaded files","E",ImGuiKey_E,
         [this](){
-            // Toggle says whether it just opened; jump only if the slide changed since
+            // Toggle tells whether the window just opened. Jump only if the slide changed since.
             if (wm.Toggle(WindowType::FileEditor) && editor_jump_slide != (int)state.current) {
                 editor_jump_slide = (int)state.current;
                 if (file_editor.currentFile().empty())

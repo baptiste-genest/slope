@@ -1,14 +1,13 @@
 #pragma once
-// ─────────────────────────────────────────────────────────────────────────────
 // Hash-based noise. Everything here is a pure function of its input, no
 // textures, no seeds, and the same point always gives the same value, which is
 // what makes it safe under the ping-pong feedback passes.
 //
 //   #include <noise.glsl>
 //   float h = fbm(p * 3.0, 5);
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── hashes ───────────────────────────────────────────────────────────────────
+// hashes
+// Pseudo random value in [0,1) from one number. The other hash functions do the same with more inputs or outputs.
 float hash11(float p) {
     p = fract(p * 0.1031);
     p *= p + 33.33;
@@ -35,7 +34,7 @@ vec3 hash33(vec3 p) {
     return fract((p.xxy + p.yxx) * p.zyx);
 }
 
-// ── value noise ──────────────────────────────────────────────────────────────
+// value noise
 // hash the lattice corners and interpolate. The quintic fade has zero first
 // *and* second derivative at the ends, so the result has no visible grid.
 float valueNoise(vec2 p) {
@@ -45,6 +44,7 @@ float valueNoise(vec2 p) {
                mix(hash12(i + vec2(0, 1)), hash12(i + vec2(1, 1)), u.x), u.y);
 }
 
+// Value noise in 3D, between 0 and 1.
 float valueNoise(vec3 p) {
     vec3 i = floor(p), f = fract(p);
     vec3 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
@@ -54,7 +54,7 @@ float valueNoise(vec3 p) {
                    mix(hash13(i + vec3(0, 1, 1)), hash13(i + vec3(1, 1, 1)), u.x), u.y), u.z);
 }
 
-// ── gradient (Perlin-style) noise, in -1..1 ──────────────────────────────────
+// gradient (Perlin-style) noise, in -1..1
 // random *gradients* rather than random values, zero at every lattice point,
 // which removes the blobbiness of value noise
 float gradientNoise(vec2 p) {
@@ -68,7 +68,7 @@ float gradientNoise(vec2 p) {
                mix(dot(g01, f - vec2(0, 1)), dot(g11, f - vec2(1, 1)), u.x), u.y) * 1.4;
 }
 
-// ── fractal sums ─────────────────────────────────────────────────────────────
+// fractal sums
 // octaves at doubling frequency and halving amplitude, the 1/f spectrum that
 // natural detail tends to have
 float fbm(vec2 p, int octaves) {
@@ -82,6 +82,7 @@ float fbm(vec2 p, int octaves) {
     return sum / max(norm, 1e-8);
 }
 
+// Sum of several octaves of value noise in 3D, between 0 and 1.
 float fbm(vec3 p, int octaves) {
     float sum = 0.0, amp = 0.5, norm = 0.0;
     for (int i = 0; i < octaves; ++i) {
@@ -112,7 +113,7 @@ float domainWarp(vec2 p, int octaves, float strength) {
     return fbm(p + strength * q, octaves);
 }
 
-// ── cellular (Worley) ────────────────────────────────────────────────────────
+// cellular (Worley)
 // distance to the nearest of one random point per cell. Returns
 // (nearest, second nearest), their difference outlines the cell borders.
 vec2 worley(vec2 p) {
@@ -128,7 +129,7 @@ vec2 worley(vec2 p) {
     return vec2(d1, d2);
 }
 
-// ── divergence-free 2D flow ──────────────────────────────────────────────────
+// divergence-free 2D flow
 // the perpendicular gradient of a scalar field is divergence-free by
 // construction, so this never pools or sources, what you want to advect with
 vec2 curlNoise(vec2 p, float eps) {

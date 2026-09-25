@@ -1005,8 +1005,8 @@ void Code::display(const StateInSlide& sis, float global_alpha)
     const float lh    = fsize * style.font_scale * style.line_spacing * scale;
     const float pad   = style.padding * scale;
 
-    // getSize() is unscaled; the slide state's scale is applied here so the
-    // wheel-zoom in the drag editor works on code like any other primitive
+    // getSize() is not scaled. The scale of the slide state is applied here,
+    // so the zoom with the mouse wheel in the drag editor works on code like on any other primitive.
     const vec2 base = getSize();
     const ImVec2 size(float(base(0)) * scale, float(base(1)) * scale);
 
@@ -1077,7 +1077,7 @@ void Code::display(const StateInSlide& sis, float global_alpha)
                   num.c_str(), num.c_str() + num.size(), style.tracking);
         }
 
-        // spans are sparse : whatever they do not cover is plain text
+        // Spans are sparse, and the text that they do not cover is plain.
         const auto& text = lines[i].text;
         // -1 is whole, otherwise characters past the indentation
         const int written = writtenOf(line_no);

@@ -120,7 +120,7 @@ static int arrayCount(const std::string& name, const std::string& type)
 //
 // An array's "default" is a list of one value per element. Quote the type in a
 // flow mapping, {type: "vec3[8]", ...}, where yaml reads brackets itself. This
-// is a row of knobs, one parameter each ; an array of values computed in C++
+// is a row of knobs, one parameter each. An array of values computed in C++
 // goes through Shader::set/bindArray instead.
 //
 // The parameter is named "<item>/<uniform>", which is also how the Tuner panel
@@ -142,7 +142,7 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
     const json& us = item["uniforms"];
 
     // Two spellings. A list lets a name that needs no type stand on its own,
-    // and a map is the older "name: type" form; entries may be mixed.
+    // and a map is the older "name: type" form. The two forms can be mixed.
     std::vector<std::pair<std::string, json>> entries;
     if (us.is_array()) {
         for (const auto& e : us) {

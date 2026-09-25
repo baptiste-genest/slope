@@ -8,19 +8,21 @@ namespace slope {
 class Webcam;
 using WebcamPtr = std::shared_ptr<Webcam>;
 
-/// A live camera, the pipeline Video already has minus the timeline. The frame
-/// shown is the last that arrived, and there is no seeking, speed or pausing.
+/// A live camera. It uses the pipeline of Video without the timeline.
+/// The frame shown is the last one received, and there is no seeking, speed or pause.
 ///
-/// It opens when the slide is reached and closes when it is left, so the camera
-/// light follows the slide. Named Webcam because slope's Camera is a viewpoint.
+/// It opens when the slide is reached and closes when the slide is left, so the light of the camera follows the slide.
+/// It is named Webcam because Camera in slope is a viewpoint.
 class Webcam : public Video {
 public:
-    /// The device is told, not probed. `v4l2-ctl --list-formats-ext` lists what
-    /// it offers, and mjpeg above VGA, raw 720p30 does not fit through USB 2.
+    /// Opens a camera device. The size, rate and format are given and not probed.
+    /// `v4l2-ctl --list-formats-ext` lists what the device offers.
+    /// Use mjpeg above VGA, because raw 720p at 30 fps does not fit through USB 2.
     static WebcamPtr Add(const std::string& device = "/dev/video0",
                          int w = 1280, int h = 720, int fps = 30,
                          const std::string& input_format = "mjpeg");
 
+    // Same as Add, from a device name and its properties.
     Webcam(const std::string& device, const VideoInfo& info,
            const std::string& input_format);
 

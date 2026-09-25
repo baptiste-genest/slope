@@ -1,25 +1,26 @@
 #pragma once
-// ─────────────────────────────────────────────────────────────────────────────
 // Signed distance fields, negative inside, zero on the surface, positive
 // outside, and (for these) equal to the true Euclidean distance, which is what
 // lets sphere tracing and constant-width outlines work.
 //
 //   #include <sdf.glsl>
 //   float d = opSmoothUnion(sdSphere(p - a, 0.5), sdSphere(p - b, 0.5), 0.2);
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── 2D ───────────────────────────────────────────────────────────────────────
+// 2D
 float sdCircle(vec2 p, float r) { return length(p) - r; }
 
+// Signed distance to a box of half sizes half_size centered at the origin.
 float sdBox2(vec2 p, vec2 half_size) {
     vec2 d = abs(p) - half_size;
     return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
 }
 
+// Signed distance to the same box with corners rounded by r.
 float sdRoundBox2(vec2 p, vec2 half_size, float r) {
     return sdBox2(p, half_size - r) - r;
 }
 
+// Distance to the segment from a to b.
 float sdSegment2(vec2 p, vec2 a, vec2 b) {
     vec2 pa = p - a, ba = b - a;
     float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
@@ -64,16 +65,20 @@ float sdPie(vec2 p, vec2 c, float r) {
     return max(l, m * sign(c.y * p.x - c.x * p.y));
 }
 
-// ── 3D ───────────────────────────────────────────────────────────────────────
+// 3D
+// Signed distance to a sphere of radius r centered at the origin.
 float sdSphere(vec3 p, float r) { return length(p) - r; }
 
+// Signed distance to the plane with normal n at distance h from the origin along -n.
 float sdPlane(vec3 p, vec3 n, float h) { return dot(p, normalize(n)) + h; }
 
+// Signed distance to a box of half sizes half_size centered at the origin.
 float sdBox(vec3 p, vec3 half_size) {
     vec3 d = abs(p) - half_size;
     return length(max(d, 0.0)) + min(max(d.x, max(d.y, d.z)), 0.0);
 }
 
+// Signed distance to the same box with edges rounded by r.
 float sdRoundBox(vec3 p, vec3 half_size, float r) {
     return sdBox(p, half_size - r) - r;
 }
@@ -83,18 +88,20 @@ float sdTorus(vec3 p, vec2 t) {
     return length(vec2(length(p.xz) - t.x, p.y)) - t.y;
 }
 
+// Signed distance to the capsule of radius r around the segment from a to b.
 float sdCapsule(vec3 p, vec3 a, vec3 b, float r) {
     vec3 pa = p - a, ba = b - a;
     float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
     return length(pa - ba * h) - r;
 }
 
+// Signed distance to a cylinder of half height h and radius r around the y axis.
 float sdCylinder(vec3 p, float h, float r) {
     vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(r, h);
     return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
 }
 
-// a cone / frustum between `a` (radius ra) and `b` (radius rb) ; ra or rb may
+// Cone or frustum between `a` (radius ra) and `b` (radius rb). ra or rb can
 // be 0 for a plain cone. Follows sdCapsule's a/b parameterization, so the
 // axis is not fixed to y like sdCylinder's.
 float sdCappedCone(vec3 p, vec3 a, vec3 b, float ra, float rb) {
@@ -145,9 +152,12 @@ float sdEllipsoid(vec3 p, vec3 r) {
     return k0 * (k0 - 1.0) / k1;
 }
 
-// ── combining ────────────────────────────────────────────────────────────────
+// combining
+// Union of two shapes.
 float opUnion    (float a, float b) { return min(a, b); }
+// Intersection of two shapes.
 float opIntersect(float a, float b) { return max(a, b); }
+// Shape a removed from shape b.
 float opSubtract (float a, float b) { return max(-a, b); }   // b minus a
 
 // union with a fillet of radius ~k. The workhorse, this is what makes two
@@ -157,10 +167,12 @@ float opSmoothUnion(float a, float b, float k) {
     float h = max(k - abs(a - b), 0.0);
     return min(a, b) - h * h * 0.25 / k;
 }
+// Intersection with a fillet of size k.
 float opSmoothIntersect(float a, float b, float k) {
     float h = clamp(0.5 - 0.5 * (b - a) / k, 0.0, 1.0);
     return mix(b, a, h) + k * h * (1.0 - h);
 }
+// Subtraction with a fillet of size k.
 float opSmoothSubtract(float a, float b, float k) {
     float h = clamp(0.5 - 0.5 * (a + b) / k, 0.0, 1.0);
     return mix(a, -b, h) + k * h * (1.0 - h);
@@ -173,20 +185,23 @@ float opShell(float d, float t) { return abs(d) - t; }
 // corners (apply before combining, as sdRoundBox does internally).
 float opRound(float d, float r) { return d - r; }
 
-// ── domain ───────────────────────────────────────────────────────────────────
+// domain
 // tile space with period `c`, so one primitive becomes infinitely many. The
 // result is only a bound on the true distance, which is fine for marching as
 // long as the primitive fits inside its cell.
 vec3 opRepeat(vec3 p, vec3 c) { return mod(p + 0.5 * c, c) - 0.5 * c; }
+// Same as opRepeat in 2D.
 vec2 opRepeat2(vec2 p, vec2 c) { return mod(p + 0.5 * c, c) - 0.5 * c; }
 
 // mirror across x = 0, model half a symmetric object, get both halves
 vec3 opMirrorX(vec3 p) { return vec3(abs(p.x), p.yz); }
 
+// Rotates p by angle a around the y axis.
 vec3 opRotateY(vec3 p, float a) {
     float c = cos(a), s = sin(a);
     return vec3(c * p.x - s * p.z, p.y, s * p.x + c * p.z);
 }
+// Rotates p by angle a around the origin.
 vec2 opRotate2(vec2 p, float a) {
     float c = cos(a), s = sin(a);
     return vec2(c * p.x - s * p.y, s * p.x + c * p.y);

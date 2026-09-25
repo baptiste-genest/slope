@@ -8,41 +8,43 @@
 
 namespace slope {
 
+// 4x4 matrix of a transform.
 using TransformMat = glm::mat4;
 
 
+// Scale, then rotation around an axis, then translation.
 class Transform {
 public:
+    // Rotation angle in radians around axis.
     float angle;
     glm::vec3 axis,translation,scale;
 
+    // Sets the fields from a matrix made of scale, rotation and translation.
     void fromGLMMat4(const glm::mat4& matrix){
-            // Translation
             translation = glm::vec3(matrix[3]);
 
-            // Scale
             scale.x = glm::length(glm::vec3(matrix[0]));
             scale.y = glm::length(glm::vec3(matrix[1]));
             scale.z = glm::length(glm::vec3(matrix[2]));
 
-            // Rotation matrix
             glm::mat3 rotationMatrix;
             rotationMatrix[0] = glm::vec3(matrix[0]) / scale.x;
             rotationMatrix[1] = glm::vec3(matrix[1]) / scale.y;
             rotationMatrix[2] = glm::vec3(matrix[2]) / scale.z;
 
-            // Handle negative determinant
+            // A mirror is moved into the scale.
             if (glm::determinant(rotationMatrix) < 0.0f) {
                 scale *= -1.0f;
                 rotationMatrix *= -1.0f;
             }
 
-            // Quaternion → axis-angle
+            // Convert to axis and angle.
             glm::quat q = glm::quat_cast(rotationMatrix);
             angle = glm::angle(q);
             axis = glm::axis(q);
     }
 
+    // Identity.
     Transform() {
         angle = 0;
         scale = glm::vec3(1,1,1);
@@ -50,14 +52,17 @@ public:
         translation = glm::vec3(0,0,0);
     }
 
+    // Rotation matrix.
     inline TransformMat getRotation() const {
         return glm::axisAngleMatrix(axis,angle);
     }
 
+    // Rotation matrix, as an Eigen matrix.
     inline mat getRotationEigen() const {
-        return Eigen::AngleAxisd(angle,vec(axis.x,axis.y,axis.z)).toRotationMatrix();;
+        return Eigen::AngleAxisd(angle,vec(axis.x,axis.y,axis.z)).toRotationMatrix();
     }
 
+    // Full matrix.
     TransformMat getMatrix() const {
         TransformMat rslt = glm::scale(TransformMat(1.f),scale);
         rslt = getRotation()*rslt;
@@ -65,6 +70,7 @@ public:
         return rslt;
     }
 
+    // Blend of two transforms, giving T1 at t=0 and T2 at t=1.
     static Transform Interpolate(const Transform& T1,const Transform& T2,scalar t) {
         Transform T;
         auto R1 = T1.getRotation();
@@ -76,6 +82,7 @@ public:
         return T;
     }
 
+    // Pure translation.
     static Transform Translation(const vec& x) {
         Transform T;
         T.translation.x = x(0);
@@ -84,6 +91,7 @@ public:
         return T;
     }
 
+    // Pure rotation of angle th around the axis x.
     static Transform AxisAngle(scalar th, vec x) {
         Transform T;
         T.angle = th;
@@ -94,6 +102,7 @@ public:
         return T;
     }
 
+    // Pure scale, with one factor per axis.
     static Transform Scale(const vec& x) {
         Transform T;
         T.scale.x = x(0);
@@ -102,6 +111,7 @@ public:
         return T;
     }
 
+    // Pure scale, the same on every axis.
     static Transform Scale(scalar x) {
         Transform T;
         T.scale.x = x;
@@ -110,6 +120,7 @@ public:
         return T;
     }
 
+    // Transform from a scale per axis, a position and a rotation given by axis and angle.
     static Transform ScalePositionRotate(const vec& s,const vec& p,vec axis,scalar th) {
         Transform T;
         T.scale.x = s(0);
@@ -126,6 +137,7 @@ public:
         return T;
     }
 
+    // Same, with the rotation given as a matrix.
     static Transform ScalePositionRotate(const vec& s,const vec& p,const mat& R) {
         Transform T;
         T.scale.x = s(0);
@@ -142,6 +154,7 @@ public:
     }
 
 
+    // Same, with one scale for all axes. The axis must be normalized.
     static Transform ScalePositionRotate(scalar s,const vec& p,const vec& axis,scalar th) {
         Transform T;
         T.scale.x = s;
@@ -157,6 +170,7 @@ public:
         return T;
     }
 
+    // Rotation matrix from the angles around x, y and z, applied in this order.
     static mat RotFromEulerAngles(const Eigen::Vector<float,3>& euler_angles) {
         mat R;
         R = Eigen::AngleAxisd(euler_angles(0),vec::UnitX())
@@ -166,6 +180,7 @@ public:
     }
 };
 
+// A transform stored under a label, edited with a gizmo and saved in views/<label>.transform.
 class PersistentTransform {
     std::string label;
 
@@ -192,11 +207,11 @@ class PersistentTransform {
 
 public:
 
-    // polyscope's remove() only deregisters the widget, it does not destroy
-    // it, so ownership stays here. shared_ptr rather than unique_ptr because
-    // PersistentTransform is held by value in StateInSlide and copied freely.
+    // The gizmo is owned here because remove() in polyscope only unregisters it.
+    // It is a shared_ptr because PersistentTransform is copied inside StateInSlide.
     std::shared_ptr<polyscope::TransformationGizmo> guizmo = nullptr;
 
+    // Creates a gizmo that is removed when the last owner releases it.
     static std::shared_ptr<polyscope::TransformationGizmo> makeGuizmo(const std::string& name) {
         return std::shared_ptr<polyscope::TransformationGizmo>(
             new polyscope::TransformationGizmo(name),
@@ -209,14 +224,19 @@ public:
             });
     }
 
+    // Inactive, with no label.
     PersistentTransform() {}
+    // Transform stored under the label l.
     PersistentTransform(std::string l) : label(l) {}
 
+    // True when a label is set.
     bool isActive() const {return label != "";}
 
+    // The label.
     std::string getLabel() const {return label;}
 
-    // nullopt when the label was never placed, which onPlane reads as a billboard
+    // Stored transform, or nothing when the label was never placed.
+    // A plane reads a missing transform as a billboard.
     std::optional<Transform> stored() const {
         if (label == "")
             return std::nullopt;
@@ -232,12 +252,13 @@ public:
         return T;
     }
 
+    // Stored transform, or the identity when there is none.
     Transform readFromLabel() const {
         auto T = stored();
         return T ? *T : Transform();
     }
 
-    // edits stay in the session, Ctrl+S and the quit prompt put them on disk
+    // Stores a new transform for the session. It is written to disk with Ctrl+S or when quitting.
     void writeAtLabel(const Transform& T) const {
         if (label == "")
             return;
@@ -245,8 +266,10 @@ public:
         dirty_labels.insert(label);
     }
 
+    // True when some transform was edited and not saved.
     static bool hasDirty() {return !dirty_labels.empty();}
 
+    // Writes every edited transform to its file.
     static void saveAllDirty() {
         std::error_code ec;
         std::filesystem::create_directories(slope::Options::ProjectViewsPath, ec);
@@ -270,6 +293,7 @@ public:
         dirty_labels = std::move(unsaved);
     }
 
+    // Draws position, rotation and scale fields. Returns true when T changed.
     bool ImGuiInterface(Transform& T) const {
         bool changed = false;
 

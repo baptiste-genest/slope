@@ -5,6 +5,7 @@
 
 namespace slope {
 
+// A set of points drawn as spheres.
 class PointCloud : public PolyscopePrimitive
 {
 public:
@@ -12,23 +13,30 @@ public:
 
     using PointCloudPtr = std::shared_ptr<PointCloud>;
 
+    // Builds a cloud from points. A negative radius keeps the default of polyscope.
     static PointCloudPtr Add(const vecs& P,LiveScalar radius = -1);
-    // the vertices of a .ply (ascii or binary) or of a .obj
+    // Builds a cloud from the vertices of a .ply file (ascii or binary) or of an .obj file.
     static PointCloudPtr Add(const std::string& file,LiveScalar radius = -1);
+    // Returns a new cloud with phi applied to every point.
     PointCloudPtr apply(const mapping& phi);
+    // Returns a new cloud where phi is applied to the original points every frame.
     PointCloudPtr applyDynamic(const VertexTimeMap& phi);
 
-    // world units, < 0 for polyscope's default; a name nothing gives becomes a Tuner slider
+    // Radius in world units. A negative value keeps the default of polyscope.
+    // A name that no snippet gives becomes a slider in the Tuner.
     void setRadius(const LiveScalar& r);
     const LiveScalar& getRadius() const {return radius;}
 
+    // Structure of polyscope, for direct access.
     polyscope::PointCloud* pc = nullptr;
     const vecs& getPoints() const {return points;}
+    // Moves the points to X.
     void updateCloud(const vecs& X) {
         points = X;
         pc->updatePointPositions(points);
     }
 
+    // Centers the cloud and scales its longest side to 1.
     void normalize();
 
     size_t vertexCount() const override { return points.size(); }
@@ -39,7 +47,7 @@ private:
     LiveScalar radius = -1;
     std::optional<scalar> applied_radius;
 
-    // pushed only when it moves, so code setting pc's radius directly keeps it
+    // Sends the radius to polyscope only when it changed, so a radius set directly on pc is kept.
     void syncRadius();
 
     // PolyscopePrimitive interface
@@ -50,6 +58,7 @@ public:
     void playOutro(const TimeObject& t, const StateInSlide &sis) override;
 };
 
+// Uses a scalar quantity of a point cloud as its transparency during the slides.
 class PointCloudTransparencyQuantity : public Primitive
 {
 public :

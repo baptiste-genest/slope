@@ -37,9 +37,7 @@ size_t Video::MemoryBudget = 96u << 20;
 
 namespace {
 
-// ─────────────────────────────────────────────────────────────────────────────
 // running ffmpeg without a shell
-// ─────────────────────────────────────────────────────────────────────────────
 // popen() hands back a FILE* and no pid, leaving no way to kill a decoder
 // stalled in a read. fork/exec gives both the pid and a literal argv.
 struct Child {
@@ -127,9 +125,7 @@ bool sane(const std::string& v) { return !v.empty() && v != "N/A" && v != "0/0";
 
 } // namespace
 
-// ─────────────────────────────────────────────────────────────────────────────
 // probing
-// ─────────────────────────────────────────────────────────────────────────────
 // key=value and not csv, ffprobe emits the fields in its own order. Both
 // durations are asked for, matroska leaves the stream one at N/A and without
 // one total_frames_ is 0, which disables looping and seeking.
@@ -172,8 +168,8 @@ VideoInfo probeVideo(const std::string& file)
         }
     }
 
-    // avg_frame_rate is the honest average; r_frame_rate is a base rate that a
-    // variable frame rate file can report as something absurd like 1000/1
+    // avg_frame_rate is the real average. r_frame_rate is a base rate, which a variable frame rate file can report
+    // as an absurd value such as 1000/1.
     for (const std::string& cand : {avg_rate, r_rate}) {
         double f = parseRate(cand);
         if (f > 0 && f < 1000) { info.fps = f; info.fps_str = cand; break; }
@@ -185,9 +181,7 @@ VideoInfo probeVideo(const std::string& file)
     return info;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // the queue
-// ─────────────────────────────────────────────────────────────────────────────
 struct Video::Frame {
     int64_t              index = -1;
     std::vector<uint8_t> rgba;
@@ -215,9 +209,7 @@ struct Video::Stream {
     int64_t produced  = 0;   // tells a working stream from a stillborn one
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
 // construction
-// ─────────────────────────────────────────────────────────────────────────────
 VideoPtr Video::Add(const std::string& file, int decode_width, bool loop, bool autoplay)
 {
     std::string path = formatPath(file);
@@ -276,9 +268,7 @@ Video::~Video()
         glDeleteTextures(1, &tex_.texture);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // the decode side
-// ─────────────────────────────────────────────────────────────────────────────
 void Video::killStream(const std::shared_ptr<Stream>& s)
 {
     if (!s) return;
@@ -503,9 +493,7 @@ void Video::decodeLoop(std::shared_ptr<Stream> s, int64_t base)
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 // the presentation side
-// ─────────────────────────────────────────────────────────────────────────────
 void Video::draw(const TimeObject& t, const StateInSlide& sis)      { step(t, sis); }
 void Video::playIntro(const TimeObject& t, const StateInSlide& sis) { step(t, sis); }
 void Video::playOutro(const TimeObject& t, const StateInSlide& sis) { step(t, sis); }

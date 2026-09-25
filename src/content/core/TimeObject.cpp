@@ -62,7 +62,7 @@ parameter TimeObject::slidePosition() const {
 }
 
 // The trapezoid, in slide position. Overlapping, a ramp spans a whole slide
-// and neighbours cross at half weight; sequential doubles the slope so one
+// and neighbours cross at half weight. Sequential doubles the slope, so one
 // window reaches 0 before the next leaves it.
 static parameter window(parameter p, parameter a, parameter b, bool sequential) {
     const parameter k = sequential ? 2 : 1;

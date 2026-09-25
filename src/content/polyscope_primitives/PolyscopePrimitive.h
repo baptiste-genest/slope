@@ -10,16 +10,20 @@ namespace slope {
 class PolyscopePrimitive;
 using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
 
+// Base of the primitives that wrap a polyscope structure.
 class PolyscopePrimitive : public Primitive
 {
 public:
     PolyscopePrimitive();
 
-    // palette = false keeps the colour polyscope gave the structure
+    // Registers the polyscope structure and gives it the next palette color.
+    // With palette false, the color chosen by polyscope is kept.
     void initPolyscopeData(polyscope::Structure* pcptr, bool palette = true);
 
+    // Name of the structure in polyscope.
     std::string getPolyscopeName() const;
 
+    // Places the primitive at the origin of the scene, with opacity alpha.
     PrimitiveInSlide at(scalar alpha=1);
 
     // Primitive interface
@@ -28,17 +32,20 @@ public:
     void playIntro(const TimeObject& t,const StateInSlide &sis) override;
     void playOutro(const TimeObject& t,const StateInSlide &sis) override;
 
+    // Places the primitive with a transform.
     PrimitiveInSlide at(const Transform& T,scalar alpha=1);
 
+    // Places the primitive at a position.
     PrimitiveInSlide at(scalar x,scalar y,scalar z,scalar alpha=1);
 
     PrimitiveInSlide at(const vec& x,scalar alpha=1);
 
+    // Places the primitive with the transform stored under a label, which a gizmo can edit.
     PrimitiveInSlide at(const std::string& label,scalar alpha = 1);
 
-    // pos, scale, axis and angle, each a value or a snippet name read every frame
+    // Places the primitive with a transform whose fields are values or snippet names read every frame.
     PrimitiveInSlide at(const LiveTransform& T,scalar alpha = 1);
-    // the same inside the label's frame, which the gizmo still moves
+    // Same, inside the frame of the label, which the gizmo can still move.
     PrimitiveInSlide at(const std::string& label,const LiveTransform& T,scalar alpha = 1);
 
     void forceDisable() override;
@@ -46,38 +53,42 @@ public:
     void forceEnable() override;
     bool isScreenSpace() const override;
 
-    // for a primitive the deck dropped, which must never be drawn again
+    // Removes the structure from polyscope, for a primitive dropped by the deck.
     void unregisterFromPolyscope();
 
-    // Color(r,g,b), or Color("name") which is tunable or owned by a snippet
+    // Sets the color, either Color(r,g,b) or Color("name"), which can be tuned or given by a snippet.
     void setColor(const Color& c);
     const Color& getColor() const {return color;}
-    // the colour it was registered with
+    // Color given when the structure was registered.
     glm::vec3 getDefaultColor() const {return default_color;}
+    // Goes back to the default color.
     void resetColor();
 
+    // Restarts the palette from its first color.
     static void resetColorId();
 
-    // the next palette entry, handed to new structures in creation order
+    // Next color of the palette. New structures take them in order of creation.
     static glm::vec3 nextPaletteColor();
 
+    // Applies the transform of the slide state to the structure.
     void setTransform(const StateInSlide& sis);
 
-    // vertices, points or curve nodes, 0 for a structure without any
+    // Number of vertices, points or curve nodes. It is 0 for a structure without any.
     virtual size_t vertexCount() const { return 0; }
-    // vertex i where it is drawn now, the slide's placement included
+    // Position of vertex i as drawn now, including the placement of the slide.
     vec worldVertex(size_t i) const;
 
+    // Transform of the structure before the placement of the slide.
     Transform localTransform;
 
     bool isPolyscopePrimitive() const override { return true; }
 protected:
     polyscope::Structure* polyscope_ptr = nullptr;
 
-    // for a structure registered again without initPolyscopeData
+    // Applies the color again, for a structure registered again without initPolyscopeData.
     void reapplyColor();
 
-    // vertex i in the structure's own coordinates, i < vertexCount()
+    // Position of vertex i in the coordinates of the structure, with i < vertexCount().
     virtual vec localVertex(size_t i) const { return vec::Zero(); }
 
     static size_t count;
@@ -90,13 +101,16 @@ private:
     bool colored = false;
     std::optional<glm::vec3> applied;
 
+    // Sends the current color to polyscope.
     void syncColor();
 };
+// Shows a polyscope quantity, such as a scalar field, during its slides.
 template<class T>
 class PolyscopeQuantity : public Primitive
 {
 public :
     using PCQuantityPtr = std::shared_ptr<PolyscopeQuantity>;
+    // Wraps the quantity and hides it until its slide.
     static PCQuantityPtr Add(T* ptr) {
         auto rslt = NewPrimitive<PolyscopeQuantity<T>>();
         rslt->q = ptr;
@@ -109,7 +123,7 @@ public:
     T* q;
     void draw(const TimeObject &time, const StateInSlide &sis) override {q->setEnabled(true);}
     void playIntro(const TimeObject& t, const StateInSlide &sis) override {q->setEnabled(true);}
-    // a quantity cannot fade, so it is held to the end of the outro instead
+    // A quantity cannot fade, so it stays visible until the end of the outro.
     void playOutro(const TimeObject& t, const StateInSlide &sis) override {
         if (t.transition_parameter > 0.95)
             q->setEnabled(false);
@@ -118,11 +132,13 @@ public:
     bool isScreenSpace() const override {return false;}
 };
 
+// Wraps a polyscope quantity in a primitive.
 template<typename T>
 static PolyscopeQuantity<T>::PCQuantityPtr AddPolyscopeQuantity(T* ptr) {
     return PolyscopeQuantity<T>::Add(ptr);
 }
 
+// Vector fields grow from zero length during the intro and shrink during the outro.
 template<>
 class PolyscopeQuantity<polyscope::SurfaceVertexVectorQuantity> : public Primitive
 {
@@ -134,7 +150,7 @@ public :
         rslt->q = ptr;
         rslt->q->setEnabled(false);
         rslt->l0 = ptr->getVectorLengthScale();
-               return rslt;
+        return rslt;
     }
 
     // Primitive interface
@@ -142,7 +158,6 @@ public:
     scalar l0;
     T* q;
     void draw(const TimeObject &time, const StateInSlide &sis) override {
-        //std::cout << "ok" << std::endl;
         q->setEnabled(true);
         q->setVectorLengthScale(l0,false);
     }
@@ -179,7 +194,6 @@ public:
     scalar l0;
     T* q;
     void draw(const TimeObject &time, const StateInSlide &sis) override {
-        //std::cout << "ok" << std::endl;
         q->setEnabled(true);
     }
     void playIntro(const TimeObject& t, const StateInSlide &sis) override {

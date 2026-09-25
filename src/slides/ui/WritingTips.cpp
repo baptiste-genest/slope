@@ -277,7 +277,7 @@ slides:
     }
 }
 
-// ── shader stdlib ────────────────────────────────────────────────────────────
+// shader stdlib
 // signatures are read from the files, so a new function shows up by itself;
 // only the descriptions are kept here
 

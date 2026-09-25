@@ -10,23 +10,21 @@
 namespace slope {
 
 /*
- * Hot-reloaded Lua snippets, the shape of an animation, editable while the
- * show runs.
+ * Lua snippets that reload when the file is saved. They define the shape of an
+ * animation and can be edited while the show runs.
  *
- * Composition (deck.yaml), constants (Params) and pixel math (.frag) already
- * reload live; the logic in between is a C++ lambda and costs a rebuild. A
- * snippet file closes that gap without putting any Lua syntax outside itself,
- * everything else refers to snippets *by name*.
+ * The deck (deck.yaml), the constants (Params) and the pixel math (.frag) already reload live.
+ * The logic between them is a C++ lambda and needs a rebuild. A snippet file removes that need.
+ * Lua stays inside the file and everything else refers to snippets by name.
  *
- * ── The file ───────────────────────────────────────────────────────────────
- * One .lua file, split into sections by a "--- name" line (a legal Lua comment,
- * so the file still highlights as Lua). What a section returns decides what it
- * becomes :
+ * The file
+ * One .lua file, split into sections by a "--- name" line, which is a valid Lua comment.
+ * What a section returns decides what it becomes.
  *
- *   --- envelope                       -- a value, one variable, section-named
+ *   --- envelope                       -- a value, one variable named like the section
  *   return math.sin(t.from_begin * speed)
  *
- *   --- lattice                        -- a table, one variable per key, flat
+ *   --- lattice                        -- a table, one variable per key
  *   local z1 = complex(1, 0.5 + 0.5*math.cos(t.from_begin))
  *   return { z1 = z1, z2 = complex(0,1), tau = complex(0,1)/z1 }
  *
@@ -35,117 +33,120 @@ namespace slope {
  *     return p + vec3(0, 0, envelope * math.exp(-20*p:norm()^2))
  *   end
  *
- * A value, a dictionary entry and what a function returns are read the same
- * way, as up to 4 numbers given by numbers, vec2/vec3/complex or arrays of
- * those. These three are the same vec3.
+ * A value, a table entry and the result of a function are read the same way.
+ * They hold up to 4 numbers, given as numbers, as vec2, vec3 or complex, or as arrays of those.
+ * These three are the same vec3.
  *
  *   return x, y, z          return vec3(x, y, z)          return {x, y, z}
  *
- * Any other shape is an error. Reading a value with the wrong number of
- * components is a warning, unless a vec2 is read as a vec3 (z = 0) or an RGB
- * as a color (alpha = 1).
+ * Any other shape is an error.
+ * Reading a value with the wrong number of components gives a warning.
+ * Reading a vec2 as a vec3 (z = 0) or an RGB as a color (alpha = 1) is allowed.
  *
- * A section name may be grouped with "/", so it can own a parameter another
- * object publishes.
+ * A section name can be grouped with "/", so it can own a parameter that another object publishes.
  *
  *   --- fig/xrange                     -- the board reads its view from here
  *   return vec2(-3.15 + 3.75*t:sinceKeyframe("zoom"), 3.15)
  *
- * Sections see `t` (the current slide's TimeObject), the built-ins below, and
- * every other name in the snippet namespace, which is shared with Params.
- * Reading another section evaluates it, so order in the file does not matter.
+ * Sections see `t` (the TimeObject of the current slide), the built-ins below,
+ * and every other name of the snippet namespace, which is shared with Params.
+ * Reading another section evaluates it, so the order in the file does not matter.
  *
- * ── Reading from C++ ───────────────────────────────────────────────────────
- *   vec2   z1  = Snippet::get("z1");        // converts to scalar/int/vec2/vec/RGBA
+ * Reading from C++
+ *   vec2   z1  = Snippet::get("z1");        // converts to scalar, int, vec2, vec or RGBA
  *   scalar env = Snippet::get("envelope");
  *
- * get() is a per-frame memoized pull. The section runs at most once a frame,
- * on first read, and not at all on a slide that never asks. It does run again
- * every frame it is read on, whether or not it uses `t`, so heavy work belongs
- * in a derive() with dependencies rather than in a section.
+ * get() runs a section at most once per frame, on the first read.
+ * A section that no slide reads never runs.
+ * It runs again on every frame where it is read, even if it does not use `t`,
+ * so heavy work belongs in a derive() with dependencies.
  *
- * Calling a function-returning section wants its handle hoisted out of the loop
- * (the name lookup costs more than the call) :
+ * To call a section that returns a function, get its handle once before the loop.
+ * The name lookup costs more than the call.
  *
  *   auto wobble = Snippet::fn<vec(vec,int)>("wobble");   // resolved once
  *   for (size_t i = 0; i < V.size(); i++)
  *       V[i] = wobble(v0[i], int(i));
  *
- * A snippet that errors returns the fallback (the fn's second argument), and
- * latches for the rest of the frame so a broken snippet is fast, not slow.
+ * A snippet that fails returns the fallback, which is the second argument of fn.
+ * It is then skipped for the rest of the frame, so a broken snippet does not slow the show.
  *
- * C++ can publish back into the same namespace, lazily :
+ * C++ can also publish a variable in the same namespace, evaluated on demand.
  *
  *   Snippet::derive("g2", [](const TimeObject&) { return eisenstein(4); });
  *
- * and ask whether a value actually moved, to skip expensive recomputation :
+ * changed() tells whether a value moved, to skip a costly computation.
  *
  *   if (Snippet::changed("z1") != last_gen) { ... }
  *
- * ── Feeding a shader ───────────────────────────────────────────────────────
+ * Feeding a shader
  *   fx->bind("z1", [] { return (vec2)Snippet::get("z1"); });
  *
- * ── Built-ins ──────────────────────────────────────────────────────────────
- *   t          the TimeObject, under the names C++ and GLSL use for it :
- *              from_begin, from_action, delta_time, absolute_frame_number,
- *              slide_progress and transition_parameter, the same thing here
- *              (0 to 1 across a slide change), t:afterKeyframe/beforeKeyframe/
- *              atKeyframe/
- *              slidesSinceKeyframe/secondsSinceKeyframe/duringKeyframe/
- *              sinceKeyframe("name") plus t:slidePosition(). from_begin is
- *              the free running clock an animation usually wants. A snippet
- *              has no moment of appearing,
- *              so there is no inner_time and no relative_frame_number (the
- *              shader uniforms of those names are per primitive and do exist)
- *   param      param("x", def, min, max) declares a parameter with its slider
- *              bounds and returns it, tunable in the Tuner panel and saved to
- *              params.json. An existing parameter is read by its bare name,
- *              like any other value in the namespace
- *   vec2/vec3  arithmetic and ==, :norm() :dot() :cross(), never mixing sizes
- *   complex    *complex* * and /, :abs() :arg() :conj(), cis(theta)
- *   smoothstep, plus Lua's math / string
+ * Built-ins
+ *   t          the TimeObject, with the names used by C++ and GLSL.
+ *              Fields are from_begin, from_action, delta_time, absolute_frame_number,
+ *              slide_progress and transition_parameter (both go from 0 to 1 during a slide change).
+ *              Methods are afterKeyframe, beforeKeyframe, atKeyframe, slidesSinceKeyframe,
+ *              secondsSinceKeyframe, duringKeyframe and sinceKeyframe, all taking a name,
+ *              and slidePosition().
+ *              from_begin is the clock that runs freely, usually the one an animation wants.
+ *              A snippet has no moment of appearing, so it has no inner_time and no
+ *              relative_frame_number. The shader uniforms with these names exist and are per primitive.
+ *   param      param("x", def, min, max) declares a parameter with slider bounds and returns it.
+ *              It is tunable in the Tuner panel and saved to params.json.
+ *              An existing parameter is read by its bare name, like any value of the namespace.
+ *   vec2, vec3 arithmetic and ==, :norm() :dot() :cross(). Sizes cannot be mixed.
+ *   complex    * and /, :abs() :arg() :conj(), cis(theta)
+ *   smoothstep, and the math and string libraries of Lua
  *
- * A syntax error keeps the last chunk that worked, a runtime error freezes that
- * section's values, and both are logged once and retried on the next edit, so a
- * broken snippet never takes the talk down. Everything else that is likely a
- * mistake (a nan, an unknown keyframe, a name published twice, a malformed
- * "--- name" line) is a warning. All of them show in the file editor.
+ * After a syntax error, the last chunk that worked is kept.
+ * After a runtime error, the values of that section stay frozen.
+ * Both are logged once and tried again on the next edit, so a broken snippet never stops the talk.
+ * Other likely mistakes give a warning. These are a nan, an unknown keyframe,
+ * a name published twice and a malformed "--- name" line.
+ * Every error and warning shows in the file editor.
  */
 
 class Snippet;
 template<class Sig> class SnippetFn;
 
+// Global registry of snippet files and of the variables they publish.
 class Snippet {
 public:
-    // ── lifecycle ──────────────────────────────────────────────────────────
-    // adds a snippet file (resolved against the project data path)
+    // Adds a snippet file, resolved from the project data path.
     static void load(const path& file);
-    // re-reads any snippet file whose mtime moved; call once per frame
+    // Reads again every snippet file that changed. Call it once per frame.
     static void HotReloadIfModified();
-    // every snippet file currently watched for hot reload, resolved and absolute
+    // Absolute paths of the snippet files that are watched.
     static std::vector<path> WatchedFiles();
-    // publishes the frame's TimeObject and opens a new evaluation frame
+    // Gives the TimeObject of the frame to the snippets and starts a new frame.
     static void setTime(const TimeObject& t);
 
-    // False until the first frame has published a time. Nothing is evaluated
-    // before that, so an unknown name still looks the same as one whose section
-    // has simply not run yet.
-    static bool ready();   // whether Lua sections may be evaluated yet
+    // False until the first frame has given a time. Nothing is evaluated before that.
+    static bool ready();
+    // True when a section has this name.
     static bool hasSection(const std::string& name);
-    static bool loadedAny();   // whether any snippet file was loaded
-    static bool provides(const std::string& name);   // a variable, derivation or section of that name
-    static bool ok();                  // false while some section is failing
+    // True when at least one snippet file was loaded.
+    static bool loadedAny();
+    // True when a variable, a derivation or a section has this name.
+    static bool provides(const std::string& name);
+    // False while some section fails.
+    static bool ok();
+    // Message of the last error.
     static std::string lastError();
-    static std::vector<std::string> names();   // every published variable
+    // Names of every published variable.
+    static std::vector<std::string> names();
 
-    // ── values ─────────────────────────────────────────────────────────────
-    // 1..4 components, whatever the section returned; n == 0 means the name is
-    // unknown or its section failed. Missing components convert to 0, alpha to 1
+    // Result of a section, with 1 to 4 components.
+    // n is 0 when the name is unknown or its section failed.
+    // A missing component converts to 0, and a missing alpha to 1.
     struct Value {
         std::array<scalar,4> v{{0,0,0,0}};
         int n = 0;
 
+        // True when the value exists.
         bool valid() const { return n > 0; }
+        // Conversions to a number, a boolean, a vector or a color. Missing components are 0, and a missing alpha is 1.
         operator scalar() const { return n ? v[0] : 0; }
         operator float()  const { return float(n ? v[0] : 0); }
         operator int()    const { return int(n ? v[0] : 0); }
@@ -157,9 +158,8 @@ public:
                           : RGBA(float(v[0]), float(v[1]), float(v[2]), 1.f);
         }
 
-        // The conversions above are ambiguous against a constructor that takes
-        // anything (Eigen's), so they only serve an assignment. Say which one
-        // you meant when handing a value straight to a function :
+        // The conversions above are ambiguous with constructors that accept any type, such as those of Eigen.
+        // They only work in an assignment. To pass a value to a function, name the conversion.
         //   eisenstein(Snippet::get("z1").v2(), ...);
         scalar num()  const { return n ? v[0] : 0; }
         vec2   v2()   const { return operator vec2(); }
@@ -167,55 +167,54 @@ public:
         RGBA   rgba() const { return operator RGBA(); }
     };
 
-    // ── what a block of calls depends on ───────────────────────────────────
-    // Wrap a run of get()/fn() calls in beginRecord()/endRecord() to learn what
-    // it read. Sampling a snippet into a texture uses this to keep the samples
-    // when nothing they were built from has moved.
+    // What a block of calls read.
+    // Put a run of get() and fn() calls between beginRecord() and endRecord() to learn it.
+    // Sampling a snippet into a texture uses this to keep the samples while nothing changed.
     struct Deps {
         std::set<std::string> names;
-        bool time = false;      // it read t, so it changes every frame
+        // True when it read t, so it changes every frame.
+        bool time = false;
     };
+    // Starts recording what is read.
     static void beginRecord();
+    // Stops recording and returns what was read.
     static Deps endRecord();
-    // changes whenever anything in d has moved, reloads and parameters included
+    // Number that changes when anything in d changed, including reloads and parameters.
     static long stateOf(const Deps& d);
-    // bumped every time a snippet file is re-read
+    // Counts how many times a snippet file was read again.
     static long reloads();
 
+    // Value of a variable, computed at most once per frame.
     static Value get(const std::string& name);
-    // warns when the name is unknown or does not hold `want` numbers
+    // Same, with a warning when the name is unknown or does not hold `want` numbers.
     static Value get(const std::string& name, int want);
-    // bumps whenever the value actually differs from the previous frame's.
-    // Track it yourself only when one consumer watches many things; dirty()
-    // below is the same idea without the bookkeeping.
+    // Counter that increases when the value differs from the previous frame.
+    // dirty() below does the same without keeping the counter yourself.
     static long changed(const std::string& name);
 
-    // True the first time it is reached, and afterwards whenever one of these
-    // variables has moved since *this call site* last asked :
+    // True the first time, and then whenever one of these variables changed since this call site last asked.
     //
     //   if (Snippet::dirty({"z1", "z2"}))
-    //       rebuild();                       // skipped while they sit still
+    //       rebuild();
     //
-    // The call site is the identity, so two consumers of the same variable
-    // never clear each other's flag and no caller has to hold a counter. Two
-    // independent guards on one line want distinct `tag`s. Meant for gating
-    // expensive work, not for calling per element.
+    // Each call site has its own state, so two users of the same variable do not affect each other.
+    // Two guards on the same line need different `tag` values.
+    // It is meant to guard costly work, not to be called for every element.
     static bool dirty(std::initializer_list<const char*> names,
                       const char* tag = nullptr,
                       std::source_location where = std::source_location::current());
     static bool dirty(const char* name, const char* tag = nullptr,
                       std::source_location where = std::source_location::current());
 
-    // a C++-computed variable, evaluated lazily and memoized per frame
+    // Publishes a variable computed by C++, evaluated on demand and once per frame.
     using Derivation = std::function<Value(const TimeObject&)>;
     static void derive(const std::string& name, const Derivation& f);
-    // sugar for the common return types
+    // Same, for the common return types.
     static void derive(const std::string& name, const std::function<scalar(const TimeObject&)>& f);
     static void derive(const std::string& name, const std::function<vec2(const TimeObject&)>& f);
     static void derive(const std::string& name, const std::function<vec(const TimeObject&)>& f);
 
-    // the same, recomputed only when one of `deps` moves, and the cached result
-    // is kept for you
+    // Same, recomputed only when one of `deps` changed. The result is cached.
     //
     //   Snippet::derive("g2", {"z1", "z2"},
     //                   [](const TimeObject&) { return eisenstein(...); });
@@ -224,20 +223,23 @@ public:
     static void derive(const std::string& name, std::initializer_list<const char*> deps,
                        const std::function<scalar(const TimeObject&)>& f);
 
-    // ── callable sections ──────────────────────────────────────────────────
+    // A callable section.
     struct Call;
     using CallPtr = std::shared_ptr<Call>;
-    // survives hot reloads, the handle is stable and its chunk re-resolved
+    // Returns a handle to a callable section. The handle stays valid after a reload.
     static CallPtr resolve(const std::string& name);
-    // flat marshalling, so the fn<> template below needs no Lua header.
-    // sizes[i] is the component count of argument i (1, 2 or 3). `exact` also
-    // warns about extra results.
+    // Calls a section with arguments given as a flat array, so fn<> below needs no Lua header.
+    // sizes[i] is the number of components of argument i, either 1, 2 or 3.
+    // With `exact`, extra results also give a warning.
+    // Returns false when the call failed.
     static bool invoke(const CallPtr& c, const scalar* in, const int* sizes,
                        int nargs, scalar* out, int nout, bool exact = true);
 
+    // Typed handle to a callable section.
     template<class Sig> using fn = SnippetFn<Sig>;
 
 private:
+    // Creates the Lua state once.
     static void ensureState();
 };
 
@@ -274,9 +276,9 @@ template<> struct Marshal<vec> {
 }
 
 /*
- * A callable section, resolved once and called in a loop :
+ * A callable section, resolved once and called many times.
  *   auto f = Snippet::fn<vec(vec,int)>("wobble", identity);
- * The fallback is returned whenever the snippet is missing or failing.
+ * The fallback is returned when the snippet is missing or failing.
  */
 template<class R, class... A>
 class SnippetFn<R(A...)> {
@@ -285,11 +287,14 @@ class SnippetFn<R(A...)> {
 
 public:
     SnippetFn() = default;
+    // Resolves the section `name`.
     explicit SnippetFn(const std::string& name, R fallback = R())
         : call(Snippet::resolve(name)), fb(fallback) {}
 
+    // True when a section was resolved.
     bool valid() const { return bool(call); }
 
+    // Calls the section, or returns the fallback when it fails.
     R operator()(A... a) const {
         scalar in[NIN > 0 ? NIN : 1];
         static constexpr int sizes[] = {snippet_detail::Marshal<std::decay_t<A>>::N..., 0};
@@ -314,7 +319,7 @@ private:
 };
 
 
-// a world vector given outright, or named by a snippet variable read each frame
+// A world vector, either fixed or given by a snippet variable read every frame.
 struct LiveVec {
     vec fixed = vec::Zero();
     std::string snippet;
@@ -324,83 +329,93 @@ struct LiveVec {
     LiveVec(std::string name) : snippet(std::move(name)) {}
     LiveVec(const char* name) : snippet(name) {}
 
+    // True when the vector comes from a snippet.
     bool live() const {return !snippet.empty();}
+    // Current vector.
     vec value() const;
-    // identifies the source, so a consumer can cache on it
+    // Identifies the source, so a user can cache on it.
     std::string key() const;
 };
 
-// a number given outright, or named by a snippet variable read each frame
+// A number, either fixed or given by a snippet variable read every frame.
 struct LiveScalar {
     scalar fixed = 0;
     std::string snippet;
 
     LiveScalar() = default;
     LiveScalar(scalar v) : fixed(v) {}
-    // keeps a literal 0 from being taken for a name
+    // Prevents a literal 0 from being taken for a name.
     LiveScalar(int v) : fixed(v) {}
     LiveScalar(std::string name) : snippet(std::move(name)) {}
     LiveScalar(const char* name) : snippet(name) {}
 
+    // True when the number comes from a snippet.
     bool live() const {return !snippet.empty();}
+    // Current number.
     scalar value() const;
 };
 
 /*
- * A callable snippet sampled onto a grid, ready to hand to a shader as a
- * texture. Lua cannot be called from GLSL, so this is how a snippet function
- * reaches the GPU : it is evaluated on the CPU once per grid point and uploaded.
+ * A callable snippet sampled on a grid and given to a shader as a texture.
+ * Lua cannot be called from GLSL, so the function is evaluated on the CPU at every grid point
+ * and uploaded.
  *
  *   --- prior_mean                     -- in snippets.lua
  *   return function(x) return 0.55*math.sin(1.15*x) end
  *
  *   SnippetTexture::Spec sp;
  *   sp.fn = "prior_mean";
- *   sp.u  = vec2(-6, 6);               -- what the width covers
+ *   sp.u  = vec2(-6, 6);               -- the range covered by the width
  *   fx->setTexture("prior", sp);       -- uniform sampler2D prior;
  *
- * A 1D function (res_v == 1) is called with one number and gives a texture one
- * texel high; a 2D one is called with a vec2. The section may return 1 to 4
- * numbers, or a vec2/vec3, and `components` says how many of them to keep.
+ * A 1D function (res_v == 1) is called with one number and gives a texture one texel high.
+ * A 2D function is called with a vec2.
+ * The section returns 1 to 4 numbers, or a vec2 or vec3, and `components` sets how many are kept.
  *
- * ── Cost ───────────────────────────────────────────────────────────────────
- * Sampling is res_u * res_v Lua calls, so the question that matters is how
- * often it happens. It is answered by watching what the section reads :
+ * Cost
+ * Sampling makes res_u * res_v Lua calls, so what matters is how often it happens.
+ * This is decided by what the section reads.
  *
- *   the section reads t          resampled every frame
- *   it does not                  sampled once, and again only when a snippet
- *                                file is saved, or a value or parameter it
- *                                read has moved
+ *   the section reads t          sampled every frame
+ *   it does not                  sampled once, and again only when a snippet file is saved
+ *                                or a value or parameter it read changed
  *
- * So a fixed function costs nothing per frame however fine the grid, and a
- * time dependent one wants a resolution you would be happy to pay for at 60Hz.
- * `when` overrides the verdict when you know better than the recording does.
+ * A fixed function costs nothing per frame, however fine the grid.
+ * A function of time needs a resolution that is affordable at 60 Hz.
+ * `when` overrides the automatic choice.
  */
 struct SnippetTexture {
     struct Spec {
-        std::string fn;                 // the callable section to sample
-        int res_u = 256, res_v = 1;     // res_v == 1 means a function of one number
-        vec2 u = vec2(0,1);             // the parameter range the width covers
-        vec2 v = vec2(0,1);             // and the height, when 2D
-        int components = 1;             // 1..4, how many returned numbers to keep
-        // Auto reads the verdict off what the section touched
+        // Name of the callable section to sample.
+        std::string fn;
+        // Grid size. With res_v equal to 1 the function takes one number.
+        int res_u = 256, res_v = 1;
+        // Range of the parameter covered by the width.
+        vec2 u = vec2(0,1);
+        // Range covered by the height, for a 2D function.
+        vec2 v = vec2(0,1);
+        // Number of returned values to keep, from 1 to 4.
+        int components = 1;
+        // Auto decides from what the section read.
         enum class When { Auto, Once, Always };
         When when = When::Auto;
     };
 
     explicit SnippetTexture(const Spec& spec) : sp(spec) {}
 
+    // Changes the spec, which forces a new sampling.
     void configure(const Spec& spec);
     const Spec& spec() const {return sp;}
 
-    // resamples when it has to. True when the samples changed and want uploading
+    // Samples again when needed. Returns true when the samples changed and must be uploaded.
     bool update();
 
+    // Samples, row by row, with `components` values per texel.
     const std::vector<float>& data() const {return samples;}
     int width() const {return sp.res_u;}
     int height() const {return std::max(1,sp.res_v);}
     int components() const {return sp.components;}
-    // whether the last verdict was to resample every frame
+    // True when the section is sampled every frame.
     bool animated() const {return deps.time;}
 
 private:
@@ -410,6 +425,7 @@ private:
     long state = 0;
     bool sampled = false;
 
+    // Evaluates the section on the grid.
     void sample();
 };
 

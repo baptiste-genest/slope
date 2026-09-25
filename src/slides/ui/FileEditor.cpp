@@ -223,8 +223,8 @@ bool FileEditor::changedOnDisk() const
     return !ec && t != disk_mtime;
 }
 
-// Dracula palette for the editor: Code's CodeStyle is tuned for a light slide,
-// so its inks would vanish on the dark editor background
+// Dracula palette for the editor. The CodeStyle of Code is tuned for a light slide,
+// so its colors would disappear on the dark background of the editor.
 const CodeStyle& FileEditor::editorStyle()
 {
     static const CodeStyle s = [] {
@@ -390,7 +390,8 @@ std::string FileEditor::commentMarker() const
     return "";
 }
 
-// every line the selection touches, or the caret's; uncommented when all already are
+// Applies to every line that the selection touches, or to the line of the caret.
+// The lines are uncommented when all of them are already commented.
 void FileEditor::toggleComment(ImGuiInputTextCallbackData* d) const
 {
     const std::string m = commentMarker();
@@ -566,7 +567,7 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
             self->enter_handled = true;
         }
         else if (data->EventChar == '\t') {
-            // never insert a literal tab; indentSelection adds spaces below
+            // A tab character is never inserted. indentSelection adds spaces below.
             self->tab_pending = true;
             return 1;
         }
@@ -633,7 +634,7 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
     return 0;
 }
 
-// no focus: it would feed the next E to the text instead of closing the window
+// It does not take the focus, because the next E would then go to the text and not close the window.
 void FileEditor::jumpToCurrentFrame()
 {
     if (current.empty() || !isYaml() || !currentFrameOf)
@@ -663,7 +664,7 @@ void FileEditor::draw(WindowManager& wm)
         catch (const std::exception&) {}   // the default face will do
     }
 
-    // the file set changes as slides come and go; twice a second is plenty
+    // The set of files changes as slides come and go, and twice a second is often enough.
     {
         static auto stamp = Time::now();
         if (last_refresh < 0 || TimeFrom(stamp) > 0.5) {
@@ -687,7 +688,7 @@ void FileEditor::draw(WindowManager& wm)
     const bool has_tips = !current.empty() && WritingTips::available(current);
     const auto errors = ReloadErrors::all();
 
-    // ── left: the file list, and the open deck's outline below it ──────────
+    // The left part has the file list, and the outline of the open deck below it.
     const auto outline = !current.empty() && isYaml() ? deckOutline(buffer) : std::vector<OutlineEntry>{};
     ImGui::BeginChild("left", ImVec2(260, 0));
     ImGui::BeginChild("list", ImVec2(0, outline.empty() ? 0 : ImGui::GetContentRegionAvail().y * 0.4f),
@@ -732,7 +733,7 @@ void FileEditor::draw(WindowManager& wm)
 
     ImGui::SameLine();
 
-    // ── right: the editor ──────────────────────────────────────────────────
+    // The right part has the editor.
     ImGui::BeginChild("edit", ImVec2(0, 0));
     const ImGuiID body_id = ImGui::GetID("##body");
 
@@ -780,7 +781,7 @@ void FileEditor::draw(WindowManager& wm)
         if (!save_error.empty())
             ImGui::TextColored(ImVec4(1.f, 0.3f, 0.3f, 1.f), "%s", save_error.c_str());
     } else {
-        // a clean buffer follows the disk; a dirty one is flagged instead
+        // A clean buffer follows the disk. A buffer with edits is flagged instead.
         bool stale = changedOnDisk();
         if (stale && !dirty) {
             loadFromDisk();
@@ -914,7 +915,7 @@ void FileEditor::draw(WindowManager& wm)
                 return font->CalcTextSizeA(fs, FLT_MAX, 0.f, base + a, base + b).x;
             };
 
-            // the width the widget wraps at: its content area, scrollbar or not
+            // Width at which the widget wraps, which is its content area with or without the scrollbar.
             const float wrap_w = body_win
                 ? std::max(1.f, body_win->WorkRect.GetWidth() - (body_win->ScrollbarY ? 0.f : gs.ScrollbarSize))
                 : std::max(1.f, avail.x);
@@ -1050,7 +1051,7 @@ void FileEditor::draw(WindowManager& wm)
         theme::pop();
     }
 
-    // closing keeps the buffer, edits included; quitting asks about them
+    // Closing keeps the buffer with its edits. Quitting asks about them.
     if (!open)
         wm.CloseAll();
 }

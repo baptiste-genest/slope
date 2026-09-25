@@ -9,19 +9,18 @@ class Plot;
 using PlotPtr = std::shared_ptr<Plot>;
 
 /*
- * One curve on a Board, a primitive of its own, with ink only where the line
- * is and the rest transparent.
+ * One curve on a Board. It is a primitive of its own, drawn only where the line is,
+ * with the rest transparent.
  *
  *   show << Board::Add("fig", vec2(-M_PI, M_PI), vec2(-1.2, 1.2))->at("figure")
  *        << inNextFrame
  *        << Plot::Add("sine", "fig", [](scalar x){ return std::sin(x); });
  *
- * It lands on the rectangle of the board it names, and draws itself on across
- * the transition that brings it in. Where it appears in the slides is the
- * whole of its sequencing.
+ * It goes on the rectangle of the board it names, and it is drawn progressively during
+ * the transition that brings it in. The slide where it is added decides when it appears.
  *
- * ── sources ───────────────────────────────────────────────────────────────
- * All five end up as samples over an interval.
+ * Sources
+ * All five sources give samples over an interval.
  *
  *   Plot::Add("f",   fig, [](scalar x){ return x*x; });   // a C++ callable
  *   Plot::Add("res", fig, "residuals.csv");               // two columns
@@ -29,26 +28,26 @@ using PlotPtr = std::shared_ptr<Plot>;
  *   Plot::Add("y",   fig, ys, vec2(0, 10));               // values on a grid
  *   Plot::FromSnippet("lua", fig, "profile");             // a Lua section
  *
- * A callable and a Lua section are sampled over the board's x range and
- * follow it. A file and a point set carry their own, and are re-read live.
+ * A callable and a Lua section are sampled over the x range of the board and follow it.
+ * A file and a point set have their own range and are read again when they change.
  *
- * The sampling is done in the referential of the board, so a log axis is drawn
- * in decades of the source rather than a squeezed picture of it, and a value
- * a log axis cannot show dives out of the rectangle.
+ * The sampling is done in the coordinates of the board. A log axis is therefore drawn in decades of the source
+ * and not as a squeezed picture of it. A value that a log axis cannot show goes out of the rectangle.
  *
- * ── the namespace ─────────────────────────────────────────────────────────
+ * Settings
  *
- *   sine/color       the ink                          from the palette
+ *   sine/color       color of the line                from the palette
  *   sine/width       stroke width in pixels           3
- *   sine/reveal      how much of it is drawn, 0 to 1  1
+ *   sine/reveal      how much is drawn, 0 to 1        1
  *
- * It is cut at whichever is shorter, sine/reveal or its own arrival.
+ * The curve is cut at the shorter of sine/reveal and its own appearance.
  */
 class Plot : public Shader, public Legendable {
 public:
     using Fn = std::function<scalar(scalar)>;
 
-    // the board, or its name (see BoardRef), looked up when first needed
+    // Builds a plot on a board, given as the board or its name (see BoardRef). The board is looked up when first needed.
+    // The source is a function, points, values on a grid covering `span`, a csv file, or a Lua section for FromSnippet.
     static PlotPtr Add(const std::string& name, BoardRef board, const Fn& f);
     static PlotPtr Add(const std::string& name, BoardRef board,
                         const std::vector<vec2>& points);
@@ -59,18 +58,18 @@ public:
                                 const std::string& section);
 
     std::string name;
-    // what a legend calls it, when the name is not what a reader wants
+    // Text shown in the legend, used instead of the name when set.
     std::string caption;
 
-    // every setting a plot publishes, in Tuner order
+    // Names of every setting, in the order of the Tuner.
     static const std::vector<std::string>& settingNames();
 
     Settings settings;
 
-    // it lands on its board rather than where a slide would put it
+    // True, because it goes on its board and not where a slide would put it.
     bool placesItself() const override {return true;}
 
-    // ── a legend entry (see Legendable) ─────────────────────────────────
+    // Legend entry, see Legendable.
     std::string legendCaption() const override {return caption.empty() ? name : caption;}
     bool legendDrawnAt(int frame) const override {return last_frame >= frame - 1;}
     scalar legendAlpha() const override {return appeared;}
@@ -81,36 +80,49 @@ public:
     void playIntro(const TimeObject& t, const StateInSlide& sis) override;
     void playOutro(const TimeObject& t, const StateInSlide& sis) override;
 
-    // how finely any source is sampled before it reaches the GPU
+    // Number of samples of any source before it is sent to the GPU.
     static constexpr int kSamples = 1024;
 
 private:
+    // Creates the plot and registers it in the legend of the board.
     static PlotPtr make(const std::string& name, const BoardRef& board);
-    // the board this plot is drawn in, resolved once and held weakly
+    // The board of this plot, found once and kept with a weak pointer.
     BoardPtr owner() const;
-    // resamples when the interval moved, or on every frame for a live source
+    // Samples again when the interval moved, or at every frame for a live source.
     void refresh();
-    // find the board, match its rectangle, resample. False when it has none.
+    // Finds the board, matches its rectangle and samples again. Returns false when there is no board.
     bool prepare(const StateInSlide& sis, float appeared, StateInSlide& on);
 
     std::string board;
     mutable std::weak_ptr<Board> cached;
-    float appeared = 1;      // how far this plot's own arrival has got
-    RGBA default_ink;        // its colour of the palette, if nothing names one
-    int last_frame = -1000;  // when it was last drawn, read by a legend
-    bool sized = false;      // the render size has been matched to the board's
-    // what the sampling reads. A callable takes a data x, a point source is
-    // interpolated in the referential and takes a drawn one.
+    // Progress of the appearance of this plot.
+    float appeared = 1;
+    // Color from the palette, used when no setting gives one.
+    RGBA default_ink;
+    // Last frame where it was drawn, read by a legend.
+    int last_frame = -1000;
+    // True when the size of the rendering matches the board.
+    bool sized = false;
+    // What the sampling uses. A callable takes a data x.
+    // A point source is interpolated in the board coordinates and takes a drawn x.
     Fn f;
-    std::vector<vec2> raw;       // a point source, as it was given
-    vec2 span = vec2(0, 1);      // sampled over this, in the board's referential
-    vec2 data_span = vec2(0, 1); // the same interval in data units
-    bool own_span = false;   // the source brought its own x range
-    bool log_x = false;      // the scales the samples on the GPU were taken in
+    // A point source as it was given.
+    std::vector<vec2> raw;
+    // Interval sampled, in the coordinates of the board.
+    vec2 span = vec2(0, 1);
+    // The same interval in data units.
+    vec2 data_span = vec2(0, 1);
+    // True when the source brought its own x range.
+    bool own_span = false;
+    // Scales used for the samples now on the GPU.
+    bool log_x = false;
     bool log_y = false;
-    vec2 view_y = vec2(0, 1);// and the rectangle their floor was set under
-    bool live = false;       // a Lua section, re-sampled while it is edited
-    path file;               // a csv, re-read when it is saved
+    // Rectangle under which the floor of the samples was set.
+    vec2 view_y = vec2(0, 1);
+    // True for a Lua section, sampled again while it is edited.
+    bool live = false;
+    // A csv file, read again when it is saved.
+    path file;
     std::filesystem::file_time_type stamp{};
     std::vector<float> samples;
     bool sampled = false;

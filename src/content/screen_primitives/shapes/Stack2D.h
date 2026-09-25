@@ -9,42 +9,50 @@ class Stack2D;
 using Stack2DPtr = std::shared_ptr<Stack2D>;
 
 /*
- * Vertical layout. Children are placed below one another with uniform
- * spacing, the whole block centered on a single handle anchor. The layout
- * is recomputed every frame, so it follows drag edits of the handle and
- * size changes of the children (hot-reloaded latex...).
+ * Vertical layout. The children are placed one below the other with the same spacing,
+ * and the whole block is centered on one handle anchor.
+ * The layout is computed every frame, so it follows dragging of the handle
+ * and size changes of the children, for example after a LaTeX reload.
  *
- * The layout is computed from all registered children, visible or not, so a
- * child appearing later fades in at its final position and the others hold.
+ * The layout uses all the children, visible or not, so a child that appears later
+ * fades in at its final position and the others do not move.
  *
- * The stack draws nothing itself; it is a screen primitive so that arrows
- * and englobing boxes can target the whole block, and so that (with a
- * label handle) the block is drag-editable as one unit.
+ * The stack draws nothing. It is a screen primitive so that arrows and boxes can target the whole block,
+ * and so that the block can be dragged as one unit when the handle is a label.
  */
 class Stack2D : public ScreenPrimitive
 {
 public:
+    // Horizontal alignment of the children inside the block.
     enum class Align { LEFT, CENTER, RIGHT };
     Align align = Align::LEFT;
-    scalar spacing = 0.015;    // vertical gap between children, relative units
-    AnchorPtr handle;          // block center; a LabelAnchor makes it draggable
+    // Vertical gap between children, in relative units.
+    scalar spacing = 0.015;
+    // Center of the block. A LabelAnchor makes it draggable.
+    AnchorPtr handle;
 
+    // Builds a stack centered on the handle.
     static Stack2DPtr Add(AnchorPtr handle = nullptr);
+    // Builds a stack whose handle is a label.
     static Stack2DPtr Add(const std::string& label);
 
+    // Removes every child.
     void clearChildren();
+    // Adds a child at the bottom of the stack.
     void addChild(ScreenPrimitivePtr child);
     const std::vector<ScreenPrimitivePtr>& getChildren() const {return children;}
 
-    // slide state placing a child at its slot, recomputed every frame
+    // Returns the state that puts a child in its slot. The slot is computed every frame.
     ScreenPrimitiveInSlide place(ScreenPrimitivePtr child, scalar alpha = 1);
 
+    // Relative position of the center of a child.
     vec2 childPosition(const ScreenPrimitive* child) const;
 
+    // Size in pixels.
     vec2 getSize() const override;
     void getBoundingBox(vec2& lo, vec2& hi) const override;
 
-    // invisible, the stack only computes layout
+    // The stack draws nothing.
     void draw(const TimeObject&, const StateInSlide&) override {}
     void playIntro(const TimeObject&, const StateInSlide&) override {}
     void playOutro(const TimeObject&, const StateInSlide&) override {}
@@ -52,8 +60,9 @@ public:
 protected:
     std::vector<ScreenPrimitivePtr> children;
 
+    // Center of the block.
     vec2 center() const;
-    // total block size in relative units (max width, summed heights)
+    // Size of the block in relative units, with the largest width and the sum of the heights.
     vec2 blockSize() const;
 };
 

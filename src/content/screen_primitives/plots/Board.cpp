@@ -58,7 +58,7 @@ path shaderFileFor(const std::string& name, const std::string& fallback)
     return file;
 }
 
-// ── what a legend lists ─────────────────────────────────────────────────────
+// what a legend lists
 // by board name, so a plot declared before its frame still lands in the box
 static std::map<std::string, std::vector<std::weak_ptr<Legendable>>>& legendLists()
 {
@@ -159,8 +159,8 @@ std::vector<scalar> tickValues(scalar lo, scalar hi, scalar step)
     return out;
 }
 
-// A log axis is positive : a range reaching zero is lifted six decades under
-// its top, and one that is not a range at all is opened to a decade.
+// A log axis is positive. A range that reaches zero is raised to six decades under its top,
+// and one that is not a range at all is opened to one decade.
 vec2 positiveRange(vec2 r)
 {
     if (!(r(1) > 0)) r(1) = 1;
@@ -186,8 +186,8 @@ std::vector<scalar> decadeValues(scalar lo, scalar hi)
     return out;
 }
 
-// One axis is written one way : plain numbers while every one of them is
-// short, powers of ten as soon as a single label would need them.
+// One axis uses a single notation. It uses plain numbers while all of them are short,
+// and powers of ten as soon as a single label needs them.
 bool wantsPowers(const std::vector<scalar>& decades)
 {
     for (scalar v : decades) {
@@ -224,7 +224,7 @@ vec2 decadeSpan(const vec2& data)
     return vec2(std::log10(r(0)), std::log10(r(1)));
 }
 
-// ── the shared namespace ───────────────────────────────────────────────────
+// the shared namespace
 // A snippet section answers first, then a stated value, then a parameter.
 
 scalar Settings::num(const std::string& key, scalar def, scalar lo, scalar hi) const
@@ -293,7 +293,7 @@ std::string Settings::choice(const std::string& key,
     return Params::AddEnum(full(key), options, def).choice();
 }
 
-// ── the board ─────────────────────────────────────────────────────────────────
+// the board
 
 // the boards by name, weakly, so one that goes away takes its entry with it
 static std::map<std::string, std::weak_ptr<Board>>& registry()
@@ -397,7 +397,7 @@ vec2 Board::step() const
                 ylog() ? 1 : asked_y > 0 ? asked_y : niceStep((y(1) - y(0)) / 5));
 }
 
-// ── placing things on the board ───────────────────────────────────────────────
+// placing things on the board
 
 ScreenPrimitiveInSlide Board::label(const ScreenPrimitivePtr& p, const vec2& at,
                                    const vec2& offset)

@@ -1,5 +1,4 @@
 #pragma once
-// ─────────────────────────────────────────────────────────────────────────────
 // Following the talk.
 //
 // The prelude already hands the shader its TimeObject (from_action, from_begin,
@@ -15,9 +14,8 @@
 //
 // Needs the built-in prelude, so it does not apply to a shader that brings its
 // own #version.
-// ─────────────────────────────────────────────────────────────────────────────
 
-// ── within the current slide ─────────────────────────────────────────────────
+// within the current slide
 // 0 -> 1 over the first `seconds` of the slide, then held
 float fadeIn(float seconds) {
     return clamp(from_action / max(seconds, 1e-4), 0.0, 1.0);
@@ -38,12 +36,13 @@ float pulse(float attack, float release) {
     return up * down;
 }
 
-// ── relative to a keyframe ───────────────────────────────────────────────────
+// relative to a keyframe
 // 0 before the keyframe, then 0 -> 1 over `seconds` once it is reached. The
 // ramp restarts on every later step, so use it on the keyframe's own slide.
 float fadeInAt(int kf, float seconds) {
     return afterKeyframe(kf) ? fadeIn(seconds) : 0.0;
 }
+// Same as fadeInAt, with a smooth ramp.
 float fadeInAtSmooth(int kf, float seconds) {
     return afterKeyframe(kf) ? fadeInSmooth(seconds) : 0.0;
 }
@@ -70,7 +69,7 @@ float stageAfterSmooth(int kf, int count, float seconds) {
     return mix(prev, s, fadeInSmooth(seconds));
 }
 
-// ── across the whole talk ────────────────────────────────────────────────────
+// across the whole talk
 // the deck's own intro/outro, eased. Multiply your colour by it and the shader
 // joins slide transitions instead of popping in and out.
 float slideAlpha() {

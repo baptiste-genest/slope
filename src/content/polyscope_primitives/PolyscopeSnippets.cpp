@@ -2,7 +2,7 @@
 
 namespace slope {
 
-// ── SnippetSurface ──────────────────────────────────────────────────────────
+// SnippetSurface
 
 SnippetSurface::SnippetSurface(const Spec& spec) : sp(spec)
 {
@@ -120,7 +120,7 @@ void SnippetSurface::playOutro(const TimeObject& t, const StateInSlide& sis)
     Mesh::playOutro(t, sis);
 }
 
-// ── SnippetCurve ────────────────────────────────────────────────────────────
+// SnippetCurve
 
 SnippetCurve::SnippetCurve(const Spec& spec) : sp(spec)
 {

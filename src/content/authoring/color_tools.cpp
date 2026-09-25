@@ -6,7 +6,7 @@ namespace slope {
 
 Color::Color(std::string l, ColorType def) : label(l)
 {
-    // held, not declared : a snippet section may own this name instead
+    // The name is held and not declared, because a snippet section can own it instead.
     // a project written before colours moved into Params keeps its file, and
     // it is worth more than the default the caller passed
     std::ifstream f(slope::Options::ProjectViewsPath + label + ".color");

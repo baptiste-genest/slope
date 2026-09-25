@@ -15,8 +15,8 @@ std::vector<slope::PrimitivePtr> slope::DragEditor::getPrimitivesUnderMouse(Slid
         if (!sis.anchor->isPersistent())
             continue;
         // only label-anchored primitives have a writable position, so only
-        // they can be picked or dragged ; this also keeps the englobing
-        // boxes (depth -100, spanning most of the screen) out of the way
+        // they can be picked or dragged. This also keeps the surrounding boxes
+        // (depth -100, covering most of the screen) out of the way.
         if (std::dynamic_pointer_cast<LabelAnchor>(sis.anchor) == nullptr)
             continue;
         auto sp = std::static_pointer_cast<ScreenPrimitive>(ptr);

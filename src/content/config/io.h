@@ -11,13 +11,14 @@
 
 namespace slope {
 
-// const path&, not std::string, path::c_str() is wchar_t* on Windows
+// Turns a project path into a string. A relative path is taken from the project data folder.
+// It takes a path and not a string because path::c_str() is a wchar_t* on Windows.
 inline std::string formatPath(const path& p) {
     if (p.is_absolute()) return p.string();
     return Options::ProjectDataPath + p.string();
 }
 
-// the Options paths are concatenated with filenames, so keep a native separator
+// Cleans a folder path and ends it with a separator, because Options paths are followed by file names.
 inline std::string normalizedDir(const path& p) {
     path np = p;
 #ifdef _WIN32
@@ -36,7 +37,8 @@ inline std::string normalizedDir(const path& p) {
     return s;
 }
 
-// std::system() on Windows, where cmd.exe /c strips the outermost quote pair
+// Runs a shell command and returns its exit code.
+// On Windows the command is quoted again because cmd.exe /c removes the outer quotes.
 inline int runCommand(const std::string& cmd) {
 #ifdef _WIN32
     return std::system(("\"" + cmd + "\"").c_str());
@@ -47,9 +49,11 @@ inline int runCommand(const std::string& cmd) {
 
 namespace io {
 
+// True when the path exists.
 inline bool file_exists(const path& filename) {
     return std::filesystem::exists(filename);
 }
+// True when the path exists. It does not check that it is a folder.
 inline bool folder_exists(const path& filename) {
     return std::filesystem::exists(filename);
 }
@@ -64,7 +68,8 @@ using Matrix = Eigen::Matrix<T,-1,-1>;
 template<class T>
 using Vector = Eigen::Vector<T,-1>;
 
-//https://aleksandarhaber.com/eigen-matrix-library-c-tutorial-saving-and-loading-data-in-from-a-csv-file/
+// Writes a matrix as comma separated values, one row per line.
+// Adapted from https://aleksandarhaber.com/eigen-matrix-library-c-tutorial-saving-and-loading-data-in-from-a-csv-file/
 template<class T>
 void SaveMatrix(string fileName, const Matrix<T> &M) {
     //https://eigen.tuxfamily.org/dox/structEigen_1_1IOFormat.html
@@ -78,6 +83,7 @@ void SaveMatrix(string fileName, const Matrix<T> &M) {
     }
 }
 
+// Writes a vector as comma separated values.
 template<class T>
 void SaveVec(string fileName, const Vector<T> &V) {
     //https://eigen.tuxfamily.org/dox/structEigen_1_1IOFormat.html
@@ -93,6 +99,7 @@ void SaveVec(string fileName, const Vector<T> &V) {
 
 
 
+// Reads a matrix from comma separated values. Throws if the file is missing, empty or ragged.
 template<typename T>
 Matrix<T> LoadMatrix(string fileToOpen)
 {
@@ -130,12 +137,14 @@ Matrix<T> LoadMatrix(string fileToOpen)
     return Map<Eigen::Matrix<T, Dynamic, Dynamic, RowMajor>>(matrixEntries.data(), matrixRowNumber, matrixEntries.size() / matrixRowNumber);
 }
 
+// Reads a vector from a file with one column.
 template<typename T>
 Vector<T> LoadVec(string fileToOpen)
 {
     return LoadMatrix<T>(fileToOpen);
 }
 
+// Loads M from the file if it exists and returns true, otherwise leaves M unchanged.
 template<class T>
 inline bool MatrixCache(std::string file,Matrix<T>& M){
     if (file_exists(file)){
@@ -145,6 +154,7 @@ inline bool MatrixCache(std::string file,Matrix<T>& M){
     return false;
 }
 
+// Loads V from the file if it exists and returns true, otherwise leaves V unchanged.
 template<class T>
 inline bool VecCache(std::string file,Vector<T>& V){
     if (file_exists(file)){
@@ -155,6 +165,7 @@ inline bool VecCache(std::string file,Vector<T>& V){
 }
 
 
+// Full paths of the entries of a folder, sorted by default.
 inline std::vector<std::string> list_directory(std::string folder,bool sorted = true) {
     std::vector<std::string> ls;
     namespace fs = std::filesystem;

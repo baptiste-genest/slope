@@ -1,5 +1,4 @@
 #pragma once
-// ─────────────────────────────────────────────────────────────────────────────
 // Sphere tracing over an SDF, plus the shading terms that make the result look
 // like a rendering rather than a depth buffer.
 //
@@ -21,13 +20,12 @@
 //
 // Every shader that includes this one MUST define sceneSDF, the functions here
 // call it, so leaving it out is a link error even if you never call them.
-// ─────────────────────────────────────────────────────────────────────────────
 #include <camera.glsl>
 
 // you define this; GLSL lets us call it from here as long as it is declared
 float sceneSDF(vec3 p);
 
-// ── marching ─────────────────────────────────────────────────────────────────
+// marching
 #ifndef MARCH_STEPS
 #define MARCH_STEPS 120
 #endif
@@ -74,7 +72,7 @@ vec3 sceneNormal(vec3 p) {
                           sceneSDF(p + e.yyx) - sceneSDF(p - e.yyx)));
 }
 
-// ── shading terms ────────────────────────────────────────────────────────────
+// shading terms
 // penumbra comes free, how close the ray passed to the geometry is already the
 // distance field, so no extra sampling is needed for a soft edge
 float softShadow(vec3 ro, vec3 rd, float mint, float maxt, float sharpness) {

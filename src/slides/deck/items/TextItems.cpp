@@ -91,8 +91,7 @@ std::vector<ItemSpec> textItemSpecs()
             c->setLanguage(i.contains("language")
                            ? CodeLanguage::ForName(i["language"].get<std::string>())
                            : CodeLanguage::ForExtension(codeExtension(i)));
-            // line_numbers: true | false | absolute, the last one numbering a
-            // slice by the file it came from
+            // line_numbers is true, false or absolute. The last one numbers a slice with the line numbers of its file.
             c->style.line_numbers          = d.line_numbers;
             c->style.absolute_line_numbers = d.absolute_line_numbers;
             if (i.contains("line_numbers")) {

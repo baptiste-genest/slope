@@ -24,49 +24,60 @@
 
 namespace slope {
 
+// The window, the playback of the slides and the tools around them.
 class Slideshow : public PrompterModule
 {
 public:
     
     Slideshow() {}
 
+    // Goes to the next slide with a transition.
     void nextFrame();
 
+    // Goes to the previous slide with a transition.
     void previousFrame();
 
+    // Goes to the next slide with no transition.
     void forceNextFrame();
 
+    // Draws the current slide. Called once per frame.
     void play();
 
+    // Sets the duration of a transition in seconds.
     void setTransitionTimeSecond(TimeTypeSec s) {
         transitionTime = s;
     }
 
+    // Creates the window and reads the command line.
     void init(std::string project_name,int argc,char** argv);
 
+    // Jumps to a slide with no transition.
     void goToSlide(int slide_nb);
 
     bool display_slide_number = true;
-    bool display_reload_errors = true;   // the corner notice of failed hot reloads
+    // Shows a notice in the corner when a reload failed.
+    bool display_reload_errors = true;
 
+    // Runs the show until the window is closed.
     void run();
 
+    // True when the command line asked for the help text.
     bool helpWanted() const {return help_wanted;}
 
-    // rebuilds the slide structure at runtime. Disables what is shown and the
-    // given stale primitives, clears the slides, re-runs the composer and
-    // restores the playback position. The primitives themselves are untouched.
-    // fallback composes instead when composer throws, and false is returned then
+    // Builds the slides again while the show runs.
+    // It hides what is shown and the given stale primitives, clears the slides, runs the composer
+    // and goes back to the previous slide. The primitives themselves are not changed.
+    // If the composer throws, the fallback composes instead and the function returns false.
     bool recompose(const std::function<void(SlideManager&)>& composer,
                    const std::set<PrimitivePtr>& stale = {},
                    const std::function<void(SlideManager&)>& fallback = {});
 
-    // called once per frame at the end of play(), e.g. to watch external
-    // sources (deck.yaml, generated data...) and recompose on change
+    // Called once per frame at the end of play(). It can watch external sources such as deck.yaml
+    // or generated data, and compose the slides again when they change.
     std::function<void()> onFrame;
 
-    // a fresh name on the clipboard, "at: <name>" as a placement and the bare
-    // name otherwise, which serves as an "id:" just as well
+    // Puts a new unused name on the clipboard. It is written as "at: <name>" when as_placement is true,
+    // and as the bare name otherwise, which can also be used as an "id:".
     void copyLabelSuggestion(bool as_placement = false);
 
 private:
@@ -76,20 +87,24 @@ private:
     CameraExporter camera_exporter;
     HUD hud;
     FileEditor file_editor;
-    int editor_jump_slide = -1; // slide the editor last opened on
+    // Slide where the editor was last opened.
+    int editor_jump_slide = -1;
 
+    // Updates the inner time of the primitives.
     void setInnerTime();
-    // How far the slide change has got, 0 to 1, the deck wide reading of what
-    // renderSlide hands each primitive. 1 whenever nothing is in transition.
+    // Progress of the slide change from 0 to 1, seen from the whole deck. It is what renderSlide gives each primitive.
+    // It is 1 when there is no transition.
     parameter transitionProgress(TimeTypeSec t) const;
-    // records when the current slide was first reached and forgets the ones
-    // after it, so secondsSinceKeyframe restarts when the show is rewound
+    // Records when the current slide was first reached and forgets the later ones,
+    // so secondsSinceKeyframe starts again when the show is rewound.
     void noteSlideArrival();
     std::map<int, TimeTypeSec> slide_times;
+    // Shows the prompter.
     void prompt();
+    // Advances the transition, and starts the next slide when a pause ends.
     void handleTransition();
 
-    // called once per frame, so every primitive shares the same delta
+    // Builds the TimeObject of the frame. It is called once per frame, so every primitive shares the same delta.
     inline TimeObject getTimeObject() const {
         TimeObject T;
         T.from_begin = TimeFrom(from_begin);
@@ -102,19 +117,23 @@ private:
         return T;
     }
 
+    // Title of a slide.
     std::string getSlideTitle(int slide_nb);
     TimeTypeSec transitionTime = 0.5;
 
+    // Prepares the slides for playing.
     void initializeSlides();
 
+    // Exports one image per slide as a PDF.
     void exportPDF();
 
-    // stills sampled through every slide change, not only at its endpoints
+    // Exports images taken during every slide change, and not only at its ends.
     void exportTransitions();
 
-    // a continuous frame sequence of the whole deck, encoded to <ProjectName>.mp4
+    // Records a continuous sequence of frames of the whole deck and encodes it to <ProjectName>.mp4.
     void recordVideo();
 
+    // Builds the slides.
     void loadSlides();
 
     PlaybackState state;
@@ -124,30 +143,38 @@ private:
     mutable TimeStamp last_frame = Time::now();
     ImGuiWindowFlags window_flags = 0;
 
+    // Draws a slide at time t, with the TimeObject of the frame.
     void renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T);
 
-    // resolves the current slide's background, lerping out of the previous one
+    // Finds the background of the current slide, blending from the previous one during a transition.
     void updateBackground(parameter transition);
 
+    // Shows the panel that edits the transform of the selected label.
     void transformEditor();
+    // Removes the transform gizmos.
     void clearTransformGizmos();
+    // Slide for which the gizmos were made.
     int gizmo_slide = -1;
 
+    // Reads the keyboard and the mouse.
     void handleInputs();
 
+    // Draws the gizmos.
     void handleGuizmos();
 
+    // True when a gizmo is being used.
     bool inGizmoMode() const;
 
-
+    // Draws the pop-ups.
     void displayPopUps();
 
+    // Configures the flags of the ImGui window.
     static void ImGuiWindowConfig();
+    // Called when the window is closed, to save the edits.
     static void onWindowClose(GLFWwindow* w);
 
-
-
     InputManager input_manager;
+    // Adds the keyboard shortcuts.
     void addKeyboardInputs();
 
     bool help_wanted = false;

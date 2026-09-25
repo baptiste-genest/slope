@@ -1,7 +1,6 @@
 #pragma once
 // Superseded by <plot.glsl>, which measures off the shader's own view instead
 // of taking the x range as an argument. Kept for shaders written against it.
-// ─────────────────────────────────────────────────────────────────────────────
 // Drawing graphs and grids in plot coordinates, with line widths that stay put
 // in pixels however the plot is scaled.
 //
@@ -19,7 +18,6 @@
 //
 // Needs the built-in prelude (iResolution), so it does not apply to a shader
 // that brings its own #version.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // plot units covered by one pixel, given the visible x range. The y range
 // follows from the aspect ratio, which keeps grid cells square.
@@ -66,7 +64,7 @@ float pointMask(vec2 p, vec2 center, float r_px, float upp) {
 // One pixel is the right step, smaller is noise, larger is a visible corner.
 #define PLOT_SLOPE(f, x, upp) (((f)((x) + (upp)) - (f)((x) - (upp))) / (2.0 * (upp)))
 
-// ── grid & axes ──────────────────────────────────────────────────────────────
+// grid & axes
 // 1 on the grid lines of the given spacing
 float gridMask(vec2 p, float spacing, float upp) {
     vec2 g = abs(p - spacing * round(p / spacing));
@@ -91,6 +89,7 @@ float xTickMask(vec2 p, float spacing, float len_px, float upp) {
     float in_span = 1.0 - smoothstep(0.0, len_px * upp, abs(p.y));
     return on_tick * in_span;
 }
+// 1 on the tick marks along the y axis, like xTickMask.
 float yTickMask(vec2 p, float spacing, float len_px, float upp) {
     float y = abs(p.y - spacing * round(p.y / spacing));
     float on_tick = stroke(y, 0.0, 1.2 * upp);
@@ -98,7 +97,7 @@ float yTickMask(vec2 p, float spacing, float len_px, float upp) {
     return on_tick * in_span;
 }
 
-// ── regions ──────────────────────────────────────────────────────────────────
+// regions
 // 1 below the graph, for shading the area under a curve
 float underCurve(vec2 p, float fx, float upp) {
     return smoothstep(upp, -upp, p.y - fx);

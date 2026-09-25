@@ -155,9 +155,8 @@ AnchorState LabelAnchor::readFromLabel() const
     AnchorState rslt;
     std::ifstream file (slope::Options::ProjectViewsPath + label + ".pos");
     if (!file.is_open() || !(file >> rslt.x >> rslt.y)) {
-        // the file is normally created by the constructor ; if it went missing
-        // or is truncated, fall back to the same defaults rather than killing
-        // the presentation mid-render
+        // The file is normally created by the constructor. If it is missing or truncated,
+        // the same defaults are used, so the presentation does not stop in the middle of a render.
         spdlog::error("could not read position of label '{}', using defaults", label);
         unreadable_labels.insert(label);
         rslt = AnchorState{};

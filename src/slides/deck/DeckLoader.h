@@ -20,14 +20,13 @@ class PolyscopePrimitive;
 using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
 
 /*
- * DeckLoader builds slides from a hot-reloadable YAML manifest, so the
- * composition of a slideshow (which primitives, on which frame, at which
- * anchor) can be edited at runtime without recompiling. Behavior that needs
- * real code (updaters, computed meshes...) stays in C++ and is exposed to
- * the manifest through registerObject().
+ * DeckLoader builds slides from a YAML file that is reloaded when it changes.
+ * The composition of a slideshow, which is the list of primitives, the frame of each one and its anchor,
+ * can then be edited while the show runs, without compiling.
+ * Behavior that needs real code, such as updaters and computed meshes, stays in C++
+ * and is made available to the deck with registerObject().
  *
- * The usual way to use it is the owned-slideshow mode, where a whole deck
- * main file reduces to :
+ * The simplest use is the owned-slideshow mode, where the whole main file of a deck is as follows.
  *
  *   DeckLoader deck;
  *   int main(int argc, char** argv) {
@@ -36,12 +35,11 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *       deck.run();
  *   }
  *
- * The latex prefix and definitions files are chosen by the top-level
- * "commands" and "latex" keys, defaulting to commands.tex / latex.json from
- * the project directory when they exist. Alternatively,
- * build(show)/hotReload(show) drive an external Slideshow.
+ * The LaTeX prefix file and the definitions file are set by the top-level keys "commands" and "latex".
+ * They default to commands.tex and latex.json in the project folder when these exist.
+ * Instead, build(show) and hotReload(show) can drive a Slideshow that is owned elsewhere.
  *
- * Manifest format (deck.yaml):
+ * Manifest format (deck.yaml).
  *
  * commands: my_commands.tex           # optional, latex prefix file
  * preamble: \usepackage{...}          # optional, inline latex prefix (string or
@@ -167,10 +165,10 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *     same_title: true                   # keep previous frame's title
  *     no_template: true                  # and skip the deck template
  *
- * A "template:" list beside "slides:" is added to the first step of every
- * frame, behind its own items. It is built once and the same primitives are
- * reused, so a footer or a logo stays put across a slide change instead of
- * cross-fading. It cannot contain "step". A frame opts out with no_template.
+ * A "template:" list next to "slides:" is added to the first step of every frame, behind its own items.
+ * It is built once and the same primitives are reused, so a footer or a logo stays in place
+ * during a slide change and does not fade out and in.
+ * It cannot contain "step". A frame can leave it out with no_template.
  *
  *   template:
  *     - latex: \color{gray} my talk
@@ -178,8 +176,8 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *
  * Groups
  * ------
- * Any other top-level list is a group, put in a frame by its bare name. A map
- * with "params:" and "items:" makes it take arguments
+ * Any other top-level list is a group, which a frame uses by its bare name.
+ * A map with "params:" and "items:" gives the group arguments.
  *
  *   caption:                    # "- caption" puts both here
  *     - latex: parameter square
@@ -197,18 +195,19 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *   - figure: conv              # in a frame, the value after the name is
  *     ylabel: residual          # the id, and the other keys are the args
  *
- * Only declared params and "id" are substituted, so the "$" of latex is left
- * alone, and a "$name" naming no param is warned about. A key left empty at
- * the call keeps its default. What the call places is tagged with the group
- * name and the id, so "remove: conv" takes the instance off ; the target of a
- * "set" inside the group is not. Ids inside the body are not prefixed : write
- * "id: ${id}_legend" when two instances share a slide. A group is rebuilt at
- * each use, so every use is its own instance. Give the body "id: ${id}_..."
- * to keep one across frames. Group and param names cannot be item types, and a
- * param cannot be named like a group. A stack cannot call a group.
+ * Only the declared params and "id" are substituted, so the "$" of LaTeX is left alone.
+ * A "$name" that names no param gives a warning.
+ * A key left empty in the call keeps its default.
+ * What the call places is tagged with the group name and the id, so "remove: conv" removes the instance.
+ * The target of a "set" inside the group is not tagged.
+ * Ids inside the body are not prefixed, so write "id: ${id}_legend" when two instances share a slide.
+ * A group is built again at each use, so every use is its own instance.
+ * Give the body "id: ${id}_..." to keep one instance across frames.
+ * Group and param names cannot be item types, and a param cannot have the name of a group.
+ * A stack cannot call a group.
  *
- * A group may hold "- step" : its items after it land on the next step, and so
- * do the frame's items after the call. The template cannot use such a group.
+ * A group can hold "- step". Its items after it go to the next step, and so do the items of the frame after the call.
+ * The template cannot use such a group.
  *
  * Placement of a screen item is one of
  *   at: label                # persistent, drag-editable LabelAnchor
@@ -218,27 +217,27 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *                            # flush to that screen edge/corner, size-aware,
  *                            # "config: margin" away
  *   below/above/right_of/left_of: other_item   (optional padding: p)
- * Any of them takes "offset: [x, y]", a shift in screen units from that
- * placement, so two items can share a label without overlapping.
- * When omitted, load/image items default to a label derived from their
- * key/filename, so everything is drag-editable out of the box.
+ * Any of them accepts "offset: [x, y]", a shift in screen units from that placement,
+ * so two items can share a label without overlapping.
+ * When the placement is left out, load and image items use a label made from their key or file name,
+ * so everything can be dragged with no setup.
  *
- * "follow:" places an item on a moving point instead of a fixed one, shifted
- * by "offset: [x, y]". The point is a snippet variable or a parameter, which
- * share one namespace, and how wide it is picks the space it lives in.
+ * "follow:" places an item on a moving point instead of a fixed one, shifted by "offset: [x, y]".
+ * The point is a snippet variable or a parameter, which share one namespace.
+ * Its number of components decides the space it lives in.
  *
  *   follow: apex          3 numbers, a world position in the 3D scene
  *   follow: cursor        2 numbers, a screen position in [0,1]^2
  *   follow: lat.z1        2 numbers read in shader "lat"'s world space
  *
- * The space is never inferred. A shader is used only when its item is named.
+ * The space is never guessed. A shader is used only when its item is named.
  *
  * Shader uniforms
  * ---------------
- * "uniforms:" on a shader item declares each uniform as a persistent tunable
- * parameter (Params). It shows up in the Tuner panel while the shader is on
- * screen, is dragged live, saved with Ctrl+S to views/params.json and reloaded
- * on the next run, and the shader follows it every frame with no C++ at all.
+ * "uniforms:" on a shader item declares each uniform as a tunable parameter (Params).
+ * It appears in the Tuner panel while the shader is on screen and can be dragged live.
+ * Ctrl+S saves it to views/params.json and it is loaded again at the next run.
+ * The shader follows it at every frame with no C++.
  *
  *   - shader: sky.frag
  *     uniforms:
@@ -249,20 +248,19 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *       mode:  {type: int, default: 0}          # explicit type
  *       grab:  {type: vec3, visible: handle}    # shown without the panel
  *
- * Types are float, int, bool, vec2, vec3 and color (vec4); bounds are optional
- * (unbounded parameters are dragged rather than slid) and apply to every
- * component of a vector at once. "visible" puts a parameter on screen while the
- * slide reading it is up, with no panel open : "handle" is its manipulator (a
- * gizmo for a vec3, a screen handle for a vec2), "panel" its widget in a small
- * window, "both" the two of them. Parameters are named "<item>/<uniform>", so
- * two placements of the same .frag under different ids are tuned separately.
- * A uniform absent from the compiled shader is ignored, like Shader::bind, so
- * an unfinished .frag never breaks the deck.
+ * The types are float, int, bool, vec2, vec3 and color (vec4).
+ * Bounds are optional. A parameter without bounds is dragged and not slid.
+ * Bounds apply to every component of a vector at once.
+ * "visible" shows a parameter on screen while the slide that reads it is up, with no panel open.
+ * "handle" is its manipulator, a gizmo for a vec3 and a screen handle for a vec2.
+ * "panel" is its widget in a small window, and "both" is the two of them.
+ * Parameters are named "<item>/<uniform>", so two uses of the same .frag with different ids are tuned separately.
+ * A uniform that is absent from the compiled shader is ignored, like in Shader::bind,
+ * so an unfinished .frag never breaks the deck.
  *
  * Shader textures
  * ---------------
- * "textures:" binds an image file to the sampler of the same name, which the
- * shader declares itself
+ * "textures:" binds an image file to the sampler with the same name, which the shader declares itself.
  *
  *   uniform sampler2D noise;        // in the .frag
  *   uniform vec2      noise_size;   // optional, its size in pixels
@@ -272,16 +270,16 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *       noise: noise.png
  *       grad:  {file: gradient.png, filter: nearest, wrap: repeat}
  *
- * filter is nearest|linear (default linear), wrap is clamp|repeat (default
- * clamp). Re-declaring the same file is free, so a hot reload does not re-read
- * the image; removing an entry unbinds it. Only image files, a texture fed by
- * another pass needs a streaming order a manifest cannot express and stays on
- * the C++ side (Shader::setTexture).
+ * filter is nearest or linear (default linear), and wrap is clamp or repeat (default clamp).
+ * Declaring the same file again costs nothing, so a hot reload does not read the image again.
+ * Removing an entry unbinds it.
+ * Only image files work here. A texture fed by another pass needs an order that a deck cannot express,
+ * so it stays on the C++ side with Shader::setTexture.
  *
  * Snippet objects
  * ---------------
- * "surface:" and "curve:" name a callable snippet section and sample it over
- * a parameter domain, a vec2 for a surface and one number for a curve
+ * "surface:" and "curve:" name a callable snippet section and sample it over a parameter domain.
+ * The domain is a vec2 for a surface and one number for a curve.
  *
  *   --- wave                            # in snippets.lua
  *   return function(uv)
@@ -293,26 +291,23 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *     return vec3(math.cos(s + t.from_begin), math.sin(s + t.from_begin), 0.15*s)
  *   end
  *
- * The section sees `t`, so the object animates without a line of C++, and is
- * hot-reloaded with the file. "resolution" is how finely the domain is
- * sampled, and editing it in the deck rebuilds the object live. A per sample
- * Lua call is not free, see examples/snippet_perf for what a size costs.
+ * The section sees `t`, so the object is animated without any C++, and it is reloaded with the file.
+ * "resolution" is the number of samples of the domain, and editing it in the deck rebuilds the object live.
+ * Each sample calls Lua, which is slow. See examples/snippet_perf for the cost of each size.
  *
- * Items are referenced (by remove/replace/below/...) through their key
- * (latex key, image filename stem, object name, "title") or an explicit
- * "id: name" field. References resolve to the most recent item with that
- * name, in manifest order. An "id:" names a primitive the way a C++ variable
- * does, and every declaration carrying that id is the same one. Without an
- * "id:" a declaration builds its own primitive, so writing the same content
- * twice makes two of them wherever the steps and frames fall, each fading in
- * and out on its own. To keep one across frames, name it and place it again
- * with "set:", or reach for "same_title:" on a title and "template:" for what
- * every frame carries.
+ * Other items refer to an item (in remove, replace, below and others) by its key,
+ * which is the LaTeX key, the stem of the image file name, the object name or "title",
+ * or by an explicit "id: name" field.
+ * A reference resolves to the most recent item with that name, in the order of the deck.
+ * An "id:" names a primitive like a C++ variable does, and every declaration with that id is the same primitive.
+ * Without an "id:", each declaration builds its own primitive.
+ * Writing the same content twice then makes two primitives, each one appearing and disappearing on its own.
+ * To keep one primitive across frames, name it and place it again with "set:".
+ * Use "same_title:" for a title and "template:" for what every frame carries.
  *
- * Reordering steps desyncs C++ updaters that branch on
- * t.relative_frame_number. Prefer marking the relevant frames with
- * "keyframe:" and branching on t.afterKeyframe / atKeyframe / beforeKeyframe,
- * which follow the manifest wherever the mark moves.
+ * Reordering steps breaks the C++ updaters that use t.relative_frame_number.
+ * Prefer marking the frames with "keyframe:" and testing t.afterKeyframe, atKeyframe or beforeKeyframe,
+ * which follow the deck wherever the mark moves.
  */
 class DeckLoader
 {
@@ -321,169 +316,194 @@ public:
     using PrimitiveFactory = std::function<PrimitivePtr()>;
     using GroupFactory = std::function<PrimitiveGroup()>;
 
+    // Reads the deck file, for use with a Slideshow that is owned elsewhere.
     void init(path deck_file);
+    // True once a deck file was read.
     bool isInitialized() const {return initialized;}
 
-    // owned-slideshow mode, initializes the slideshow and the project's latex
-    // resources when present, then parses the deck file
+    // Owned-slideshow mode. It creates the slideshow and the LaTeX resources of the project when they exist,
+    // then reads the deck file.
     void init(const std::string& project_name, path deck_file, int argc, char** argv);
-    // builds the slides, installs the hot-reload watcher and runs the show
+    // Builds the slides, installs the watcher that reloads the deck, and runs the show.
     void run();
+    // The slideshow that the loader owns.
     Slideshow& slideshow();
 
     DeckLoader();
     ~DeckLoader();
 
+    // Makes C++ content available to the deck under a name, used by "object:".
+    // The content is a function that builds a primitive with its state, a primitive with its state,
+    // or a group of primitives.
     void registerObject(const std::string& name, const ObjectFactory& factory);
     void registerObject(const std::string& name, const PrimitiveInSlide& pis);
-    // for objects that need no state, registered with a default one
+    // Same for objects that need no state. They get a default one.
     void registerObject(const std::string& name, const PrimitiveFactory& factory);
     void registerObject(const std::string& name, PrimitivePtr ptr);
     void registerObject(const std::string& name, const GroupFactory& factory);
     void registerObject(const std::string& name, const PrimitiveGroup& group);
 
-    // "follow" reaches shader and scene points on its own. This is the escape
-    // hatch for a position computed some other way, and it shadows the
-    // "<item>.<snippet>" form. The placer returns window coordinates, y down.
+    // Makes a position available to "follow" under a name.
+    // "follow" finds shader points and scene points by itself, so use this only for a position computed in another way.
+    // It takes priority over the "<item>.<snippet>" form.
+    // The placer returns window coordinates, with y down.
     //   deck.registerPlacer("cursor", []{ return myTrackedThing(); });
     void registerPlacer(const std::string& name, const std::function<vec2()>& placer);
 
-    // runs the manifest through the SlideManager composition API
+    // Builds the slides of the deck in a SlideManager.
     void build(SlideManager& show);
 
-    // call once per frame, recomposes the slideshow when the manifest changed
+    // Composes the slideshow again when the deck changed. Call it once per frame.
     void hotReload(Slideshow& show);
 
-    // throttled mtime check; true when the manifest changed on disk and
-    // was successfully re-parsed
+    // Checks the modification time of the deck, not at every call.
+    // Returns true when the deck changed on disk and was parsed again without error.
     bool sourceModified();
 private:
-    // the first build places every item, so only what follows it is new
+    // The first build places every item, so only what follows it is new.
     bool first_build_done = false;
 public:
 
-    // primitives placed by the manifest at the last build
+    // Primitives placed by the deck at the last build.
     const std::set<PrimitivePtr>& usedPrimitives() const {return used_primitives;}
 
 private:
     path source_path;
     json source;
-    json last_good_source;   // rebuilt when an edited source fails to build
+    // Last source that built without error, used when an edited source fails to build.
+    json last_good_source;
     std::filesystem::file_time_type source_last_modified;
-    bool source_unparsed = false;   // the file on disk does not parse, whatever still builds
-    // last LatexLoader::generation this deck was built against
+    // True when the file on disk cannot be parsed. The last good source is still used.
+    bool source_unparsed = false;
+    // Last LatexLoader::generation that this deck was built with.
     int latex_generation = 0;
-    std::string commands_file;      // the macro file this deck put in the latex prefix
+    // The macro file that this deck put in the LaTeX prefix.
+    std::string commands_file;
     bool initialized = false;
 
-    // primitives are cached across rebuilds so a hot reload reuses textures,
-    // compiled latex and polyscope structures instead of recreating them
+    // Primitives are kept between builds, so a hot reload reuses textures, compiled LaTeX and polyscope structures
+    // and does not create them again.
     std::map<std::string, PrimitivePtr> primitive_cache;
 
-    // cameras are cached with their view file's mtime, so an edited view
-    // file drops its entry and triggers a recompose (hot reload)
+    // Cameras are kept with the modification time of their view file.
+    // An edited view file removes its entry and triggers a new composition.
     struct CameraEntry {
         CameraViewPtr cam;
         path file;
         std::filesystem::file_time_type last_modified;
     };
     std::map<std::string, CameraEntry> camera_cache;
+    // True when a view file changed.
     bool camerasModified();
     std::map<std::string, ObjectFactory> object_registry;
     std::map<std::string, GroupFactory> group_registry;
     std::map<std::string, PrimitiveInSlide> instantiated_objects;
-    // named live positions, for "follow:"
+    // Named live positions, used by "follow:".
     std::map<std::string, std::function<vec2()>> placer_registry;
     std::map<std::string, PrimitiveGroup> instantiated_groups;
 
-    // name -> primitive references accumulated during build, in manifest order
+    // Primitive of each name, collected during the build in the order of the deck.
     std::map<std::string, PrimitivePtr> named;
-    // deck line of every item of the parsed source, by address, for warnings and errors
+    // Deck line of every item of the parsed source, found by address, used in warnings and errors.
     std::unordered_map<const json*, int> line_of;
     int lineOf(const json& item) const {
         auto it = line_of.find(&item);
         return it == line_of.end() ? 0 : it->second;
     }
+    // Builds the slides.
     void buildImpl(SlideManager& show);
-    std::set<std::string> warned_names;   // ids already reported as clashing, once each
-    // records an item under its id, warning when the id already means something else
+    // Ids already reported as clashing, so each is reported once.
+    std::set<std::string> warned_names;
+    // Records an item under its id, with a warning when the id already means something else.
     void nameItem(const std::string& name, const PrimitivePtr& prim, bool explicit_id);
 
-    // primitives used by the manifest at last build, to disable on rebuild
+    // Primitives used by the deck at the last build, which are disabled at a rebuild.
     std::set<PrimitivePtr> used_primitives;
 
-    // what the step being built has placed, to catch an "id:" placed twice
+    // Primitives placed by the step being built, used to detect an "id:" placed twice.
     std::set<PrimitivePtr> step_primitives;
 
-    // how often each content was declared, so a rebuild finds its primitives
+    // Number of times each content was declared, so a rebuild finds its primitives.
     std::map<std::string, int> occurrences;
 
     std::unique_ptr<Slideshow> owned_show;
 
+    // Reads the deck file.
     void parse();
-    // applies the top-level "config:" and "preamble:", once per build
+    // Applies the top-level "config:" and "preamble:", once per build.
     void applyDeckConfig();
+    // Loads the LaTeX prefix file and the definitions file.
     void loadLatexResources();
+    // Builds one frame from its items.
     void buildFrame(SlideManager& show, const json& items);
 
-    // top level groups, expanded where "- name" or "- name: value" appears
+    // Top-level groups, expanded where "- name" or "- name: value" appears.
     struct DeckGroup {
         json items;
-        json params = json::object();   // name -> default, null when required
+        // Default of each param, or null when the param is required.
+        json params = json::object();
     };
     std::map<std::string, DeckGroup> deck_groups;
-    std::vector<std::string> expanding;  // call chain, to catch a group using itself
+    // Chain of group calls, used to detect a group that calls itself.
+    std::vector<std::string> expanding;
+    // Registers a top-level group.
     void declareGroup(const std::string& name, const json& val);
-    // the group an item calls, or null for a plain item
+    // Name of the group that an item calls, or null for a plain item.
     const std::string* groupCallOf(const json& item) const;
-    // what the call placed, for its tags
+    // Expands a group call and returns what it placed, for its tags.
     std::set<PrimitivePtr> expandGroup(SlideManager& show, const std::string& name,
                                        const json& call);
 
-    // every primitive build() places, into used_primitives and any open collector
+    // Every primitive that build() places goes into used_primitives and into any collector that is open.
     std::vector<std::set<PrimitivePtr>*> collectors;
+    // Records a primitive as used by the deck.
     void markUsed(const PrimitivePtr& ptr);
-    // what run() places, a primitive reused from an earlier slide included
+    // Runs a function and returns what it placed, including a primitive reused from an earlier slide.
     std::set<PrimitivePtr> collect(const std::function<void()>& run);
+    // Builds one item and adds it to the slide.
     void addItem(SlideManager& show, const json& item);
+    // Builds the children of a stack.
     void buildStackChildren(SlideManager& show, const Stack2DPtr& stack, const json& items);
+    // Builds the anchor of the handle of a stack.
     AnchorPtr makeHandleAnchor(const json& item);
 
-    // creates (or retrieves from cache) the screen primitive described by a
-    // title/latex/text/formula/image item, and its reference name
+    // Creates the screen primitive of a title, latex, text, formula or image item, or takes it from the cache.
+    // Returns it with its reference name.
     std::pair<ScreenPrimitivePtr,std::string> makeScreenPrimitive(const json& item);
 
-    // the "uniforms"/"textures" pair on an "object:" naming a shader. The
-    // declarations themselves live in deck_items/ShaderItem.h, this only
-    // remembers what it declared
+    // Handles "uniforms" and "textures" on an "object:" that names a shader.
+    // The declarations are in deck/items/ShaderItem.h, and this function only remembers what it declared.
     void declareObjectShaderInputs(const ShaderPtr& shader, const std::string& object,
                                    const json& item);
-    // what the last build declared on a C++-registered shader, so a reload
-    // drops exactly that and leaves the owner's own binds standing
+    // What the last build declared on a shader registered from C++.
+    // A reload removes exactly that and keeps the binds of the owner.
     std::map<std::string, std::pair<ShaderPtr, std::vector<std::string>>> object_uniforms;
-    // resolves a "follow" spec to a live screen position
+    // Turns a "follow" spec into a function that gives a screen position.
     std::function<vec2()> resolveFollow(const std::string& spec);
-    // the same, also taking {object: name, vertex: i}
+    // Same, and it also accepts {object: name, vertex: i}.
     std::function<vec2()> resolveFollow(const json& spec);
-    // the scene structure a name places now, null when there is none
+    // The scene primitive that a name places now, or null.
     PolyscopePrimitivePtr findSceneObject(const std::string& name) const;
+    // True when the name is a registered object or group.
     bool knowsObject(const std::string& name) const;
 
-    // applies at/below/above/right_of/left_of placement and adds to the slide
-    // keep_placement leaves an item where it is when no placement is given
+    // Applies the placement (at, below, above, right_of, left_of) and adds the item to the slide.
+    // With keep_placement, an item without placement stays where it is.
     void placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                          const json& item, const std::string& default_label,
                          bool keep_placement = false, const StateInSlide* own = nullptr);
 
+    // Primitive that a name refers to, and the same as a screen primitive.
     PrimitivePtr resolve(const std::string& name) const;
     ScreenPrimitivePtr resolveScreen(const std::string& name) const;
 
+    // Takes a primitive from the cache, or creates it.
     PrimitivePtr cached(const std::string& key, const std::function<PrimitivePtr()>& create);
 
-    // drops primitives a rebuild stopped using from every cache holding them
+    // Removes from every cache the primitives that a rebuild stopped using.
     void forgetPrimitives(const std::set<PrimitivePtr>& gone);
 
-    // every item goes through this, which is where identity is decided
+    // Every item goes through this function, which decides whether it is a new primitive or one that already exists.
     PrimitivePtr cachedItem(const json& item, const std::string& key,
                             const std::function<PrimitivePtr()>& create);
 };

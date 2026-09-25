@@ -148,8 +148,8 @@ slope::ImageData slope::loadImage(path file, double xscale, double yscale)
     bleedRGB(reduced.data(),dw,dh);
 
     ImageData data;
-    // the logical size stays the source one, so placement and baseline maths
-    // are untouched ; only the texel count follows the screen
+    // The logical size stays the size of the source, so placement and baseline computations do not change.
+    // Only the number of texels follows the screen.
     data.width  = w;
     data.height = h;
 

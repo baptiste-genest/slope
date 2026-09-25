@@ -8,24 +8,24 @@
 namespace slope {
 
 /*
- * Polyscope objects that *are* a snippet : the geometry, its animation and
- * its domain all live in the .lua file and reload with it, so an animated
- * scene object needs no C++ at all.
+ * Polyscope objects defined by a snippet. The geometry, its animation and its domain
+ * are in the .lua file and reload with it, so an animated object needs no C++.
  *
- * Each wrapper samples one callable section over its parameter domain, once
- * per frame. The section sees `t` and the whole snippet namespace like any
- * other, which is what makes it time varying : drop `t` and the object simply
- * sits still. What differs between them is only the parameter space :
+ * Each wrapper samples one callable section over its parameter domain, once per frame.
+ * The section sees `t` and the whole snippet namespace, so it can change with time.
+ * Without `t` the object stays still.
+ * The wrappers differ only by their parameter space.
  *
- *   SnippetSurface   vec2 -> vec3, a grid of the rectangle u x v
- *   SnippetCurve     scalar -> vec3, a subdivision of the segment u
+ *   SnippetSurface   vec2 to vec3, a grid over the rectangle u x v
+ *   SnippetCurve     scalar to vec3, a subdivision of the segment u
  *
- * A per sample Lua call is not free : count on a few thousand of them for a
- * smooth animation, and see examples/snippet_perf for the real curve.
+ * Each sample calls Lua, which is slow. A smooth animation can afford a few thousand samples.
+ * See examples/snippet_perf for measurements.
  *
- * From a deck, "surface:" and "curve:" (see DeckLoader).
+ * A deck uses them through "surface:" and "curve:" (see DeckLoader).
  */
 
+// A mesh whose vertices are a snippet function of two parameters.
 class SnippetSurface : public Mesh
 {
 public:
@@ -38,8 +38,8 @@ public:
      *     return vec3(x, y, 0.2*math.sin(6*x + t.from_begin)*math.cos(6*y))
      *   end
      *
-     * The function takes a vec2 (the parameter point, *not* two numbers) and
-     * returns a vec3, or three numbers.
+     * The function takes a vec2 for the parameter point, not two numbers.
+     * It returns a vec3, or three numbers.
      *
      *   auto s = SnippetSurface::Add("wave");                 // [0,1]^2, 64x64
      *
@@ -50,27 +50,34 @@ public:
      *   show << SnippetSurface::Add(sp);
      */
     struct Spec {
-        std::string fn;                 // callable snippet section, vec2 -> vec3
-        std::string name;               // reference name, the fn name by default
-        vec2 u = vec2(0, 1);            // parameter domain
+        // Callable snippet section, from vec2 to vec3.
+        std::string fn;
+        // Name of the object, the same as fn by default.
+        std::string name;
+        // Parameter domain.
+        vec2 u = vec2(0, 1);
         vec2 v = vec2(0, 1);
-        int res_u = 64, res_v = 64;     // subdivisions of each parameter axis
-        bool closed_u = false;          // welds the u = u1 seam onto u = u0
+        // Number of subdivisions along each parameter.
+        int res_u = 64, res_v = 64;
+        // Joins the edge u = u1 to the edge u = u0, and the same for v.
+        bool closed_u = false;
         bool closed_v = false;
+        // Smooth shading.
         bool smooth = true;
     };
 
+    // Builds a surface from a spec.
     static SnippetSurfacePtr Add(const Spec& spec);
+    // Builds a surface on the domain [0,1]^2 with the same resolution on both axes.
     static SnippetSurfacePtr Add(const std::string& fn, int resolution = 64);
 
     SnippetSurface(const Spec& spec);
 
-    // re-reads the domain, the seams and the resolution, and rebuilds when
-    // the grid changed. Lets a deck reload edit a surface in place
+    // Applies a new spec, and rebuilds the grid if it changed. Lets a deck reload edit a surface in place.
     void configure(const Spec& spec);
     const Spec& spec() const {return sp;}
 
-    // samples the snippet over the current grid; called once per frame
+    // Evaluates the snippet on the grid. Called once per frame.
     void update();
 
     // Primitive interface
@@ -81,17 +88,19 @@ public:
 
 private:
     Spec sp;
-    int nu = 0, nv = 0;                 // grid the current topology was built on
+    // Grid size of the current topology.
+    int nu = 0, nv = 0;
     Snippet::fn<vec(vec2)> f;
 
-    // the parameter point of grid node (i, j)
+    // Parameter point of grid node (i, j).
     vec2 node(int i, int j) const;
-    // evaluates the snippet over the current grid, in place
+    // Evaluates the snippet on the grid and updates the vertices.
     void sample();
-    // vertices and faces for the current parameter counts
+    // Builds vertices and faces for the current resolution.
     void buildGrid();
-    // the same, then a fresh polyscope structure for the new topology
+    // Same, then creates a new polyscope structure for the new topology.
     void rebuild();
+    // Number of vertices along u and along v.
     int columns() const {return sp.closed_u ? nu : nu + 1;}
     int rows() const {return sp.closed_v ? nv : nv + 1;}
 };
@@ -99,6 +108,7 @@ private:
 using SnippetSurfacePtr = SnippetSurface::SnippetSurfacePtr;
 
 
+// A curve whose nodes are a snippet function of one parameter.
 class SnippetCurve : public Curve3D
 {
 public:
@@ -122,24 +132,32 @@ public:
      *   show << SnippetCurve::Add(sp);
      */
     struct Spec {
-        std::string fn;                 // callable snippet section, scalar -> vec3
-        std::string name;               // reference name, the fn name by default
-        vec2 u = vec2(0, 1);            // parameter domain
-        int resolution = 200;           // subdivisions of the segment
-        bool closed = false;            // joins the last node back to the first
-        scalar radius = -1;             // < 0 leaves polyscope its default
+        // Callable snippet section, from scalar to vec3.
+        std::string fn;
+        // Name of the object, the same as fn by default.
+        std::string name;
+        // Parameter domain.
+        vec2 u = vec2(0, 1);
+        // Number of segments.
+        int resolution = 200;
+        // Joins the last node to the first.
+        bool closed = false;
+        // Tube radius. A negative value keeps the default of polyscope.
+        scalar radius = -1;
     };
 
+    // Builds a curve from a spec.
     static SnippetCurvePtr Add(const Spec& spec);
+    // Builds a curve on the domain [0,1].
     static SnippetCurvePtr Add(const std::string& fn, int resolution = 200);
 
     SnippetCurve(const Spec& spec);
 
-    // as for a surface, so a deck reload edits the curve in place
+    // Applies a new spec, like for a surface, so a deck reload edits the curve in place.
     void configure(const Spec& spec);
     const Spec& spec() const {return sp;}
 
-    // samples the snippet over the current subdivision; once per frame
+    // Evaluates the snippet at the nodes. Called once per frame.
     void update();
 
     // Primitive interface
@@ -151,14 +169,19 @@ public:
 
 private:
     Spec sp;
-    int n = 0;                          // subdivision the nodes were built on
+    // Number of segments of the current nodes.
+    int n = 0;
     Snippet::fn<vec(scalar)> f;
 
-    // a closed curve drops its last sample, the loop closing it instead
+    // Number of nodes. A closed curve has no node for the last sample, since the loop closes it.
     int samples() const {return sp.closed ? n : n + 1;}
+    // Parameter value of node i.
     scalar node(int i) const;
+    // Evaluates the snippet at the nodes.
     void sample();
+    // Allocates the nodes for the current resolution.
     void buildNodes();
+    // Same, then creates a new polyscope structure.
     void rebuild();
 };
 

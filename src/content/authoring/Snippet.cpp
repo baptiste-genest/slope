@@ -28,7 +28,7 @@ struct Snippet::Call {
 
 namespace {
 
-// ── userdata, vec2 / vec3 / complex ─────────────────────────────────────────
+// userdata, vec2 / vec3 / complex
 // one payload, three metatables differing only in what * and / mean
 struct SVec { int tag; double v[3]; };
 
@@ -57,7 +57,7 @@ SVec* asSVec(lua_State* L, int i) {
 
 int comps(int tag) { return tag == TAG_V3 ? 3 : 2; }
 
-// ── the interpreter and its registries ──────────────────────────────────────
+// the interpreter and its registries
 
 lua_State* L = nullptr;
 
@@ -182,7 +182,7 @@ void checkFinite(const Section* s, const std::string& name, const Snippet::Value
         warnOnce(s, name + "#finite", "'" + name + "' is nan or inf, maybe from a division by zero");
 }
 
-// ── reading what Lua returned into a Snippet::Value ─────────────────────────
+// reading what Lua returned into a Snippet::Value
 const char* kShapes = " instead of at most 4 numbers, vectors or arrays";
 
 std::string shape(int n) {
@@ -291,7 +291,7 @@ void storeVar(const std::string& name, Section* sec, const Snippet::Value& val) 
     var.frame = frame_counter;
 }
 
-// ── name resolution, the section environment's __index ──────────────────────
+// name resolution, the section environment's __index
 int env_index(lua_State* s) {
     // upvalue 1 is the builtins table
     const char* key = lua_tostring(s, 2);
@@ -340,7 +340,7 @@ int env_index(lua_State* s) {
     return 0;
 }
 
-// ── evaluation ──────────────────────────────────────────────────────────────
+// evaluation
 bool evaluateSection(Section* s) {
     if (!L || !s) return false;
     // before the memo, which would answer for a section reading itself and hand
@@ -435,7 +435,7 @@ bool evaluateVar(const std::string& name) {
     return evaluateSection(it->second.sec);
 }
 
-// ── built-in functions ──────────────────────────────────────────────────────
+// built-in functions
 int l_vec2(lua_State* s) {
     if (lua_gettop(s) > 2) return raise(s, "vec2 takes 2 numbers, got %d arguments", lua_gettop(s));
     pushSVec(s, TAG_V2, luaL_optnumber(s, 1, 0), luaL_optnumber(s, 2, 0));
@@ -632,7 +632,7 @@ int l_index(lua_State* s) {
     return 1;
 }
 
-// ── the `t` table ───────────────────────────────────────────────────────────
+// the `t` table
 // an unknown name answers false like in C++, and is said with its line
 void checkKeyframe(lua_State* s, const char* n) {
     if (TimeObject::keyframes && !TimeObject::keyframes->count(n))
@@ -717,7 +717,7 @@ int l_slidesSinceKeyframe(lua_State* s) {
     return 1;
 }
 
-// ── Params, declared on first use ───────────────────────────────────────────
+// Params, declared on first use
 // declares a parameter with its default and its slider bounds, and returns the
 // value. Reading one that already exists needs no call, the bare name works.
 int l_param(lua_State* s) {
@@ -832,10 +832,9 @@ void refreshTime() {
     lua_pop(L, 1);
 }
 
-// ── loading ─────────────────────────────────────────────────────────────────
-// "--- name" opens a section; the body keeps its line numbers so a Lua error
-// points into the original file. A name may be grouped with "/", so a section
-// can own "fig/xrange" outright.
+// loading
+// "--- name" opens a section. The body keeps its line numbers, so a Lua error points into the original file.
+// A name can be grouped with "/", so a section can own "fig/xrange" directly.
 bool sectionHeader(const std::string& line, std::string& name) {
     size_t i = line.find_first_not_of(" \t");
     if (i == std::string::npos || line.compare(i, 3, "---") != 0) return false;
@@ -997,8 +996,8 @@ void rebuild() {
             if (s->file == f.given.string()) seen_sections.insert(n);
     }
 
-    // a section whose new body does not compile keeps the chunk that worked, so
-    // saving mid-edit never empties the show; one deleted from the file goes
+    // A section whose new body does not compile keeps the chunk that worked, so saving in the middle of an edit
+    // never empties the show. A section deleted from the file is removed.
     for (auto& [n, s] : previous) {
         if (!sections.count(n) && seen_sections.count(n)) {
             sections[n] = std::move(s);
@@ -1019,7 +1018,7 @@ void ensureDiscovered() {
 
 } // namespace
 
-// ── public API ──────────────────────────────────────────────────────────────
+// public API
 
 void Snippet::ensureState() {
     if (L) return;

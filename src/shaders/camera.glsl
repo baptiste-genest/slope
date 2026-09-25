@@ -1,5 +1,4 @@
 #pragma once
-// ─────────────────────────────────────────────────────────────────────────────
 // Building a primary ray for the current pixel. Independent of what you then
 // trace against, an SDF, a height field, an implicit surface, so it does not
 // drag in <raymarch.glsl> and its sceneSDF requirement.
@@ -10,7 +9,6 @@
 //
 // Needs the built-in prelude (iResolution / iMouseNorm / iHovered), so it does
 // not apply to a shader that brings its own #version.
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ray through this pixel for a camera at `ro` looking at `target`.
 // `lens` is the distance to the image plane, larger is a longer lens, i.e. a
@@ -42,11 +40,12 @@ void orbitRayTarget(float radius, vec3 target, out vec3 ro, out vec3 rd) {
     orbitRayAt(orbit, radius, target, ro, rd);
 }
 
+// Ray of the default orbit camera, which looks at a point near the origin from a distance of 4.8.
 void orbitRay(out vec3 ro, out vec3 rd) {
     orbitRayTarget(4.8, vec3(0.0, 0.2, 0.0), ro, rd);
 }
 
-// ── polyscope's camera ───────────────────────────────────────────────────────
+// polyscope's camera
 // The ray polyscope itself would trace through this fragment, so a shader scene
 // lands in the same world as the 3D scene behind it, an object the shader
 // draws at world position X covers the polyscope geometry at X, and it stays
@@ -64,7 +63,7 @@ void orbitRay(out vec3 ro, out vec3 rd) {
 // rectangle, so the fragment is first mapped back to the window pixel it will
 // end up on (iScreenRect), then unprojected with polyscope's matrices.
 
-// ── the screen, shared with slope ────────────────────────────────────────────
+// the screen, shared with slope
 // What polyscopeRay is to the 3D scene, screenPoint is to the window, the
 // referential a shader shares with everything outside it, whatever rectangle
 // it is drawn into. slope's 2D parameters live in exactly this space, so a
@@ -92,6 +91,7 @@ float screenAspect() { return iWindowSize.x / iWindowSize.y; }
 // this fragment's position in normalised device coordinates, as polyscope sees it
 vec2 polyscopeNDC() { return 2.0 * screenPoint() - 1.0; }
 
+// Ray from the eye of polyscope through this fragment, as origin ro and unit direction rd.
 void polyscopeRay(out vec3 ro, out vec3 rd) {
     vec2 ndc = polyscopeNDC();
     mat4 inv = iViewInv * iProjInv;          // clip -> camera -> world
@@ -109,7 +109,7 @@ float polyscopeDepth(vec3 world_pos) {
     return 0.5 * (clip.z / clip.w) + 0.5;
 }
 
-// ── compositing against the 3D scene ─────────────────────────────────────────
+// compositing against the 3D scene
 // Requires the primitive to have opted in :
 //
 //   fx->useSceneDepth();
@@ -130,7 +130,7 @@ float sceneDepthHere() {
     vec2 px = iScreenRect.xy + vec2(f.x, 1.0 - f.y) * iScreenRect.zw;   // window px, y down
     vec2 uv = vec2(px.x / iWindowSize.x, 1.0 - px.y / iWindowSize.y);   // texture uv, y up
     // outside the window the sampler would clamp and report whatever is on the
-    // edge; say "empty" instead
+    // edge. It says "empty" instead.
     if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0))))
         return 1.0;
     // textureLod, not texture, implicit LOD is chosen from derivatives, which
@@ -149,7 +149,7 @@ bool visibleOverScene(vec3 world_pos) {
 }
 
 // eye-space distance to polyscope's geometry at this fragment, positive and
-// measured along the view axis; huge where nothing was drawn. Depth buffers
+// measured along the view axis, and huge where nothing was drawn. Depth buffers
 // are nonlinear, so this is what you want when comparing distances rather
 // than just ordering them.
 float sceneEyeDistance() {

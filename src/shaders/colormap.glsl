@@ -1,5 +1,4 @@
 #pragma once
-// ─────────────────────────────────────────────────────────────────────────────
 // Scientific colour maps, as polynomial fits over t in 0..1.
 //
 // The sequential maps (viridis, magma, inferno, plasma) are perceptually
@@ -10,8 +9,8 @@
 //
 //   #include <colormap.glsl>
 //   fragColor = vec4(viridis(density), 1.0);
-// ─────────────────────────────────────────────────────────────────────────────
 
+// Viridis colormap for t in [0,1].
 vec3 viridis(float t) {
     t = clamp(t, 0.0, 1.0);
     const vec3 c0 = vec3( 0.2777273272234177,  0.005407344544966578,  0.3340998053353061);
@@ -24,6 +23,7 @@ vec3 viridis(float t) {
     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
 }
 
+// Magma colormap for t in [0,1].
 vec3 magma(float t) {
     t = clamp(t, 0.0, 1.0);
     const vec3 c0 = vec3( -0.002136485053939, -0.000749655052795, -0.005386127855323);
@@ -36,6 +36,7 @@ vec3 magma(float t) {
     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
 }
 
+// Inferno colormap for t in [0,1].
 vec3 inferno(float t) {
     t = clamp(t, 0.0, 1.0);
     const vec3 c0 = vec3(  0.0002189403691192265, 0.001651004631001012, -0.01948089843709184);
@@ -48,6 +49,7 @@ vec3 inferno(float t) {
     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
 }
 
+// Plasma colormap for t in [0,1].
 vec3 plasma(float t) {
     t = clamp(t, 0.0, 1.0);
     const vec3 c0 = vec3(  0.05873234392399702,  0.02333670892565664,  0.5433401826748754);
@@ -60,6 +62,7 @@ vec3 plasma(float t) {
     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
 }
 
+// Turbo colormap for t in [0,1].
 vec3 turbo(float t) {
     t = clamp(t, 0.0, 1.0);
     const vec3 c0 = vec3(  0.1140890109226559,   0.06288340699912215,   0.2248337216805064);
@@ -72,9 +75,10 @@ vec3 turbo(float t) {
     return c0+t*(c1+t*(c2+t*(c3+t*(c4+t*(c5+t*c6)))));
 }
 
+// Gray ramp for t in [0,1].
 vec3 grayscale(float t) { return vec3(clamp(t, 0.0, 1.0)); }
 
-// ── diverging ────────────────────────────────────────────────────────────────
+// diverging
 // for signed quantities, with the neutral colour on zero. Feed it a value
 // already mapped to -1..1 (see signedRemap below).
 vec3 coolwarm(float t) {
@@ -85,7 +89,7 @@ vec3 coolwarm(float t) {
     return (t < 0.5) ? mix(lo, mid, t * 2.0) : mix(mid, hi, t * 2.0 - 1.0);
 }
 
-// ── procedural ───────────────────────────────────────────────────────────────
+// procedural
 // Inigo Quilez's cosine-gradient palette, one line tunes a whole custom
 // scheme from its offset, amplitude, frequency and phase.
 //   cosinePalette(t, vec3(0.5), vec3(0.5), vec3(1.0), vec3(0.0, 0.33, 0.67))
@@ -93,7 +97,7 @@ vec3 cosinePalette(float t, vec3 offset, vec3 amp, vec3 freq, vec3 phase) {
     return offset + amp * cos(6.28318530718 * (freq * t + phase));
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// helpers
 // map a value to 0..1 across [lo, hi]
 float remap(float v, float lo, float hi) {
     return clamp((v - lo) / max(hi - lo, 1e-8), 0.0, 1.0);
@@ -111,7 +115,7 @@ vec3 hsv2rgb(vec3 c) {
     return c.z * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), c.y);
 }
 
-// ── contours ─────────────────────────────────────────────────────────────────
+// contours
 // 1 on the isolines of `v`, fading out over one pixel. `grad` is the length of
 // v's screen-space gradient, pass length(vec2(dFdx(v), dFdy(v))) so the lines
 // keep a constant width whatever the field is doing.

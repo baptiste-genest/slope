@@ -81,7 +81,7 @@ void DeckLoader::init(path deck_file)
     FileEditor::registerExtra(source_path);
     Latex::default_origin = source_path;
     parse();
-    // early so C++ formulas made before the first build get the macros; a failure is the build's to report
+    // This is done early so C++ formulas made before the first build get the macros. A failure is reported by the build.
     try { loadLatexResources(); } catch (const std::exception&) {}
     source_last_modified = std::filesystem::last_write_time(source_path);
     latex_generation = LatexLoader::generation;
@@ -93,7 +93,7 @@ void DeckLoader::init(path deck_file)
 // commands.tex / latex.json when present
 void DeckLoader::loadLatexResources()
 {
-    // a named file must exist, the editor then offers to create it; a default is optional
+    // A file that is named must exist, and the editor then offers to create it. A default file is optional.
     auto pick = [&](const char* key, const char* fallback) -> std::string {
         if (source.is_object() && source.contains(key)) {
             if (!source[key].is_string())
@@ -676,8 +676,8 @@ void DeckLoader::buildImpl(SlideManager& show)
                                          "added to the first step of every frame");
         tmpl = &source["template"];
     }
-    // built once, then the same primitives are re-added : a template rebuilt
-    // per frame would make new ones, and every slide change would cross-fade
+    // The template is built once and the same primitives are added again.
+    // A template built at every frame would make new primitives, and every slide change would fade them out and in.
     std::vector<PrimitiveInSlide> template_items;
     bool template_built = false;
 
@@ -736,7 +736,7 @@ void DeckLoader::buildImpl(SlideManager& show)
 
 static bool isParamName(const std::string& s);
 
-// Any other top level key is a group : a list of items, or a map with "items"
+// Any other top level key is a group, which is a list of items or a map with "items"
 // and optionally "params".
 void DeckLoader::declareGroup(const std::string& name, const json& val)
 {
@@ -760,8 +760,7 @@ void DeckLoader::declareGroup(const std::string& name, const json& val)
                      "with \"items:\"", name);
         return;
     }
-    // "- name: value" is told apart from an item by its type key, so neither the
-    // group nor an arg may carry one
+    // "- name: value" is told apart from an item by its type key, so neither the group nor an argument can have one.
     auto isType = [](const std::string& key) {
         if (key == "step" || key == "background")
             return true;
@@ -1372,7 +1371,7 @@ static PrimitiveInSlide placeSceneItem(const PolyscopePrimitivePtr& poly, const 
 }
 
 // The deck may give a C++ object a place only if the C++ left it none. What counts as
-// the object's own place : a label, a transform, a plane, an offset, or an anchor other than the default.
+// The place of the object itself is a label, a transform, a plane, an offset, or an anchor other than the default.
 static bool definesPlacement(const StateInSlide& s)
 {
     return s.persistentTransform.isActive() || s.liveTransform || s.hasPlane()
@@ -1443,8 +1442,8 @@ static const StateInSlide* registeredState(const std::map<std::string, Primitive
     return nullptr;
 }
 
-// "at:" / "transform:" on a registered group, at its definition or in a "set" : refused when
-// a member already places itself, else given to the scene members that have no place
+// Handles "at:" and "transform:" on a registered group, at its definition or in a "set".
+// It is refused when a member already places itself, and otherwise given to the scene members that have no place.
 static bool placeGroup(SlideManager& show, const std::string& name, const PrimitiveGroup& G,
                        const json& item)
 {
@@ -1510,7 +1509,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         if (!item["set"].is_string())
             throw std::runtime_error("\"set\" takes the id of an item defined earlier");
         const std::string set_name = item["set"].get<std::string>();
-        // a group : its scene members, when the C++ left them without a place
+        // For a group, the placement goes to its scene members that the C++ left without a place.
         if (!named.count(set_name) && instantiated_groups.count(set_name)) {
             if (!deckPlacement(item))
                 throw std::runtime_error("\"set\" of the group \"" + set_name
@@ -1554,7 +1553,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             throw std::runtime_error("\"replace\" item needs a \"with\" sub-item");
         std::string replaced = item["replace"];
         auto old = resolveScreen(replaced);
-        // "with: id" swaps in an item defined earlier, a map defines a new one
+        // "with: id" uses an item defined earlier, and a map defines a new one.
         ScreenPrimitivePtr prim;
         if (item["with"].is_string()) {
             prim = resolveScreen(item["with"].get<std::string>());
@@ -1647,8 +1646,8 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         // an endpoint is [x,y] (a param when id'd), an item name (attached live), or a label
         auto endpoint = [&](const char* key, const char* suffix, const vec2& def) -> Arrow2D::Endpoint {
             json v = spec.contains(key) ? spec[key] : json{def(0), def(1)};
-            // {follow: name} reads a live 2D or 3D point, [x,y,z] is a fixed one in the scene,
-            // {follow: {object: name, vertex: i}} a vertex of a scene item
+            // {follow: name} reads a live 2D or 3D point, and [x,y,z] is a fixed point of the scene.
+            // {follow: {object: name, vertex: i}} is a vertex of a scene item.
             if (v.is_object()) {
                 if (!v.contains("follow"))
                     throw std::runtime_error(std::string("arrow \"") + key + "\" : a map is {follow: <name>}");
@@ -1692,7 +1691,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
                                              + "\" is not a screen primitive");
                 return Arrow2D::Attach(sp);
             }
-            // what "follow:" reads: a parameter, snippet variable or placer declared earlier
+            // "follow:" reads a parameter, a snippet variable or a placer that was declared earlier.
             const auto snippets = Snippet::names();
             if (Params::components(s) > 0 || placer_registry.count(s)
                 || std::find(snippets.begin(), snippets.end(), s) != snippets.end()) {

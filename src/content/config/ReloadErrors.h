@@ -9,10 +9,11 @@
 
 namespace slope {
 
-// the last reload error of each watched file, one per kind of reload, for the file editor
+// Keeps the last reload error of each watched file, one per kind of reload, for the file editor.
 struct ReloadErrors {
     using Path = std::filesystem::path;
 
+    // Stores an error message for a file and a kind of reload.
     static void report(const Path& file, const std::string& kind, const std::string& msg)
     {
         if (file.empty())
@@ -22,6 +23,7 @@ struct ReloadErrors {
         table()[k][kind] = msg;
     }
 
+    // Removes the error of a file for a kind of reload.
     static void clear(const Path& file, const std::string& kind)
     {
         if (file.empty())
@@ -36,13 +38,14 @@ struct ReloadErrors {
             table().erase(it);
     }
 
-    // a file asked for and not there : the editor lists it and offers to create it
+    // Reports a file that is needed and absent, then throws. The editor offers to create it.
     [[noreturn]] static void missingFile(const Path& file, const std::string& msg)
     {
         report(file, "missing", msg);
         throw std::runtime_error(msg);
     }
 
+    // Files reported as missing.
     static std::vector<Path> missingFiles()
     {
         std::lock_guard lock(mutex());
@@ -53,7 +56,7 @@ struct ReloadErrors {
         return out;
     }
 
-    // before a rebuild, which reports again whatever is still missing
+    // Forgets the missing files. Called before a rebuild, which reports again those still missing.
     static void clearMissing()
     {
         std::lock_guard lock(mutex());
@@ -63,7 +66,7 @@ struct ReloadErrors {
         }
     }
 
-    // every file with an error, its messages joined, keyed by canonical path
+    // Every file with an error, with its messages joined, keyed by canonical path.
     static std::map<Path, std::string> all()
     {
         std::lock_guard lock(mutex());
@@ -77,6 +80,7 @@ struct ReloadErrors {
     }
 
 private:
+    // Canonical form of a path, used as key of the table.
     static Path key(const Path& p)
     {
         std::error_code ec;

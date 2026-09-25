@@ -451,7 +451,7 @@ int keyframeIndexFor(const std::string& name, const std::string& where)
 
 // GLSL has no string type, so a keyframe query naming one is rewritten to its
 // slide index before the compile. A string literal is illegal in GLSL, so no
-// valid shader can be harmed by this; comments are skipped so one written in
+// valid shader can be harmed by this. Comments are skipped so one written in
 // prose survives. Substitution stays on its own line, which keeps every
 // compile error pointing where it did.
 void rewriteKeyframeNames(std::string& src, const std::string& where)
@@ -905,7 +905,7 @@ bool Shader::referencesSceneDepth(const std::string& src)
 
 // polyscope's depth peeling clears its buffer at the top of every peel pass,
 // so a multi-pass frame leaves only the last peeled layer. Pinning to one
-// pass keeps the true nearest-surface depth; only ordering across several
+// pass keeps the true depth of the nearest surface. Only the ordering of several
 // transparent layers is lost.
 void Shader::applySceneDepthMode()
 {
@@ -938,7 +938,7 @@ void Shader::setResolution(int w, int h)
     gl_ready = false; // force the texture/fbo to be recreated at the new size
 }
 
-// ── uniforms ────────────────────────────────────────────────────────────────
+// uniforms
 void Shader::set(const std::string& n, float v)
 { uniforms[n] = [v](int l, const TimeObject&){ gl().Uniform1f(l, v); }; }
 void Shader::set(const std::string& n, int v)
@@ -1115,7 +1115,7 @@ void Shader::bindV3(const std::string& n, std::function<vec(const TimeObject&)> 
 void Shader::bindV4(const std::string& n, std::function<RGBA(const TimeObject&)> f)
 { uniforms[n] = [f](int l, const TimeObject& t){ ImVec4 c=f(t).Value; gl().Uniform4f(l, c.x, c.y, c.z, c.w); }; }
 
-// ── textures & buffers ──────────────────────────────────────────────────────
+// textures & buffers
 // the four ShaderToy channels are textures under a reserved name. Out of range
 // gives "", which every entry point below ignores.
 std::string Shader::ChannelName(int i)
@@ -1139,7 +1139,7 @@ void Shader::releaseTexture(const std::string& name)
 }
 
 // dropping the last self-sampling texture also drops the need for a ping-pong
-// target; adding one creates it
+// target, and adding one creates it.
 void Shader::refreshFeedback()
 {
     bool self = false;
@@ -1233,7 +1233,7 @@ void Shader::retainTextures(const std::vector<std::string>& names)
 }
 
 // "iChannel2" -> 2, so the bind loop knows to also fill iChannelResolution[2].
-// Only these four reserved names carry it; a named texture reports its size
+// Only these four reserved names carry it. A named texture reports its size
 // through <name>_size instead.
 void Shader::markLegacyChannel(const std::string& name, Texture& t)
 {
@@ -1272,7 +1272,7 @@ void Shader::setTargets(int n)
     gl_ready = false; // rebuild the FBO(s) with the new attachment count
 }
 
-// ── data textures, CPU to GPU ───────────────────────────────────────────────
+// data textures, CPU to GPU
 void Shader::setTexture(const std::string& name, const float* data, int w, int h,
                         int comps, Filter f, Wrap wrapMode)
 {
@@ -1323,7 +1323,7 @@ void Shader::setTexture(const std::string& name, const float* data, int w, int h
     g.BindTexture(SL_TEXTURE_2D, SLGLuint(prev_tex));
 }
 
-// ── readback, GPU to CPU ────────────────────────────────────────────────────
+// readback, GPU to CPU
 bool Shader::readback(std::vector<float>& out, int attachment) const
 {
     auto& g = gl();
@@ -1370,7 +1370,7 @@ RGBA Shader::readbackPixel(int x, int y, int attachment) const
     return RGBA(p[0], p[1], p[2], p[3]);
 }
 
-// ── shader storage buffers ───────────────────────────────────────────────────
+// shader storage buffers
 void Shader::setBuffer(int binding, const void* data, std::size_t bytes)
 {
     auto& g = gl();
@@ -1454,7 +1454,7 @@ void Shader::clearBuffer(int binding)
     ssbos.erase(it);
 }
 
-// ── GL resources ──────────────────────────────────────────────────────────────
+// GL resources
 void Shader::ensureResources()
 {
     if (gl_ready)
@@ -1538,9 +1538,8 @@ void Shader::recompile()
     if (!g.ok)
         return;
 
-    // pull in whatever the source #include's; the files reached are recorded
-    // so hot reload watches them too, and the index -> file table lets a
-    // failed compile be traced back past the inclusion.
+    // Inserts whatever the source includes. The files reached are recorded so the reload watches them too,
+    // and the table from index to file lets a failed compile be traced back through the inclusion.
     const std::string self = from_file ? source_file.string() : "<inline>";
     const path base = from_file ? source_file.parent_path()
                                 : path(Options::ProjectDataPath);
@@ -1559,9 +1558,8 @@ void Shader::recompile()
     // which then needs useSceneDepth() from C++
     useSceneDepth(referencesSceneDepth(fragment_src));
 
-    // a source with its own #version is complete; otherwise prepend the
-    // built-in prelude. Looks for a real directive, not a substring, so a
-    // comment mentioning "#version" does not skip the prelude.
+    // A source with its own #version is complete. Otherwise the built-in prelude is added before it.
+    // It looks for a real directive and not a substring, so a comment that mentions "#version" does not skip the prelude.
     const bool complete = hasVersionDirective(fragment_src);
     // keyframe defines come after the prelude (they may reference nothing) and
     // before the #line reset, so user line numbers in compile errors stay right
@@ -1680,8 +1678,8 @@ void Shader::cacheUniformLocations()
     uloc.iHovered   = L("iHovered");
     uloc.iDate      = L("iDate");
 
-    // only the ShaderToy resolution array is a fixed built-in; the samplers
-    // themselves are named at runtime and resolved per texture below
+    // Only the ShaderToy resolution array is a fixed built-in.
+    // The samplers are named at runtime and resolved for each texture below.
     for (int i = 0; i < kChannels; ++i) {
         const std::string res = "iChannelResolution[" + std::to_string(i) + "]";
         uloc.iChannelRes[i] = L(res.c_str());
@@ -1765,7 +1763,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     SLGLuint scene_depth_tex = 0;  // filled by the camera block, bound after
                                    // the textures (whose count fixes its unit)
 
-    // ── built-in uniforms ────────────────────────────────────────────────────
+    // built-in uniforms
     if (int l = U.iResolution; l >= 0) g.Uniform2f(l, float(res_x), float(res_y));
     if (int l = U.iAspect; l >= 0) g.Uniform1f(l, float(res_x) / std::max(float(res_y), 1.f));
     if (int l = U.iTime; l >= 0) g.Uniform1f(l, float(t.inner_time));
@@ -1836,7 +1834,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     if (int l = U.iMouseNorm; l >= 0) g.Uniform2f(l, u, 1.f - v);
     if (int l = U.iHovered; l >= 0) g.Uniform1f(l, hovered ? 1.f : 0.f);
 
-    // ── polyscope's camera ───────────────────────────────────────────────────
+    // polyscope's camera
     // uploaded whole, plus where this shader sits in the window, so a fragment
     // maps back to the screen pixel polyscope draws there. Inverses are done
     // here rather than per fragment.
@@ -1908,7 +1906,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
         g.Uniform4f(l, float(lt.tm_year + 1900), float(lt.tm_mon + 1),
                     float(lt.tm_mday), secs);
     }
-    // ── textures ─────────────────────────────────────────────────────────────
+    // textures
     // each one resolves to a source (image, CPU data, another shader's output,
     // or our own previous frame) and gets a texture unit, handed out in name
     // order. Names arrive at runtime, so the sampler locations are resolved on
@@ -2042,7 +2040,7 @@ void Shader::screenRect(const StateInSlide& sis, ImVec2& pmin, ImVec2& pmax) con
     }
 }
 
-// ── world space ─────────────────────────────────────────────────────────────
+// world space
 
 void Shader::setView(const vec2& center, scalar half_height)
 {
@@ -2176,7 +2174,7 @@ vec2 Shader::getSize() const
 
 // Deferred so a shader can see this frame's scene depth. ImGui only records
 // draw commands here and executes them at ImGuiRender(), after the scene pass. Only shaders using scene depth
-// defer this way; everything else renders inline.
+// defer this way, and everything else renders inline.
 void Shader::ImGuiRenderCallback(const ImDrawList*, const ImDrawCmd* cmd)
 {
     Shader* self = static_cast<Shader*>(cmd->UserCallbackData);
@@ -2199,8 +2197,8 @@ void Shader::runNextPendingRender()
     pending_pmax = job.pmax;
     use_pending_rect = true;
 
-    // this runs inside ImGui's C render loop, where an escaping exception is
-    // undefined behaviour rather than a stack trace; renderToTexture can throw
+    // This runs inside the C render loop of ImGui, where an exception that escapes is undefined behavior
+    // and gives no stack trace. renderToTexture can throw.
     try {
         renderToTexture(job.time, job.sis);
     } catch (const std::exception& e) {
@@ -2225,8 +2223,8 @@ void Shader::reportRenderError(const std::string& what)
 
 void Shader::drawWith(const TimeObject& t, const StateInSlide& sis, float alpha)
 {
-    // a shader built before the deck was initialised could not resolve its
-    // path yet; the first draw is always after init, so try again here
+    // A shader built before the deck was initialized could not resolve its path yet.
+    // The first draw is always after the initialization, so it tries again here.
     if (from_file && load_failed)
         reloadFromFile();
 
@@ -2249,8 +2247,8 @@ void Shader::drawWith(const TimeObject& t, const StateInSlide& sis, float alpha)
 
         ImDrawList* dl = ImGui::GetWindowDrawList();
         dl->AddCallback(&Shader::ImGuiRenderCallback, this);
-        // our GL work clobbers the state ImGui set up; this makes the backend
-        // restore it before the AddImage below is drawn
+        // Our GL work overwrites the state set up by ImGui.
+        // This makes the backend restore it before the AddImage below is drawn.
         dl->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
     } else {
         renderToTexture(t, sis);

@@ -16,92 +16,130 @@ struct ImGuiInputTextCallbackData;
 namespace slope {
 
 /*
- * An in-app text editor for every file the hot-reload watchers track, GLSL
- * sources and their includes, Lua snippets, Code and Algorithm sources, the
- * latex files and the deck. Toggled with E.
+ * A text editor inside the app for every file that the reload watchers follow.
+ * These are GLSL sources and their includes, Lua snippets, Code and Algorithm sources, the LaTeX files and the deck.
+ * It is toggled with E.
  *
- * It only writes to disk, and the existing mtime polls pick the change up on
- * the next frame, as they would for an external editor. One file at a time,
- * and unsaved edits are never dropped without asking.
+ * It only writes to disk, and the existing polling of modification times detects the change at the next frame,
+ * as it would for an external editor.
+ * One file is open at a time, and unsaved edits are never dropped without asking.
  */
 class FileEditor {
 public:
-    // draws the window when wm has it open; call once per frame from the UI pass
+    // Draws the window when wm has it open. Call it once per frame.
     void draw(WindowManager& wm);
 
-    // files outside the primitive registries (the deck manifest, mainly) that
-    // should still show up in the list. Absolute paths, de-duplicated.
+    // Adds a file to the list that is not found through the primitives, such as the deck file.
+    // The path must be absolute, and duplicates are ignored.
     static void registerExtra(const std::filesystem::path& p);
 
+    // True when the open file has edits that are not saved.
     bool hasUnsaved() const { return dirty; }
-    // saves the open file if it has edits; false if that save failed
+    // Saves the open file if it has edits. Returns false if the save failed.
     bool saveUnsaved() { return !dirty || saveToDisk(); }
+    // The open file.
     const std::filesystem::path& currentFile() const { return current; }
-    // shows p, asking first when the open file has edits
+    // Opens p, after asking when the open file has edits.
     void open(const std::filesystem::path& p) { requestOpen(p); }
 
-    // scrolls to the frame the show sits on
+    // Scrolls to the frame that the show is on.
     void jumpToCurrentFrame();
 
-    // an outline frame was clicked, its 0-based index in that file
+    // Called when a frame of the outline is clicked, with its index in the file counted from 0.
     std::function<void(const std::filesystem::path& file, int frame)> onFrameJump;
 
-    // which frame of that file the show sits on, -1 when it is another deck
+    // Gives the frame of that file that the show is on, or -1 when the show uses another deck.
     std::function<int(const std::filesystem::path& file)> currentFrameOf;
 
 private:
     enum class Pending { None, Switch, Reload, Overwrite };
 
+    // Builds the list of files.
     void refreshFileList();
+    // Opens a file, or asks before if the open file has edits.
     void requestOpen(const std::filesystem::path& p);
+    // Opens a file with no question.
     void openFile(const std::filesystem::path& p);
+    // Reads the open file again from disk.
     void loadFromDisk();
+    // Writes the buffer to disk. Returns false on failure.
     bool saveToDisk();
+    // True when the file was modified on disk after it was read.
     bool changedOnDisk() const;
+    // Draws the question that waits for an answer.
     void drawPendingPopup();
-    void rehighlight();   // recompute runs if the buffer moved
+    // Computes the highlight again if the buffer changed.
+    void rehighlight();
+    // Called by ImGui for each key in the text field.
     static int inputCallback(ImGuiInputTextCallbackData* data);
-    std::string indentAfter(const char* buf, int cursor) const;   // for the line Enter just ended
+    // Indentation for the line that follows the line that Enter just ended.
+    std::string indentAfter(const char* buf, int cursor) const;
+    // True when the open file is a yaml file.
     bool isYaml() const;
-    std::string commentMarker() const;   // "" when the language has no line comment
+    // Marker of a line comment, or an empty string when the language has none.
+    std::string commentMarker() const;
+    // Adds or removes the comment marker on the selected lines.
     void toggleComment(ImGuiInputTextCallbackData* data) const;
-    // Tab indents, Shift+Tab dedents; a selection applies to every line it touches
+    // Tab indents and Shift+Tab removes an indent. A selection applies to every line it touches.
     void indentSelection(ImGuiInputTextCallbackData* data, bool dedent) const;
+    // Creates the missing file that is selected.
     bool createFile();
+    // Style used to draw the text.
     static const CodeStyle& editorStyle();
 
-    std::vector<std::filesystem::path> files;      // what the list shows
-    std::filesystem::path              current;    // selected file, empty if none
-    std::string                        buffer;     // editable contents
+    // Files shown in the list.
+    std::vector<std::filesystem::path> files;
+    // Selected file, empty if none.
+    std::filesystem::path              current;
+    // Text being edited.
+    std::string                        buffer;
     std::filesystem::file_time_type    disk_mtime{};
-    bool                               dirty = false;     // buffer != disk
+    // True when the buffer differs from the file.
+    bool                               dirty = false;
     bool                               load_failed = false;
-    std::string                        save_error;        // last failed save, shown in the toolbar
-    bool                               widget_reload = false; // buffer replaced under an active field
-    bool                               indent_pending = false; // Enter was typed, indent at the next callback
-    std::string                        pending_insert;        // what a filtered key stands for, spaces for a yaml tab
-    bool                               comment_pending = false; // Ctrl+/ was pressed, applied at the next callback
-    bool                               tab_pending = false;      // Tab was pressed, indent at the next callback
-    bool                               shift_tab_pending = false; // Shift+Tab, dedent at the next callback
-    int                                jump_to = -1;          // outline click, cursor offset set at the next callback
-    int                                scroll_line = -1;      // the line that jump puts at the top
-    bool                               enter_raw = false;      // Enter pressed this frame in the active field
-    bool                               enter_handled = false;  // and ImGui turned it into a newline itself
-    int                                logged_mods = -1;       // modifiers of the last Enter inserted by hand
-    std::set<std::filesystem::path>    missing;              // listed files not on disk, refreshed with the list
-    double                             last_refresh = -1; // seconds, throttle
-    float                              text_scale = 1.4f; // editor font multiplier
-    bool                               show_tips = true;  // the documentation panel, for files that have one
+    // Message of the last failed save, shown in the toolbar.
+    std::string                        save_error;
+    // True when the buffer was replaced while a text field was active.
+    bool                               widget_reload = false;
+    // Set when Enter was typed. The indentation is added at the next callback.
+    bool                               indent_pending = false;
+    // Text that a filtered key stands for, such as spaces for a Tab in yaml.
+    std::string                        pending_insert;
+    // Set when Ctrl+/ was pressed. It is applied at the next callback.
+    bool                               comment_pending = false;
+    // Set when Tab or Shift+Tab was pressed. It is applied at the next callback.
+    bool                               tab_pending = false;
+    bool                               shift_tab_pending = false;
+    // Cursor position set by a click in the outline, applied at the next callback.
+    int                                jump_to = -1;
+    // Line that the jump puts at the top.
+    int                                scroll_line = -1;
+    // Set when Enter was pressed in this frame in the active field.
+    bool                               enter_raw = false;
+    // Set when ImGui already turned that Enter into a new line.
+    bool                               enter_handled = false;
+    // Modifiers of the last Enter inserted by hand.
+    int                                logged_mods = -1;
+    // Listed files that are not on disk. It is refreshed with the list.
+    std::set<std::filesystem::path>    missing;
+    // Time in seconds of the last refresh, used to limit how often it happens.
+    double                             last_refresh = -1;
+    // Multiplier of the font size.
+    float                              text_scale = 1.4f;
+    // True when the documentation panel is shown, for files that have one.
+    bool                               show_tips = true;
 
-    // a confirmation waiting on the user, and the file a Switch goes to
+    // A confirmation that waits for an answer, and the file that a Switch opens.
     Pending                            pending = Pending::None;
     std::filesystem::path              pending_file;
 
-    // tree-sitter highlight of the current buffer, recomputed when it changes
-    std::string                        language;          // CodeLanguage name, "" if none
+    // Tree-sitter highlight of the current buffer, computed again when it changes.
+    // Name of the CodeLanguage, or an empty string if none.
+    std::string                        language;
     std::vector<Code::HighlightRun>    runs;
     std::size_t                        hl_hash = 0;
-    ImFont*                            mono = nullptr;    // one face, sized per frame
+    // Monospace font, one face whose size is set at every frame.
+    ImFont*                            mono = nullptr;
     bool                               font_tried = false;
 };
 

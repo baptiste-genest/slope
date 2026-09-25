@@ -4,7 +4,7 @@
 
 namespace slope {
 
-// the on-screen scale Text is drawn at; display() and getSize() must agree
+// Scale at which Text is drawn on screen. display() and getSize() must use the same value.
 static constexpr float kFontScale = 1.5f;
 
 Text::TextPtr Text::Add(const std::string &content)

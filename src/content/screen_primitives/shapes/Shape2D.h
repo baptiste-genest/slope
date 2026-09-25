@@ -8,99 +8,111 @@
 namespace slope {
 
 /*
- * Live 2D vector graphics, drawn every frame through ImGui's draw list, so
- * resolution independent and animatable (updaters can move control points),
- * with a draw-on intro (the stroke grows along its arc length).
+ * 2D vector graphics drawn every frame with the draw list of ImGui.
+ * They do not depend on the resolution and can be animated, since updaters can move the control points.
+ * The intro draws the stroke progressively along its length.
  *
- * Static shapes (Line, Polyline, Bezier, Circle, Rect) store their geometry
- * as offsets around their anchor, so they are placed, dragged and
- * transitioned like any other screen primitive.
+ * The static shapes (Line, Polyline, Bezier, Circle, Rect) store their geometry as offsets around their anchor.
+ * They are placed, dragged and animated like any other screen primitive.
  *
- * Arrow2D is a connector whose endpoints are resolved every frame, either
- * fixed positions, persistent labels, or other screen primitives (attached
- * at their bounding box boundary), so arrows follow drag edits and moving
- * targets.
+ * Arrow2D joins two endpoints that are computed every frame.
+ * An endpoint is a fixed position, a label, or another screen primitive, in which case the arrow stops at the edge of its bounding box.
+ * So arrows follow dragged and moving targets.
  */
 
+// Colors and stroke of a shape.
 struct ShapeStyle {
-    // a literal Color by default; give it a name (or a deck "color id") to
-    // make it live in the Tuner, like CodeStyle's colours
+    // Colors are fixed by default. Giving them a name, or a color id in a deck, makes them tunable in the Tuner.
     Color color = Color(0.f, 0.f, 0.f, 1.f);
     Color fill_color = Color(0.f, 0.f, 0.f, 0.25f);
-    float thickness = 3;   // pixels at 1080p, scaled with the window
+    // Line width in pixels for a 1080p window, scaled with the window.
+    float thickness = 3;
     bool filled = false;
 };
 
 class Shape2D;
 using Shape2DPtr = std::shared_ptr<Shape2D>;
 
+// A polyline, curve or polygon.
 class Shape2D : public ScreenPrimitive
 {
 public:
     ShapeStyle style;
 
-    // geometry given in absolute [0,1]² coords; recentered internally so the
-    // shape is positioned by its anchor like any screen primitive
+    // Builds a shape from points in relative coordinates.
+    // The points are recentered, so the shape is placed by its anchor like any screen primitive.
     static Shape2DPtr Add(const std::vector<vec2>& pts, bool closed = false);
 
+    // Segment from a to b.
     static Shape2DPtr Line(const vec2& a, const vec2& b);
+    // Quadratic curve from a to b, drawn with N segments.
     static Shape2DPtr Bezier(const vec2& a, const vec2& control, const vec2& b, int N = 48);
+    // Circle drawn with N segments. The radius is relative to the width of the window.
     static Shape2DPtr Circle(const vec2& center, scalar radius, int N = 64);
+    // Rectangle of the given size.
     static Shape2DPtr Rect(const vec2& center, const vec2& size);
 
+    // Size in pixels.
     vec2 getSize() const override;
 
     void draw(const TimeObject& t, const StateInSlide& sis) override;
     void playIntro(const TimeObject& t, const StateInSlide& sis) override;
     void playOutro(const TimeObject& t, const StateInSlide& sis) override;
 
-    std::vector<vec2> points; // offsets around the anchor, relative units
+    // Offsets from the anchor, in relative units.
+    std::vector<vec2> points;
+    // When true, the last point is joined to the first.
     bool closed = false;
 
 protected:
+    // Points in window pixels, with the placement of the state applied.
     std::vector<ImVec2> toPixels(const StateInSlide& sis) const;
 };
 
 class Box2D;
 using Box2DPtr = std::shared_ptr<Box2D>;
 
-// a rectangle englobing its targets, the union of their bounding boxes plus
-// padding, recomputed every frame so it follows drag edits
+// A rectangle around its targets, made of the union of their bounding boxes plus a padding.
+// It is computed every frame, so it follows dragged targets.
 class Box2D : public ScreenPrimitive
 {
 public:
     ShapeStyle style;
-    // default gap kept around the targets, relative units, per axis; used on
-    // any side whose per-side override below is left unset
+    // Gap around the targets in relative units, one value per axis.
+    // It is used on every side that has no value below.
     vec2 padding = vec2(0.02, 0.02);
+    // Sets the same padding on both axes.
     void setPadding(scalar p) { padding = vec2(p, p); }
 
-    // per-side overrides of padding; nullopt falls back to padding.x (left,
-    // right) or padding.y (top, bottom)
+    // Padding of a single side. When unset, padding.x is used for left and right and padding.y for top and bottom.
     std::optional<scalar> pad_left, pad_right, pad_top, pad_bot;
 
+    // Primitives that the box surrounds.
     std::vector<ScreenPrimitivePtr> targets;
 
-    // until a fill color is chosen, a filled box is painted in the current
-    // background color (opaque), so it masks what it covers
+    // Until a fill color is chosen, a filled box uses the opaque background color, so it hides what it covers.
     bool use_background_fill = true;
+    // Sets the fill color and stops using the background color.
     void setFillColor(const Color& c) {
         style.fill_color = c;
         use_background_fill = false;
     }
 
+    // Builds a box around the targets.
     static Box2DPtr Add(const std::vector<ScreenPrimitivePtr>& targets = {});
 
+    // Same, with the targets given as separate arguments.
     template<typename First, typename... Rest,
              typename = std::enable_if_t<std::is_convertible_v<First, ScreenPrimitivePtr>>>
     static Box2DPtr Add(const First& first, const Rest&... rest) {
         return Add(std::vector<ScreenPrimitivePtr>{first, rest...});
     }
 
-    // replaces the englobed primitives; like any primitive, the box is
-    // drawn at its insertion rank, so add it before its targets to frame them
+    // Replaces the targets. Like any primitive the box is drawn in the order it was added,
+    // so add it before its targets to draw it behind them.
     void setTargets(const std::vector<ScreenPrimitivePtr>& t);
 
+    // Size in pixels.
     vec2 getSize() const override;
     void getBoundingBox(vec2& lo, vec2& hi) const override;
 
@@ -109,40 +121,56 @@ public:
     void playOutro(const TimeObject& t, const StateInSlide& sis) override;
 
 protected:
-    // union of the targets' bounding boxes plus padding, relative coords;
-    // false when there is no target to englobe
+    // Computes the union of the bounding boxes of the targets plus padding, in relative coordinates.
+    // Returns false when there is no target.
     bool bounds(vec2& lo, vec2& hi) const;
+    // Draws the box at progress t, with opacity alpha.
     void drawBox(parameter t, float alpha);
 };
 
 class Arrow2D;
 using Arrow2DPtr = std::shared_ptr<Arrow2D>;
 
+// An arrow or a line between two endpoints.
 class Arrow2D : public ScreenPrimitive
 {
 public:
     ShapeStyle style;
-    scalar bend = 0;        // curvature, offset of the control point,
-                            // as a fraction of the endpoint distance
-    scalar head = 0.015;    // arrowhead size, relative units, 0 for a plain line
-    scalar margin = 0.01;   // gap kept between an endpoint and its target
+    // Curvature, given as the offset of the control point relative to the distance between the endpoints.
+    scalar bend = 0;
+    // Size of the arrowhead in relative units. 0 draws a plain line.
+    scalar head = 0.015;
+    // Gap between an endpoint and its target.
+    scalar margin = 0.01;
 
+    // One end of the arrow. It uses the first of prim, anchor and follow that is set, and fixed otherwise.
     struct Endpoint {
+        // Fixed relative position.
         vec2 fixed = vec2(0.5, 0.5);
-        ScreenPrimitivePtr prim = nullptr; // attach to its bbox when set
-        AnchorPtr anchor = nullptr;        // else follow this anchor if set
-        std::function<vec2()> follow = nullptr; // else this, e.g. a live param
-        vec2 offset = vec2(0, 0);          // shift applied after attachment
+        // Primitive to attach to, at the edge of its bounding box.
+        ScreenPrimitivePtr prim = nullptr;
+        // Anchor to follow.
+        AnchorPtr anchor = nullptr;
+        // Function giving the position, for example from a live parameter.
+        std::function<vec2()> follow = nullptr;
+        // Shift applied after the attachment.
+        vec2 offset = vec2(0, 0);
 
+        // Current position of the endpoint, before clipping to the edge of a target.
         vec2 center() const;
     };
     Endpoint from, to;
 
+    // Builds an arrow between two fixed relative positions.
     static Arrow2DPtr Add(const vec2& a, const vec2& b);
+    // Builds an arrow between two endpoints.
     static Arrow2DPtr Add(const Endpoint& a, const Endpoint& b);
+    // Endpoint attached to a primitive.
     static Endpoint Attach(ScreenPrimitivePtr p);
+    // Endpoint that follows a label.
     static Endpoint AttachLabel(const std::string& label);
 
+    // Size in pixels.
     vec2 getSize() const override;
     void getBoundingBox(vec2& lo, vec2& hi) const override;
 
@@ -151,13 +179,14 @@ public:
     void playOutro(const TimeObject& t, const StateInSlide& sis) override;
 
 protected:
+    // Draws the arrow at progress t, with opacity alpha.
     void drawArrow(parameter t, float alpha) const;
 
-    // clips the segment [c, other] against the endpoint's bounding box
-    // (plus margin), so connectors attach at the boundary of their target
+    // Clips the segment from the center of the endpoint to `other` against the bounding box of its target plus margin.
+    // The arrow then starts at the edge of the target.
     static vec2 attachPoint(const Endpoint& e, const vec2& other, scalar margin);
 
-    // bend, corrected for the screen's aspect ratio so the bulge looks the same in any direction
+    // Control point of the curve. The bend is corrected for the aspect ratio of the screen, so the bulge looks the same in any direction.
     vec2 controlPoint(const vec2& a, const vec2& b) const;
 };
 

@@ -10,86 +10,97 @@ class ScreenPrimitive;
 using ScreenPrimitivePtr = std::shared_ptr<ScreenPrimitive>;
 using ScreenPrimitiveInSlide = std::pair<ScreenPrimitivePtr,StateInSlide>;
 
+// A 2D primitive drawn over the scene. Positions are relative to the window, from (0,0) at the top left to (1,1) at the bottom right.
 class ScreenPrimitive : public Primitive
 {
 protected:
+    // Where the primitive is drawn now.
     AnchorPtr anchor;
 
-    // scale the primitive is actually drawn at (slide state or persistent
-    // anchor scale), mirrored on every play/intro/outro like the anchor,
-    // so bounding boxes follow dynamic rescaling
+    // Scale used to draw the primitive, from the slide state or from a persistent anchor.
+    // It is updated at every frame like the anchor, so bounding boxes follow rescaling.
     scalar drawn_scale = 1;
 
-    // angle the primitive is actually drawn at, mirrored like drawn_scale so
-    // the axis-aligned bounding box can be refitted around a rotated primitive
+    // Angle used to draw the primitive, updated like drawn_scale.
+    // It lets the axis-aligned bounding box wrap a rotated primitive.
     scalar drawn_angle = 0;
 public:
     ScreenPrimitive();
 
+    // Returns the screen primitive with this pid.
     static ScreenPrimitivePtr get(PrimitiveID id);
 
     bool isScreenSpace() const override;
 
-    // the primitive's own anchor mirrors where it is actually drawn (the
-    // slide state's anchor), so followers (arrows, englobing boxes) resolve
-    // live positions; synced on every play/intro/outro
+    // The anchor of the primitive follows the place where it is drawn, given by the anchor of the slide state.
+    // Arrows and boxes that follow the primitive then use its current position.
+    // It is updated at every play, intro and outro.
     void play(const TimeObject& t, const StateInSlide& sis) override;
     void intro(const TimeObject& t, const StateInSlide& sis) override;
     void outro(const TimeObject& t, const StateInSlide& sis) override;
 
+    // The anchor that follows the primitive.
     AnchorPtr getAnchor() const;
 
+    // Moves the anchor to p.
     void updateAnchor(const vec2& p);
-    // position, scale and angle, so a primitive not drawn yet still measures right
+    // Copies position, scale and angle from a state, so a primitive not drawn yet has the right size.
     void syncToState(const StateInSlide& sis);
 
 
+    // Places the primitive at the relative position p.
     ScreenPrimitiveInSlide at(const vec2& p,scalar alpha=1);
 
-    // pastes onto a world plane. The named form lives in views/<id>.transform
+    // Pastes the primitive onto a plane of the scene. The named form reads the plane from views/<id>.transform.
     ScreenPrimitiveInSlide onPlane(const std::string& id,scalar alpha = 1);
     ScreenPrimitiveInSlide onPlane(const Transform& plane,scalar alpha = 1);
     ScreenPrimitiveInSlide onPlane(const vec& origin,const vec& u,const vec& normal,scalar alpha = 1);
-    // the snippet driven form, re-read every frame
+    // Same, with a plane given by snippets and read every frame.
     ScreenPrimitiveInSlide onPlane(const LivePlane& plane,scalar alpha = 1);
 
+    // Places the primitive with a full state.
     ScreenPrimitiveInSlide at(StateInSlide sis);
 
-
+    // Places the primitive at the relative position (x,y).
     ScreenPrimitiveInSlide at(scalar x,scalar y,scalar alpha=1);
 
-
+    // Places the primitive at a label, whose position is stored in views/<label>.pos and can be dragged.
     ScreenPrimitiveInSlide at(std::string label,scalar alpha = 1);
 
+    // Places the primitive at the relative position returned by the function, called every frame.
     ScreenPrimitiveInSlide at(const std::function<vec2()>& placer);
+    // Places the primitive on the screen projection of the 3D point returned every frame, shifted by offset.
     ScreenPrimitiveInSlide track(const std::function<vec()>& toTrack,vec2 offset = vec2::Zero());
+    // Places the primitive on the screen projection of a fixed 3D point, shifted by offset.
     ScreenPrimitiveInSlide at(const vec& worldPos,const vec2& offset = vec2::Zero());
 
 
+    // Size in pixels.
     virtual vec2 getSize() const = 0;
 
-    // A primitive that lands somewhere of its own accord, a Plot on the
-    // rectangle of its Board. It is given no default label anchor, so it mints
-    // no views/*.pos for a placement it ignores.
+    // True for a primitive that decides its own position, such as a Plot placed on the rectangle of its Board.
+    // It gets no default label, so no views/*.pos file is created for a placement it ignores.
     virtual bool placesItself() const {return false;}
 
-    // only texture-backed primitives go through ImageRotated, the others would
-    // silently ignore an angle, so the editor refuses to rotate them
+    // True when an angle has an effect. Only primitives drawn from a texture rotate,
+    // and the editor refuses to rotate the others.
     virtual bool canRotate() const {return false;}
 
+    // Size relative to the window. It grows to wrap the primitive when rotated.
     Size getRelativeSize() const;
 
-    // pixels a primitive is drawn away from its anchor, applied to the centre
-    // before rotation. A formula sits on its baseline, not on the centre of
-    // its ink, so the editor cannot outline it from the anchor alone
+    // Distance in pixels between the anchor and the center of the drawing, applied before the rotation.
+    // A formula is placed by its baseline and not by the center of its ink,
+    // so the editor needs this offset to outline it.
     virtual vec2 getDrawOffset() const {return vec2::Zero();}
 
-    // bounding box in relative [0,1]² coords, centered on the anchor unless a
-    // primitive's geometry does not follow it (arrows, boxes)
+    // Bounding box in relative coordinates. It is centered on the anchor,
+    // except for primitives whose geometry does not follow it, such as arrows and boxes.
     virtual void getBoundingBox(vec2& lo, vec2& hi) const;
 
 };
 
+// A screen primitive that holds text.
 struct TextualPrimitive : public ScreenPrimitive {
     std::string content;
 };

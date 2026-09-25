@@ -20,9 +20,8 @@ slope::LatexPtr slope::Formula::Add(const TexObject &tex,scalar scale,int width)
     return MakeObject(tex,scale,width,true);
 }
 
-// a cache hit is served right away ; a miss only queues the primitive, so that
-// every formula a deck declares is compiled by one single pdflatex run the
-// first time a size or a draw is asked for
+// A cache hit is served right away. A miss only queues the primitive, so that every formula
+// declared by a deck is compiled by a single pdflatex run, the first time that a size or a draw is needed.
 slope::LatexPtr slope::Latex::MakeObject(const TexObject &tex, scalar scale, int width, bool formula)
 {
     LatexPtr rslt = NewPrimitive<Latex>();
@@ -750,9 +749,8 @@ int slope::LatexLoader::generation = 0;
 // preview/tightpage makes each body its own page, cropped to its own content,
 // so nothing overflows a fixed page any more, and the converter only
 // rasterizes what is actually there.
-// `white` renders the glyphs white so that the draw-time tint can give them any
-// color ; it is opt-in because the tint multiplies, and would otherwise turn
-// every \textcolor of a normal formula black
+// `white` renders the glyphs in white so that the tint applied when drawing can give them any color.
+// It is off by default because the tint multiplies, and would turn every \textcolor of a normal formula black.
 std::string slope::TexPreamble(bool white)
 {
     return R"(\documentclass{article}

@@ -12,100 +12,104 @@
 namespace slope {
 
 /*
- * One record per deck item type, so adding a type is one entry in one file
- * instead of three edits spread over the loader.
+ * One record per type of deck item, so adding a type is one entry in one file
+ * and not three edits spread over the loader.
  *
- * Screen and Scene items are built from the deck alone : their factories
- * call the plain C++ API and never touch the loader, which is what keeps the
- * deck a thin layer over it (a primitive knows nothing about yaml). Items that
- * drive the slide rather than build a primitive (remove, set, box, stack...)
- * need the loader itself, so they keep their branch in DeckLoader::addItem and
- * register here only their field list, which is the one thing that must not
- * drift from the parsing code.
+ * Screen and Scene items are built from the deck alone. Their factories call the plain C++ API
+ * and never use the loader, so the deck stays a thin layer over the API and a primitive knows nothing about yaml.
+ * Items that drive the slide and do not build a primitive, such as remove, set, box and stack,
+ * need the loader itself. They keep their branch in DeckLoader::addItem and register here only their list of fields,
+ * which must always agree with the parsing code.
  */
 struct ItemSpec {
     enum class Kind {
-        Screen,   // a ScreenPrimitive, placed by placeScreenItem
-        Scene,    // a PolyscopePrimitive, added at a transform label
-        Custom,   // handled by DeckLoader::addItem, listed here for its fields
+        // A ScreenPrimitive, placed by placeScreenItem.
+        Screen,
+        // A PolyscopePrimitive, added at a transform label.
+        Scene,
+        // Handled by DeckLoader::addItem. It is listed here for its fields.
+        Custom,
     };
 
-    std::string type;             // the yaml key selecting this item
+    // The yaml key that selects this item.
+    std::string type;
     Kind kind = Kind::Custom;
 
-    // keys accepted besides "type" itself. Screen items get the shared
-    // placement keys on top, so a new one cannot forget them
+    // Keys accepted besides the type itself. Screen items also get the shared placement keys,
+    // so a new item cannot forget them.
     std::set<std::string> fields;
 
-    // content-addressed cache key, so editing an item makes a new primitive
-    // and a hot reload reuses the untouched ones. The loader prefixes it with
-    // the item's "id" for screen items
+    // Cache key computed from the content. Editing an item gives a new primitive,
+    // and a hot reload reuses the ones that did not change.
+    // For screen items the loader adds the "id" of the item in front of it.
     std::function<std::string(const json&)> key;
+    // Builds the primitive.
     std::function<PrimitivePtr(const json&)> make;
-    // re-applied to the cached primitive on every build, for the fields that
-    // should not force a new one. It runs once the reference name is known,
-    // which the shader's uniforms are named after
+    // Applied again to the cached primitive at every build, for the fields that should not force a new primitive.
+    // It runs once the reference name is known, because the uniforms of a shader are named after it.
     std::function<void(const PrimitivePtr&, const json&, const std::string& name)> configure;
-    // the name the deck refers to this item by, before "id" overrides it
+    // Name that the deck uses for this item, before "id" replaces it.
     std::function<std::string(const json&)> name;
 };
 
-// placement keys, shared by every screen item
+// Placement keys, shared by every screen item.
 const std::set<std::string>& placementFields();
 
-// a deck key and what it takes, in the order they are shown to the author
+// A deck key and a description of what it takes, in the order shown to the author.
 using KeyDoc = std::vector<std::pair<std::string, std::string>>;
 
-// the deck's own top-level keys; any other top-level list is a named group
+// Top-level keys of the deck. Any other top-level list is a named group.
 const KeyDoc& deckTopLevelKeys();
-// keys of a "- frame:" entry in "slides"
+// Keys of a "- frame:" entry in "slides".
 const KeyDoc& frameKeys();
-// settings read from the top-level "config:" map
+// Settings read from the top-level "config:" map.
 const KeyDoc& deckConfigKeys();
-// keys several scene items share, with what they take
+// Keys that several scene items share.
 const KeyDoc& sceneKeys();
-// what an item type's own key takes, "tex formula" for "formula:"; "" if unknown
+// Description of what the key of an item type takes, for example "tex formula" for "formula:". Empty if unknown.
 std::string itemValueHint(const std::string& type);
 
-// every known item type, in the order DeckLoader::addItem dispatches them
+// Every known item type, in the order used by DeckLoader::addItem.
 const std::vector<ItemSpec>& itemSpecs();
-// the spec whose type key the item carries, or null
+// The spec whose type key the item has, or null.
 const ItemSpec* findItemSpec(const json& item);
-// "title/load/latex/..." , for error messages
+// Names of the screen item types, such as "title/load/latex/...", for error messages.
 std::string screenItemTypes();
 
-// warns about misspelled or misplaced fields, which yaml would otherwise
-// silently ignore (the deck is hand-edited live, so mistakes must be loud)
+// Warns about misspelled or misplaced fields, which yaml would otherwise ignore without a message.
+// The deck is edited by hand while the show runs, so mistakes must be visible.
 void warnUnknownKeys(const json& item);
 
+// Item types of the plot family.
 std::vector<ItemSpec> plotItemSpecs();
 
-// the families, assembled by itemSpecs()
+// The other families, assembled by itemSpecs().
 std::vector<ItemSpec> textItemSpecs();
 std::vector<ItemSpec> mediaItemSpecs();
 std::vector<ItemSpec> shaderItemSpecs();
 std::vector<ItemSpec> sceneItemSpecs();
 std::vector<ItemSpec> customItemSpecs();
 
-// the "arrow" item carries its own fields inside its value, one level down
+// Fields of the "arrow" item, which are written inside its value, one level down.
 const std::set<std::string>& arrowFields();
 
-// The deck line of the item being built, 0 when unknown (an item a group call expanded
-// has none). Warnings write it with deckWhere(), " (line 12)" or nothing.
+// Line of the deck for the item being built, or 0 when unknown. An item created by a group call has none.
+// Warnings write it with deckWhere(), which gives " (line 12)" or nothing.
 int& deckLine();
 std::string deckWhere();
 
-// sets the current line for its scope. When an exception leaves the scope, the innermost
-// line is kept in deckErrorLine() so the loader can say where the deck failed.
+// Sets the current line for its scope. When an exception leaves the scope,
+// the innermost line is kept in deckErrorLine(), so the loader can tell where the deck failed.
 class DeckLineScope {
     int prev, thrown;
 public:
+    // Sets the current line for the lifetime of the object.
     explicit DeckLineScope(int line);
     ~DeckLineScope();
 };
 int& deckErrorLine();
 
-// spdlog::warn for a deck problem, with the line of the item when it is known
+// Logs a warning about a deck problem, with the line of the item when it is known.
 template<class... A>
 void deckWarn(fmt::format_string<A...> f, A&&... a)
 {
