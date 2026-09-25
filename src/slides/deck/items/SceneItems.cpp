@@ -27,7 +27,7 @@ static std::string colorKey(const json& item)
 static SnippetSurface::Spec surfaceSpec(const json& item)
 {
     SnippetSurface::Spec spec;
-    spec.fn = item["surface"];
+    spec.fn = requireSection(item["surface"], "surface");
     spec.name = item.value("id", spec.fn);
     if (item.contains("u")) spec.u = readVec2(item["u"], "u");
     if (item.contains("v")) spec.v = readVec2(item["v"], "v");
@@ -57,7 +57,7 @@ static SnippetSurface::Spec surfaceSpec(const json& item)
 static SnippetCurve::Spec curveSpec(const json& item)
 {
     SnippetCurve::Spec spec;
-    spec.fn = item["curve"];
+    spec.fn = requireSection(item["curve"], "curve");
     spec.name = item.value("id", spec.fn);
     if (item.contains("u")) spec.u = readVec2(item["u"], "u");
     spec.resolution = item.value("resolution", 200);

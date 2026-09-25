@@ -2,6 +2,7 @@
 #include "slides/deck/items/DeckItem.h"
 #include "content/authoring/color_tools.h"
 #include "content/polyscope_primitives/LiveTransform.h"
+#include "content/authoring/Snippet.h"
 #include <spdlog/spdlog.h>
 
 namespace slope {
@@ -107,6 +108,18 @@ Color readColor(const json& c, const glm::vec4& def)
         return Color(c.get<std::string>(), def);
     const RGBA v = parseColor(c);
     return Color(v.Value.x, v.Value.y, v.Value.z, v.Value.w);
+}
+
+std::string requireSection(const json& v, const std::string& what)
+{
+    if (!v.is_string())
+        throw std::runtime_error("\"" + what + "\" takes the name of a snippet section");
+    const std::string name = v.get<std::string>();
+    // with no file loaded yet, a C++ one may still come, the first frame reports it
+    if (Snippet::loadedAny() && !Snippet::hasSection(name))
+        throw std::runtime_error("\"" + what + ": " + name + "\" : no snippet section called \""
+                                 + name + "\"");
+    return name;
 }
 
 }

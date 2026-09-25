@@ -461,6 +461,8 @@ std::vector<slope::ImageData> slope::loadGif(path filename)
     auto H = std::to_string(std::hash<std::string>{}(filename.string()));
     std::vector<slope::ImageData> data;
     std::string folder = slope::Options::CachePath + H;
+    if (std::error_code ec; !std::filesystem::is_regular_file(filename, ec))
+        throw std::runtime_error("cannot open gif \"" + filename.string() + "\"");
     if (!io::folder_exists(folder) || Options::ignore_cache){
         spdlog::info("Decomposing gif " + filename.string());
         // std::filesystem instead of rm/mkdir, and the configured ImageMagick
@@ -474,6 +476,12 @@ std::vector<slope::ImageData> slope::loadGif(path filename)
     auto images = io::list_directory(folder);
     for (auto& f : images){
         data.push_back(loadImage(f));
+    }
+    if (data.empty()) {
+        // an empty folder would be taken as a cached result on the next run
+        std::error_code ec;
+        std::filesystem::remove_all(folder, ec);
+        throw std::runtime_error("gif \"" + filename.string() + "\" gave no frame, see " + Options::LogPath);
     }
     return data;
 }

@@ -523,6 +523,7 @@ struct IncludeExpansion {
     std::vector<std::pair<std::string, std::filesystem::file_time_type>> deps;
     std::vector<std::string> units;   // source-string index -> file
     std::set<std::string> once;       // files that asked not to be re-expanded
+    std::string errors;               // a bad #include fails the compile, not only the log
 };
 
 bool readWholeFile(const std::string& file, std::string& out)
@@ -617,14 +618,18 @@ void expandInto(const std::string& src, const path& dir, const std::string& self
         bool bank_only = false;
         const std::string target =
             parseIncludeTarget(line.substr(j + 8), self, int(k) + 1, bank_only);
-        if (target.empty())
+        if (target.empty()) {
+            X.errors += self + ":" + std::to_string(k + 1) + ": malformed #include\n";
             continue;
+        }
         const std::string file = resolveInclude(target, dir, bank_only);
         if (file.empty()) {
             spdlog::error("[shader] {}:{}: cannot find #include {} (stdlib is {})",
                           self, k + 1,
                           bank_only ? "<" + target + ">" : "\"" + target + "\"",
                           Options::ShaderPath);
+            X.errors += self + ":" + std::to_string(k + 1) + ": cannot find #include "
+                      + (bank_only ? "<" + target + ">" : "\"" + target + "\"") + "\n";
             continue;
         }
         std::error_code ec;
@@ -636,16 +641,20 @@ void expandInto(const std::string& src, const path& dir, const std::string& self
             continue;                   // already pulled in, and asked to be once
         if (std::find(stack.begin(), stack.end(), canon) != stack.end()) {
             spdlog::error("[shader] {}:{}: circular #include of \"{}\"", self, k + 1, target);
+            X.errors += self + ":" + std::to_string(k + 1) + ": circular #include of \""
+                      + target + "\"\n";
             continue;
         }
         if (depth >= kMaxDepth) {
             spdlog::error("[shader] #include nested deeper than {} levels, giving up "
                           "at \"{}\"", kMaxDepth, target);
+            X.errors += "#include nested too deep at \"" + target + "\"\n";
             continue;
         }
         std::string content;
         if (!readWholeFile(canon, content)) {
             spdlog::error("[shader] could not read #include \"{}\"", canon);
+            X.errors += "could not read #include \"" + canon + "\"\n";
             continue;
         }
 
@@ -790,6 +799,10 @@ ShaderPtr Shader::Add(const std::string& fragment_source, int w, int h)
 
 ShaderPtr Shader::FromFile(const path& file, int w, int h)
 {
+    // once the project path is known a missing file is a mistake, only earlier is it retried
+    if (std::error_code ec; !Options::ProjectDataPath.empty()
+                            && !std::filesystem::is_regular_file(formatPath(file), ec))
+        throw std::runtime_error("[shader] cannot open \"" + formatPath(file) + "\"");
     auto s = NewPrimitive<Shader>();
     s->source_path = file;
     s->from_file = true;
@@ -813,6 +826,7 @@ void Shader::reloadFromFile()
         // that first miss is expected, stay quiet until then
         if (!load_error_reported && !Options::ProjectDataPath.empty()) {
             spdlog::error("[shader] could not open {}", source_file.string());
+            ReloadErrors::report(source_file, "shader", "could not open " + source_file.string());
             load_error_reported = true;
         }
         fragment_src = "void main(){ fragColor = vec4(1,0,1,1); }"; // loud magenta
@@ -823,6 +837,7 @@ void Shader::reloadFromFile()
         load_failed = false;
         if (load_error_reported) {   // we complained, so say it is back
             spdlog::info("[shader] loaded {}", source_file.string());
+            ReloadErrors::clear(source_file, "shader");
             load_error_reported = false;
         }
     }
@@ -1535,6 +1550,10 @@ void Shader::recompile()
                                        : source_file.filename().string());
     include_deps = std::move(X.deps);
     source_units = std::move(X.units);
+    if (!X.errors.empty()) {
+        if (from_file) ReloadErrors::report(source_file, "shader", X.errors);
+        return; // keep the previous program, if any, so the slide stays up
+    }
 
     // scanning the shader's own text misses a call inside an included helper,
     // which then needs useSceneDepth() from C++

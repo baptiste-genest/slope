@@ -24,6 +24,9 @@ std::string boardOf(const json& item, const char* type = "plot")
                                  item[type].get<std::string>() +
                                  "\" has no board : name one with \"board:\", or declare "
                                  "a board item above it");
+    if (!Board::find(b))
+        throw std::runtime_error(std::string("\"") + type + ": " + item[type].get<std::string>()
+                                 + "\" : no board named \"" + b + "\" declared above it");
     return b;
 }
 
@@ -100,7 +103,7 @@ PlotPtr makePlot(const json& item)
     if (item.contains("data"))
         return Plot::Add(name, board, path(item["data"].get<std::string>()));
     if (item.contains("snippet"))
-        return Plot::FromSnippet(name, board, item["snippet"].get<std::string>());
+        return Plot::FromSnippet(name, board, requireSection(item["snippet"], "snippet"));
     if (item.contains("values")) {
         std::vector<scalar> v;
         for (const auto& n : item["values"]) v.push_back(n.get<scalar>());
@@ -210,7 +213,11 @@ std::vector<ItemSpec> plotItemSpecs()
             fieldsOf({"legend"}, Legend::settingNames()),
             [](const json& i) { return "legend:" + i["legend"].get<std::string>(); },
             [](const json& i) -> PrimitivePtr {
-                return Legend::Add(i["legend"].get<std::string>());
+                const std::string b = i["legend"].get<std::string>();
+                if (!Board::find(b))
+                    throw std::runtime_error("\"legend: " + b + "\" : no board named \"" + b
+                                             + "\" declared above it");
+                return Legend::Add(b);
             },
             [](const PrimitivePtr& p, const json& i, const std::string&) {
                 applyFigureSettings(p, i);

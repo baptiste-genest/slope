@@ -413,6 +413,9 @@ std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec)
         return sh ? sh->tracker(p2) : p2;
     }
 
+    if (!Snippet::provides(var))
+        throw std::runtime_error("\"follow: " + spec + "\" : no snippet variable, parameter or "
+                                 "registered placer called \"" + var + "\"");
     auto said = std::make_shared<bool>(false);
     return [var, spec, sh, said]() -> vec2 {
         // before the first frame nothing has been evaluated, so say nothing
@@ -1793,13 +1796,14 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
     }
     else if (item.contains("background")) {
         const auto& b = item["background"];
-        if (b.is_string())
+        if (b.is_string() && !b.get<std::string>().starts_with('#'))
             show << Background(b.get<std::string>());
-        else if (b.is_array() && (b.size() == 3 || b.size() == 4))
-            show << Background(b[0].get<float>(), b[1].get<float>(), b[2].get<float>(),
-                               b.size() == 4 ? b[3].get<float>() : 1.f);
+        else if (b.is_string() || b.is_array()) {
+            const RGBA c = parseColor(b);
+            show << Background(c.Value.x, c.Value.y, c.Value.z, c.Value.w);
+        }
         else
-            spdlog::warn("[deck] background wants a palette name or [r,g,b(,a)]");
+            throw std::runtime_error("\"background\" takes a colour name, \"#rrggbb\" or [r,g,b(,a)]");
     }
     else if (item.contains("pause")) {
         show << Pause::Add(item["pause"].get<TimeTypeSec>());

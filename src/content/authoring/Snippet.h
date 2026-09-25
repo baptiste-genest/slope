@@ -131,6 +131,9 @@ public:
     // before that, so an unknown name still looks the same as one whose section
     // has simply not run yet.
     static bool ready();   // whether Lua sections may be evaluated yet
+    static bool hasSection(const std::string& name);
+    static bool loadedAny();   // whether any snippet file was loaded
+    static bool provides(const std::string& name);   // a variable, derivation or section of that name
     static bool ok();                  // false while some section is failing
     static std::string lastError();
     static std::vector<std::string> names();   // every published variable

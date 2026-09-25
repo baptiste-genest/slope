@@ -1,4 +1,5 @@
 #include "slides/deck/items/DeckItem.h"
+#include <algorithm>
 #include "spdlog/spdlog.h"
 #include <exception>
 #include <map>
@@ -129,10 +130,24 @@ const std::vector<ItemSpec>& itemSpecs()
 
 const ItemSpec* findItemSpec(const json& item)
 {
+    std::vector<const ItemSpec*> found;
     for (const auto& spec : itemSpecs())
         if (item.contains(spec.type))
-            return &spec;
-    return nullptr;
+            found.push_back(&spec);
+    if (found.size() <= 1)
+        return found.empty() ? nullptr : found.front();
+    // a type key that another match takes as a field is that field, like "board" on a plot
+    std::vector<const ItemSpec*> kept;
+    for (const auto* s : found)
+        if (std::none_of(found.begin(), found.end(),
+                         [&](const ItemSpec* o) { return o != s && o->fields.count(s->type); }))
+            kept.push_back(s);
+    if (kept.size() == 1)
+        return kept.front();
+    std::string types;
+    for (const auto* s : found)
+        types += (types.empty() ? "" : ", ") + s->type;
+    throw std::runtime_error("an item cannot be several things at once (" + types + "), keep one");
 }
 
 std::string screenItemTypes()

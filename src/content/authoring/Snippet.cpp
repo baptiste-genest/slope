@@ -1082,6 +1082,18 @@ void Snippet::setTime(const TimeObject& t) {
 }
 
 bool Snippet::ready() { return time_published; }
+
+bool Snippet::hasSection(const std::string& name) {
+    ensureDiscovered();
+    return sections.count(name);
+}
+
+bool Snippet::loadedAny() { return !files.empty(); }
+
+bool Snippet::provides(const std::string& name) {
+    ensureDiscovered();
+    return vars.count(name) || derivations.count(name) || sections.count(name);
+}
 bool Snippet::ok() { return last_error.empty(); }
 std::string Snippet::lastError() { return last_error; }
 

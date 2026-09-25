@@ -25,6 +25,8 @@ vec  parseVec3(const json& v);
 RGBA parseColor(const json& c);
 // [r,g,b(,a)] or "#rrggbb", otherwise the name of a colour parameter or snippet
 Color readColor(const json& c, const glm::vec4& def);
+// the name of a snippet section, checked against the loaded files
+std::string requireSection(const json& v, const std::string& what);
 
 }
 

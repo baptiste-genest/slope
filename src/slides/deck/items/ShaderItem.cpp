@@ -244,7 +244,7 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
 static SnippetTexture::Spec snippetTextureSpec(const std::string& name, const json& spec)
 {
     SnippetTexture::Spec sp;
-    sp.fn = spec["snippet"].get<std::string>();
+    sp.fn = requireSection(spec["snippet"], "snippet");
 
     if (spec.contains("resolution")) {
         const json& r = spec["resolution"];
