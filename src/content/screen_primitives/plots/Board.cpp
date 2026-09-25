@@ -231,8 +231,8 @@ vec2 decadeSpan(const vec2& data)
 
 scalar Settings::num(const std::string& key, scalar def, scalar lo, scalar hi) const
 {
-    if (const auto v = Snippet::get(full(key)); v.n)
-        return v.v[0];
+    if (Snippet::get(full(key)).valid())
+        return Snippet::get(full(key), 1).num();
     if (auto it = stated.find(key); it != stated.end())
         return it->second.get<scalar>();
     return *Params::Add(full(key), def, lo, hi);
@@ -240,8 +240,8 @@ scalar Settings::num(const std::string& key, scalar def, scalar lo, scalar hi) c
 
 scalar Settings::atLeast(const std::string& key, scalar def, scalar floor) const
 {
-    if (const auto v = Snippet::get(full(key)); v.n)
-        return std::max(scalar(v.v[0]), floor);
+    if (Snippet::get(full(key)).valid())
+        return std::max(Snippet::get(full(key), 1).num(), floor);
     if (auto it = stated.find(key); it != stated.end())
         return std::max(it->second.get<scalar>(), floor);
     return *Params::AddAtLeast(full(key), def, floor);
@@ -249,8 +249,8 @@ scalar Settings::atLeast(const std::string& key, scalar def, scalar floor) const
 
 vec2 Settings::rect(const std::string& key, const vec2& def) const
 {
-    if (const auto v = Snippet::get(full(key)); v.n >= 2)
-        return vec2(v.v[0], v.v[1]);
+    if (Snippet::get(full(key)).valid())
+        return Snippet::get(full(key), 2).v2();
     if (auto it = stated.find(key); it != stated.end() && it->second.size() == 2)
         return vec2(it->second[0].get<scalar>(), it->second[1].get<scalar>());
     return *Params::AddVec2(full(key), def);
@@ -258,9 +258,8 @@ vec2 Settings::rect(const std::string& key, const vec2& def) const
 
 RGBA Settings::ink(const std::string& key, const RGBA& def) const
 {
-    if (const auto v = Snippet::get(full(key)); v.n >= 3)
-        return RGBA(float(v.v[0]), float(v.v[1]), float(v.v[2]),
-                    v.n > 3 ? float(v.v[3]) : 1.f);
+    if (Snippet::get(full(key)).valid())
+        return Snippet::get(full(key), 4).rgba();
     if (auto it = stated.find(key); it != stated.end() && it->second.size() >= 3) {
         const json& c = it->second;
         return RGBA(c[0].get<float>(), c[1].get<float>(), c[2].get<float>(),

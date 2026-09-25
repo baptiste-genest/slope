@@ -354,7 +354,7 @@ void declareShaderView(const ShaderPtr& shader, const json& item)
                 throw std::runtime_error("\"view\" half-height must be greater than zero");
             return [x] { return x; };
         }
-        if (h.is_string()) { std::string n = h; return [n] { return Snippet::get(n).num(); }; }
+        if (h.is_string()) { std::string n = h; return [n] { return Snippet::get(n, 1).num(); }; }
         throw std::runtime_error("\"view\" half-height must be a number or a snippet name");
     };
     auto centerOf = [](const json& c) -> std::function<vec2()> {
@@ -362,7 +362,7 @@ void declareShaderView(const ShaderPtr& shader, const json& item)
             vec2 p(c[0].get<scalar>(), c[1].get<scalar>());
             return [p] { return p; };
         }
-        if (c.is_string()) { std::string n = c; return [n] { return Snippet::get(n).v2(); }; }
+        if (c.is_string()) { std::string n = c; return [n] { return Snippet::get(n, 2).v2(); }; }
         throw std::runtime_error("\"view\" center must be [x, y] or a snippet name");
     };
     std::function<vec2()> origin = [] { return vec2::Zero(); };

@@ -108,40 +108,94 @@ bool evaluateVar(const std::string& name);
 // is about a name that has not run yet rather than about the snippet
 bool quiet_reports = false;
 
+// every standing problem, per file then per subject, so the file editor shows
+// them all rather than the last one
+std::map<std::string, std::map<std::string, std::string>> problems;
+std::set<std::string> warned;
+
+void publishProblem(const std::string& file, const std::string& subject, const std::string& what) {
+    auto& m = problems[file];
+    m[subject] = what;
+    std::string joined;
+    for (auto& [k, msg] : m) joined += (joined.empty() ? "" : "\n") + msg;
+    ReloadErrors::report(formatPath(file), "lua", joined);
+}
+
 void reportOnce(Section* s, const std::string& what) {
     if (quiet_reports) return;
     last_error = what;
     if (s && s->reported) return;
     if (s) s->reported = true;
-    if (s) ReloadErrors::report(formatPath(s->file), "lua", what);
+    if (s) publishProblem(s->file, s->name, what);
     spdlog::error("[snippet] {}", what);
 }
 
-// ── reading a Lua value into a Snippet::Value ───────────────────────────────
-Snippet::Value readValue(lua_State* s, int idx) {
-    Snippet::Value out;
-    if (lua_isnumber(s, idx)) {
-        out.v[0] = lua_tonumber(s, idx);
-        out.n = 1;
-    } else if (lua_isboolean(s, idx)) {
-        out.v[0] = lua_toboolean(s, idx) ? 1 : 0;
-        out.n = 1;
-    } else if (auto* u = asSVec(s, idx)) {
-        int c = comps(u->tag);
-        for (int i = 0; i < c; i++) out.v[i] = u->v[i];
-        out.n = c;
-    } else if (lua_istable(s, idx)) {
-        // a plain array of 1..4 numbers is accepted too
-        int n = int(lua_objlen(s, idx));
-        n = n > 4 ? 4 : n;
-        for (int i = 0; i < n; i++) {
-            lua_rawgeti(s, idx, i + 1);
-            out.v[i] = lua_tonumber(s, -1);
-            lua_pop(s, 1);
-        }
-        out.n = n;
+// a usable value read the wrong way, said once per reload
+void warnOnce(const Section* s, const std::string& key, const std::string& what) {
+    if (quiet_reports || !warned.insert(key).second) return;
+    if (s) publishProblem(s->file, key, what);
+    spdlog::warn("[snippet] {}", what);
+}
+
+// ── reading what Lua returned into a Snippet::Value ─────────────────────────
+// One rule for sections and the functions they return : any mix of numbers,
+// booleans, vec2/vec3/complex and arrays of those, 4 numbers at most, so
+// "return x, y", "return vec2(x, y)" and "return {x, y}" are the same value.
+const char* kShapes = "; a value is up to 4 numbers, vectors or arrays";
+
+std::string shape(int n) {
+    switch (n) {
+    case 0: return "nothing";
+    case 1: return "a number";
+    case 2: return "a vec2";
+    case 3: return "a vec3";
+    default: return std::to_string(n) + " numbers";
     }
-    return out;
+}
+
+// a vec2 widens to a vec3 in the z = 0 plane; any other difference is a mistake
+bool fits(int n, int want, bool exact) {
+    return n == want || (n == 2 && want == 3) || (!exact && n > want);
+}
+
+bool flatten(lua_State* s, int idx, Snippet::Value& out, int& total, std::string& err, int depth) {
+    auto put = [&](double x) { if (total < 4) out.v[total] = x; total++; };
+    switch (lua_type(s, idx)) {
+    case LUA_TNUMBER:  put(lua_tonumber(s, idx)); return true;
+    case LUA_TBOOLEAN: put(lua_toboolean(s, idx) ? 1 : 0); return true;
+    case LUA_TUSERDATA: {
+        SVec* u = asSVec(s, idx);
+        if (u->tag != TAG_V2 && u->tag != TAG_V3 && u->tag != TAG_CPX) break;
+        for (int i = 0; i < comps(u->tag); i++) put(u->v[i]);
+        return true;
+    }
+    case LUA_TTABLE: {
+        const int n = int(lua_objlen(s, idx));
+        if (n == 0) { err = "a table with named keys only"; return false; }
+        if (depth > 0) { err = "an array nested in an array"; return false; }
+        for (int i = 1; i <= n; i++) {
+            lua_rawgeti(s, idx, i);
+            const bool ok = flatten(s, lua_gettop(s), out, total, err, depth + 1);
+            lua_pop(s, 1);
+            if (!ok) return false;
+        }
+        return true;
+    }
+    default: break;
+    }
+    err = lua_isnil(s, idx) ? "nil" : std::string("a ") + lua_typename(s, lua_type(s, idx));
+    return false;
+}
+
+// the `count` values from stack index `first` (absolute), as one value
+bool readReturn(lua_State* s, int first, int count, Snippet::Value& out, std::string& err) {
+    out = Snippet::Value();
+    int total = 0;
+    for (int i = 0; i < count; i++)
+        if (!flatten(s, first + i, out, total, err, 0)) return false;
+    if (total > 4) { err = std::to_string(total) + " numbers"; return false; }
+    out.n = total;
+    return true;
 }
 
 void pushValue(lua_State* s, const Snippet::Value& v) {
@@ -248,21 +302,23 @@ bool evaluateSection(Section* s) {
     s->running = true;
     s->last_frame = frame_counter;
 
+    const int base = lua_gettop(L);
     lua_rawgeti(L, LUA_REGISTRYINDEX, s->ref);
-    if (lua_pcall(L, 0, 1, 0) != 0) {
+    if (lua_pcall(L, 0, LUA_MULTRET, 0) != 0) {
         reportOnce(s, std::string(lua_tostring(L, -1) ? lua_tostring(L, -1) : "error"));
-        lua_pop(L, 1);
+        lua_settop(L, base);
         s->failed = true;
         s->running = false;
         return false;
     }
 
     s->failed = false;
-    if (lua_isfunction(L, -1)) {
+    const int nres = lua_gettop(L) - base;
+    if (nres == 1 && lua_isfunction(L, -1)) {
         // a callable section, keep the closure, it reads the world at call time
         if (s->call_ref != LUA_NOREF) luaL_unref(L, LUA_REGISTRYINDEX, s->call_ref);
         s->call_ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    } else if (lua_istable(L, -1) && lua_objlen(L, -1) == 0) {
+    } else if (nres == 1 && lua_istable(L, -1) && lua_objlen(L, -1) == 0) {
         // a dictionary, one variable per key
         s->keys.clear();
         lua_pushnil(L);
@@ -271,19 +327,36 @@ bool evaluateSection(Section* s) {
             // lua_tostring() converts it in place, which breaks the lua_next walk
             if (lua_type(L, -2) == LUA_TSTRING) {
                 std::string k = lua_tostring(L, -2);
-                storeVar(k, s, readValue(L, -1));
+                Snippet::Value v;
+                std::string err;
+                if (lua_isfunction(L, -1))
+                    reportOnce(s, "section '" + s->name + "', key '" + k + "' holds a function;"
+                                  " a callable must be a section of its own");
+                else if (readReturn(L, lua_gettop(L), 1, v, err))
+                    storeVar(k, s, v);
+                else
+                    reportOnce(s, "section '" + s->name + "', key '" + k + "' holds " + err + kShapes);
                 s->keys.push_back(k);
             }
             lua_pop(L, 1);
         }
-        lua_pop(L, 1);
+    } else if (nres == 0 || (nres == 1 && lua_isnil(L, -1))) {
+        storeVar(s->name, s, Snippet::Value());
     } else {
-        storeVar(s->name, s, readValue(L, -1));
-        lua_pop(L, 1);
+        Snippet::Value v;
+        std::string err;
+        if (readReturn(L, base + 1, nres, v, err))
+            storeVar(s->name, s, v);
+        else {
+            // not stored, so readers keep the last value that made sense
+            reportOnce(s, "section '" + s->name + "' returns " + err + kShapes);
+            s->failed = true;
+        }
     }
+    lua_settop(L, base);
 
     s->running = false;
-    return true;
+    return !s->failed;
 }
 
 bool evaluateVar(const std::string& name) {
@@ -673,7 +746,7 @@ void addSection(const std::string& name, const std::string& body,
     if (luaL_loadbuffer(L, src.c_str(), src.size(), chunkname.c_str()) != 0) {
         spdlog::error("[snippet] {}", lua_tostring(L, -1) ? lua_tostring(L, -1) : "load error");
         last_error = lua_tostring(L, -1) ? lua_tostring(L, -1) : "load error";
-        ReloadErrors::report(formatPath(file), "lua", last_error);
+        publishProblem(file, name, last_error);
         lua_pop(L, 1);
         return;
     }
@@ -756,7 +829,7 @@ void discover() {
         // so the real error is reported from the frame that reads it
         if (s->failed && !vars.count(name))
             vars[name].sec = s.get();
-        s->reported = false;
+        // reported already, not quiet here, so the next frames do not say it again
         s->last_frame = -1;
     }
     for (auto& [name, c] : calls)
@@ -770,6 +843,8 @@ void rebuild() {
     previous.swap(sections);
     seen_sections.clear();
     last_error.clear();
+    problems.clear();
+    warned.clear();
     for (auto& f : files)
         ReloadErrors::clear(formatPath(f.given), "lua");
 
@@ -886,6 +961,28 @@ Snippet::Value Snippet::get(const std::string& name) {
             return it->second.value;
     }
     return fromParams(name);
+}
+
+Snippet::Value Snippet::get(const std::string& name, int want) {
+    const Value v = get(name);
+    // an RGB read as a color takes alpha 1, see Value::operator RGBA
+    if (!time_published || fits(v.n, want, true) || (v.n == 3 && want == 4)) return v;
+    auto it = vars.find(name);
+    const Section* s = it == vars.end() ? nullptr : it->second.sec;
+    const std::string key = name + "@" + std::to_string(want);
+    if (!v.valid()) {
+        if (it == vars.end())
+            warnOnce(nullptr, key, "no section, value or parameter called '" + name + "'");
+        else if (s && !s->failed)
+            warnOnce(s, key, "section '" + s->name + "' gives '" + name + "' no value where "
+                             + shape(want) + " is read");
+        return v;
+    }
+    const std::string who = s ? "'" + name + "' (section '" + s->name + "')"
+                              : "'" + name + "'";
+    warnOnce(s, key, who + " holds " + shape(v.n) + " where " + shape(want) + " is read, "
+                     + (v.n < want ? "the missing numbers are zeros" : "the extra ones are dropped"));
+    return v;
 }
 
 void Snippet::beginRecord() {
@@ -1019,24 +1116,42 @@ Snippet::CallPtr Snippet::resolve(const std::string& name) {
     return c;
 }
 
+namespace {
+
+Section* sectionOf(const std::string& name) {
+    auto it = sections.find(name);
+    return it == sections.end() ? nullptr : it->second.get();
+}
+
+// once per handle and reload, in the section's file when there is one
+void reportCall(Snippet::Call& c, const std::string& what) {
+    if (c.reported) return;
+    c.reported = true;
+    last_error = what;
+    if (Section* s = sectionOf(c.name)) publishProblem(s->file, c.name, what);
+    spdlog::error("[snippet] {}", what);
+}
+
+}
+
 bool Snippet::invoke(const CallPtr& c, const scalar* in, const int* sizes,
-                     int nargs, scalar* out, int nout) {
+                     int nargs, scalar* out, int nout, bool exact) {
     if (!L || !c) return false;
     ensureDiscovered();
     if (c->failed_frame == frame_counter) return false;   // latched, broken is fast
 
     if (c->ref == LUA_NOREF) {
-        auto it = sections.find(c->name);
-        if (it == sections.end() || !evaluateSection(it->second.get())
-            || it->second->call_ref == LUA_NOREF) {
+        Section* s = sectionOf(c->name);
+        if (!s || !evaluateSection(s) || s->call_ref == LUA_NOREF) {
             c->failed_frame = frame_counter;
-            if (!c->reported) {
-                c->reported = true;
-                spdlog::error("[snippet] '{}' is not a callable section", c->name);
-            }
+            if (!s)
+                reportCall(*c, "no section called '" + c->name + "'");
+            else if (!s->failed)
+                reportCall(*c, "section '" + c->name + "' is used as a function but returns a value;"
+                               " wrap it in \"return function(...) ... end\"");
             return false;
         }
-        c->ref = it->second->call_ref;
+        c->ref = s->call_ref;
         c->reported = false;
     }
 
@@ -1051,32 +1166,31 @@ bool Snippet::invoke(const CallPtr& c, const scalar* in, const int* sizes,
     }
 
     if (lua_pcall(L, nargs, LUA_MULTRET, 0) != 0) {
-        last_error = lua_tostring(L, -1) ? lua_tostring(L, -1) : "error";
-        if (!c->reported) {
-            c->reported = true;
-            spdlog::error("[snippet] {}", last_error);
-        }
+        reportCall(*c, lua_tostring(L, -1) ? lua_tostring(L, -1) : "error");
         lua_settop(L, base);
         c->failed_frame = frame_counter;
         return false;
     }
 
     // several plain numbers cost no allocation, which a hot snippet may prefer
-    // over building a vector, "return x, y, z" and "return vec3(x,y,z)" are
-    // the same thing here
-    int nres = lua_gettop(L) - base;
-    bool ok = nres > 0;
-    if (nres > 1) {
-        for (int i = 0; i < nout; i++)
-            out[i] = i < nres ? lua_tonumber(L, base + 1 + i) : 0;
-    } else if (nres == 1) {
-        Value v = readValue(L, -1);
-        ok = v.valid();
-        for (int i = 0; i < nout; i++) out[i] = i < v.n ? v.v[i] : 0;
-    }
+    // over building a vector
+    Value v;
+    std::string err;
+    const bool ok = readReturn(L, base + 1, lua_gettop(L) - base, v, err);
     lua_settop(L, base);
-    if (!ok) c->failed_frame = frame_counter;
-    return ok;
+    if (!ok || !v.valid()) {
+        reportCall(*c, "the function of section '" + c->name + "' returns "
+                       + (ok ? std::string("nothing") : err) + kShapes);
+        c->failed_frame = frame_counter;
+        return false;
+    }
+    if (!fits(v.n, nout, exact))
+        warnOnce(sectionOf(c->name), c->name + "#" + std::to_string(nout),
+                 "the function of section '" + c->name + "' returns " + shape(v.n)
+                 + " where " + shape(nout) + " is read, "
+                 + (v.n < nout ? "the missing numbers are zeros" : "the extra ones are dropped"));
+    for (int i = 0; i < nout; i++) out[i] = i < v.n ? v.v[i] : 0;
+    return true;
 }
 
 }
@@ -1085,12 +1199,12 @@ namespace slope {
 
 vec LiveVec::value() const
 {
-    return live() ? Snippet::get(snippet).v3() : fixed;
+    return live() ? Snippet::get(snippet, 3).v3() : fixed;
 }
 
 scalar LiveScalar::value() const
 {
-    return live() ? Snippet::get(snippet).num() : fixed;
+    return live() ? Snippet::get(snippet, 1).num() : fixed;
 }
 
 std::string LiveVec::key() const
@@ -1132,7 +1246,8 @@ void SnippetTexture::sample()
         for (int i = 0; i < w; i++){
             const scalar x = sp.u(0) + (sp.u(1)-sp.u(0))*(i+0.5)/w;
             const scalar in[2] = {x,y};
-            if (!Snippet::invoke(call,in,sizes,1,out,c))
+            // keeping fewer numbers than returned is what `components` is for
+            if (!Snippet::invoke(call,in,sizes,1,out,c,false))
                 continue;   // a failing section leaves zeros rather than nothing
             float* q = samples.data() + (std::size_t(j)*w + i)*c;
             for (int k = 0; k < c; k++)

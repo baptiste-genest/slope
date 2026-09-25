@@ -563,6 +563,12 @@ end
 -- a name grouped with "/")", mono, px, "--");
         prose("Sections read each other by name, in any order.");
     }
+    if (ImGui::CollapsingHeader("Values", ImGuiTreeNodeFlags_DefaultOpen)) {
+        codeBlock(R"(return x, y, z
+return vec3(x, y, z)
+return {x, y, z})", mono, px, "--");
+        prose("The same vec3. At most 4 numbers.");
+    }
     if (ImGui::CollapsingHeader("Slide time", ImGuiTreeNodeFlags_DefaultOpen)) {
         apiRow("t.from_begin", "seconds since the show started", mono, px);
         apiRow("t.from_action", "seconds since the last slide change", mono, px);

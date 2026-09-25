@@ -44,10 +44,10 @@ public:
         if (label.empty())
             return value;
         // one namespace with Params, so a snippet may own the name instead
-        const auto live = Snippet::get(label);
-        if (live.n >= 3)
-            return ColorType(live.v[0], live.v[1], live.v[2],
-                             live.n > 3 ? live.v[3] : 1.f);
+        if (Snippet::get(label).valid()) {
+            const RGBA c = Snippet::get(label, 4).rgba();
+            return ColorType(c.Value.x,c.Value.y,c.Value.z,c.Value.w);
+        }
         // declared only once no section claimed it, which would collide
         if (!handle.entry)
             handle = Params::AddColor(label, RGBA(value.x,value.y,value.z,value.w));

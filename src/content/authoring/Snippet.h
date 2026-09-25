@@ -35,6 +35,17 @@ namespace slope {
  *     return p + vec3(0, 0, envelope * math.exp(-20*p:norm()^2))
  *   end
  *
+ * A value, a dictionary entry and what a function returns all follow one rule :
+ * up to 4 numbers, given as any mix of numbers, booleans, vec2/vec3/complex and
+ * arrays of those. So these are the same vec3 :
+ *
+ *   return x, y, z          return vec3(x, y, z)          return {x, y, z}
+ *
+ * Anything else (a string, a nested array, 5 numbers) is an error, and so is
+ * reading a value with the wrong number of components, except a vec2 read as
+ * a vec3 (z = 0) and an RGB read as a color (alpha = 1). Both are said once
+ * per reload, in the file editor and the log.
+ *
  * A section name may be grouped with "/", so it can own a parameter another
  * object publishes.
  *
@@ -125,7 +136,8 @@ public:
 
     // ── values ─────────────────────────────────────────────────────────────
     // 1..4 components, whatever the section returned; n == 0 means the name is
-    // unknown or its section failed, and every conversion then yields zero
+    // unknown or its section failed. A conversion keeps the first components
+    // and fills the missing ones with zero, alpha with one
     struct Value {
         std::array<scalar,4> v{{0,0,0,0}};
         int n = 0;
@@ -135,12 +147,8 @@ public:
         operator float()  const { return float(n ? v[0] : 0); }
         operator int()    const { return int(n ? v[0] : 0); }
         operator bool()   const { return n > 0 && v[0] != 0; }
-        operator vec2()   const { return n >= 2 ? vec2(v[0], v[1]) : vec2::Zero(); }
-        operator vec()    const {
-            if (n >= 3) return vec(v[0], v[1], v[2]);
-            if (n == 2) return vec(v[0], v[1], 0);
-            return vec::Zero();
-        }
+        operator vec2()   const { return vec2(v[0], v[1]); }
+        operator vec()    const { return vec(v[0], v[1], v[2]); }
         operator RGBA() const {
             return n >= 4 ? RGBA(float(v[0]), float(v[1]), float(v[2]), float(v[3]))
                           : RGBA(float(v[0]), float(v[1]), float(v[2]), 1.f);
@@ -172,6 +180,10 @@ public:
     static long reloads();
 
     static Value get(const std::string& name);
+    // the same, and says so when the name is unknown or its value is not `want`
+    // numbers; for any reader that has no fallback of its own
+    //   vec2 c = Snippet::get("center", 2);
+    static Value get(const std::string& name, int want);
     // bumps whenever the value actually differs from the previous frame's.
     // Track it yourself only when one consumer watches many things; dirty()
     // below is the same idea without the bookkeeping.
@@ -217,9 +229,10 @@ public:
     // survives hot reloads, the handle is stable and its chunk re-resolved
     static CallPtr resolve(const std::string& name);
     // flat marshalling, so the fn<> template below needs no Lua header.
-    // sizes[i] is the component count of argument i (1, 2 or 3).
+    // sizes[i] is the component count of argument i (1, 2 or 3). Not `exact`,
+    // returning more than nout numbers is fine.
     static bool invoke(const CallPtr& c, const scalar* in, const int* sizes,
-                       int nargs, scalar* out, int nout);
+                       int nargs, scalar* out, int nout, bool exact = true);
 
     template<class Sig> using fn = SnippetFn<Sig>;
 

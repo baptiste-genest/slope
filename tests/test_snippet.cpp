@@ -2,6 +2,7 @@
 // arithmetic, C++ derivations, error resilience and hot reload
 #include "slope.h"
 #include "content/authoring/Snippet.h"
+#include "content/config/ReloadErrors.h"
 
 #include <chrono>
 #include <filesystem>
@@ -344,6 +345,78 @@ return t.duringKeyframe("a")
     CHECK((scalar)Snippet::get("method") > 0);
     CHECK_NEAR((scalar)Snippet::get("dotted"), (scalar)Snippet::get("method"));
     TimeObject::keyframes = nullptr;
+
+    // ── one return rule for values and functions ────────────────────────────
+    rewrite(R"(
+--- multi
+return 1, 2, 3
+
+--- arr
+return {1, 2, 3}
+
+--- mix
+return vec2(1, 2), 3
+
+--- f_multi
+return function(x) return x, 2*x, 3*x end
+
+--- f_arr
+return function(x) return {x, 2*x, 3*x} end
+
+--- f_flat
+return function(x) return x, 2*x end
+)");
+    Snippet::setTime(at(0));
+    for (const char* n : {"multi", "arr", "mix"}) {
+        const auto v = Snippet::get(n);
+        CHECK(v.n == 3);
+        CHECK_NEAR((v.v3() - vec(1, 2, 3)).norm(), 0.0);
+    }
+    for (const char* n : {"f_multi", "f_arr"})
+        CHECK_NEAR((Snippet::fn<vec(scalar)>(n)(1) - vec(1, 2, 3)).norm(), 0.0);
+    // a vec2 read as a vec3 lies in the z = 0 plane, and is no mistake
+    CHECK_NEAR((Snippet::fn<vec(scalar)>("f_flat")(1) - vec(1, 2, 0)).norm(), 0.0);
+    CHECK_NEAR((Snippet::get("mix", 3).v3() - vec(1, 2, 3)).norm(), 0.0);
+    CHECK(Snippet::ok());
+    CHECK(ReloadErrors::all().empty());
+
+    // ── a shape that makes no sense is said, in the file editor too ─────────
+    rewrite(R"(
+--- word
+return "hello"
+
+--- five
+return 1, 2, 3, 4, 5
+
+--- f_nothing
+return function(x) end
+
+--- f_scalar
+return function(x) return x end
+
+--- not_fn
+return 3
+)");
+    Snippet::setTime(at(0));
+    CHECK(!Snippet::get("word").valid());
+    CHECK(!Snippet::get("five").valid());
+    CHECK(!Snippet::ok());
+    CHECK_NEAR((Snippet::fn<vec(scalar)>("f_nothing", vec(9, 9, 9))(1) - vec(9, 9, 9)).norm(), 0.0);
+    CHECK_NEAR((Snippet::fn<vec(scalar)>("f_scalar")(2) - vec(2, 0, 0)).norm(), 0.0);
+    CHECK_NEAR(Snippet::fn<scalar(scalar)>("not_fn", -1.0)(0), -1.0);
+    CHECK_NEAR(Snippet::get("not_fn", 2).v2()(0), 3.0);
+    {
+        const auto errors = ReloadErrors::all();
+        CHECK(errors.size() == 1);
+        const std::string msg = errors.empty() ? "" : errors.begin()->second;
+        for (const char* n : {"'word' returns a string", "'five' returns 5 numbers",
+                              "'f_nothing' returns nothing", "'f_scalar' returns a number where a vec3",
+                              "'not_fn' is used as a function", "'not_fn' (section 'not_fn') holds a number where a vec2"})
+            if (msg.find(n) == std::string::npos) {
+                std::cerr << "missing from the file editor : " << n << "\n" << msg << std::endl;
+                failures++;
+            }
+    }
 
     // ── the per-call cost, for the record ───────────────────────────────────
     // trivial vs realistic, to separate the C -> Lua boundary from the body
