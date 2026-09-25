@@ -1096,7 +1096,8 @@ void rebuild() {
 }
 
 void ensureDiscovered() {
-    if (needs_discovery) discover();
+    // held until the first frame, a section run before it sees an empty t
+    if (needs_discovery && time_published) discover();
 }
 
 } // namespace
