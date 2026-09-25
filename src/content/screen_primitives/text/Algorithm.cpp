@@ -1,4 +1,5 @@
 #include "content/screen_primitives/text/Algorithm.h"
+#include "content/config/ReloadErrors.h"
 #include "extern/stb_image.h"
 #include <spdlog/spdlog.h>
 #include <fmt/core.h>
@@ -76,7 +77,7 @@ static std::string readAll(const path& p)
 {
     std::ifstream f(p);
     if (!f)
-        throw std::runtime_error("[algo] cannot read " + p.string());
+        ReloadErrors::missingFile(p, "[algo] cannot read " + p.string());
     std::stringstream ss;
     ss << f.rdbuf();
     return ss.str();

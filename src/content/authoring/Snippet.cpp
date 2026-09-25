@@ -1036,7 +1036,7 @@ void Snippet::load(const path& file) {
     for (auto& f : files)
         if (f.given == file) return;
     if (!std::filesystem::exists(formatPath(file)))
-        throw std::runtime_error("snippets: cannot open \"" + file.string() + "\"");
+        ReloadErrors::missingFile(formatPath(file), "snippets: cannot open \"" + file.string() + "\"");
     files.push_back(SourceFile{file, "", {}, false});
     rebuild();
     spdlog::info("[snippet] loaded {} ({} sections)", file.string(), sections.size());

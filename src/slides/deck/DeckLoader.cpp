@@ -107,18 +107,6 @@ void DeckLoader::loadLatexResources()
     if (auto f = pick("latex", "latex.json"); f != "")
         LatexLoader::Init(f);
 
-    // "snippets:" is one file or a list of them. Loading is idempotent, so a
-    // deck rebuild does not stack duplicates.
-    if (source.is_object() && source.contains("snippets")) {
-        const json& sn = source["snippets"];
-        if (sn.is_string())
-            Snippet::load(sn.get<std::string>());
-        else if (sn.is_array())
-            for (const auto& f : sn)
-                Snippet::load(f.get<std::string>());
-        else
-            throw std::runtime_error("\"snippets\" must be a file name or a list of them");
-    }
 }
 
 void DeckLoader::init(const std::string& project_name, path deck_file, int argc, char** argv)
@@ -142,7 +130,18 @@ void DeckLoader::run()
 {
     auto& show = slideshow();
     if (!show.helpWanted()) {
-        build(show);
+        // an export has to fail, a live show opens anyway so the deck can be fixed in it
+        if (Options::ExportMode)
+            build(show);
+        else
+            show.recompose([this](SlideManager& sm) {
+                try {
+                    build(sm);
+                } catch (const std::exception& e) {
+                    ReloadErrors::report(source_path, "deck", e.what());
+                    throw;
+                }
+            }, {}, {});
         show.onFrame = [this, &show] { hotReload(show); };
     }
     show.run();
@@ -247,6 +246,12 @@ void DeckLoader::hotReload(Slideshow& show)
 {
     if (!initialized)
         return;
+    // a file the last build missed was just created, so the deck is read and built again
+    for (const auto& p : ReloadErrors::missingFiles())
+        if (std::error_code ec; std::filesystem::exists(p, ec)) {
+            source_last_modified = std::filesystem::file_time_type::min();
+            break;
+        }
     bool deck_changed = sourceModified();
     bool cams_changed = camerasModified();
     // a "load:" of a key the json did not have fails the build, so a fixed
@@ -264,6 +269,7 @@ void DeckLoader::hotReload(Slideshow& show)
                  deck_changed ? "deck file" : (cams_changed ? "camera view" : "latex source"));
     // a fixed formula's old, broken Latex primitive lingers forever in Primitive::primitives
     const std::set<PrimitivePtr> previously_used = used_primitives;
+    ReloadErrors::clearMissing();
     const bool ok = show.recompose(
         [this](SlideManager& sm) {
             try {
@@ -603,6 +609,18 @@ void DeckLoader::buildImpl(SlideManager& show)
         return false;
     };
     applyDeckConfig();
+    // read at every build, so a "snippets:" line added live is loaded. Loading is
+    // idempotent, so a rebuild does not stack duplicates
+    if (source.contains("snippets")) {
+        const json& sn = source["snippets"];
+        if (sn.is_string())
+            Snippet::load(sn.get<std::string>());
+        else if (sn.is_array())
+            for (const auto& f : sn)
+                Snippet::load(f.get<std::string>());
+        else
+            throw std::runtime_error("\"snippets\" must be a file name or a list of them");
+    }
     deck_groups.clear();
     expanding.clear();
     collectors.clear();

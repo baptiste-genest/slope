@@ -802,7 +802,7 @@ ShaderPtr Shader::FromFile(const path& file, int w, int h)
     // once the project path is known a missing file is a mistake, only earlier is it retried
     if (std::error_code ec; !Options::ProjectDataPath.empty()
                             && !std::filesystem::is_regular_file(formatPath(file), ec))
-        throw std::runtime_error("[shader] cannot open \"" + formatPath(file) + "\"");
+        ReloadErrors::missingFile(formatPath(file), "[shader] cannot open \"" + formatPath(file) + "\"");
     auto s = NewPrimitive<Shader>();
     s->source_path = file;
     s->from_file = true;

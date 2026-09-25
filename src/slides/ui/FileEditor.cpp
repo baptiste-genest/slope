@@ -145,6 +145,7 @@ void FileEditor::refreshFileList()
     add(Algorithm::WatchedFiles());
     add(Latex::WatchedFiles());
     add(extras());
+    add(ReloadErrors::missingFiles());
 
     std::sort(all.begin(), all.end(), [](const auto& a, const auto& b) {
         return a.filename() < b.filename();
@@ -658,7 +659,8 @@ void FileEditor::draw(WindowManager& wm)
     // loaded on open so the lookup hitch never eats a keystroke
     if (!font_tried) {
         font_tried = true;
-        mono = Code::LoadFont("Fira Code", kBasePx);
+        try { mono = Code::LoadFont("Fira Code", kBasePx); }
+        catch (const std::exception&) {}   // the default face will do
     }
 
     // the file set changes as slides come and go; twice a second is plenty

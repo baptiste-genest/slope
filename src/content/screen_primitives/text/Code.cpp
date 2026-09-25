@@ -568,7 +568,7 @@ void Code::reloadFromFile()
 {
     std::ifstream f(source_file);
     if (!f.is_open())
-        throw std::runtime_error("[code] cannot open \"" + source_file.string() + "\"");
+        ReloadErrors::missingFile(source_file, "[code] cannot open \"" + source_file.string() + "\"");
     std::stringstream buffer;
     buffer << f.rdbuf();
 

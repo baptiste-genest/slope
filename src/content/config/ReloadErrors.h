@@ -3,7 +3,9 @@
 #include <filesystem>
 #include <map>
 #include <mutex>
+#include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace slope {
 
@@ -32,6 +34,33 @@ struct ReloadErrors {
         it->second.erase(kind);
         if (it->second.empty())
             table().erase(it);
+    }
+
+    // a file asked for and not there : the editor lists it and offers to create it
+    [[noreturn]] static void missingFile(const Path& file, const std::string& msg)
+    {
+        report(file, "missing", msg);
+        throw std::runtime_error(msg);
+    }
+
+    static std::vector<Path> missingFiles()
+    {
+        std::lock_guard lock(mutex());
+        std::vector<Path> out;
+        for (const auto& [file, kinds] : table())
+            if (kinds.count("missing"))
+                out.push_back(file);
+        return out;
+    }
+
+    // before a rebuild, which reports again whatever is still missing
+    static void clearMissing()
+    {
+        std::lock_guard lock(mutex());
+        for (auto it = table().begin(); it != table().end();) {
+            it->second.erase("missing");
+            it = it->second.empty() ? table().erase(it) : std::next(it);
+        }
     }
 
     // every file with an error, its messages joined, keyed by canonical path
