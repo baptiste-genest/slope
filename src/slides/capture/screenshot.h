@@ -10,7 +10,7 @@
 #endif //__APPLE__
 
 namespace slope {
-  
+
   // Saves the content of the window to an image file.
   void screenshot(std::string file);
 }

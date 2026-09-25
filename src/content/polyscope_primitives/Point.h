@@ -26,12 +26,12 @@ public:
 
     Point() {}
     using PointPtr = std::shared_ptr<Point>;
-    
+
     // Builds a point with sphere radius rad, either fixed, moving with the inner time, or moving with a TimeObject.
     static PointPtr Add(const curve_param& phi,scalar rad = 0.05);
     static PointPtr Add(const DynamicParam& phi,scalar rad = 0.05);
     static PointPtr Add(const vec& x,scalar rad = 0.05);
-    
+
     // Attaches a vector to the point, either fixed, moving with the inner time, or moving with a TimeObject.
     // The radius is the thickness of the arrow.
     VectorQuantityPtr addVector(const vec& v,scalar rad= 0.02);

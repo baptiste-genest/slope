@@ -28,7 +28,7 @@ namespace slope {
 class Slideshow : public PrompterModule
 {
 public:
-    
+
     Slideshow() {}
 
     // Goes to the next slide with a transition.

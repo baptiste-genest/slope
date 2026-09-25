@@ -42,13 +42,11 @@ EnglobingBox::EnglobingParams EnglobingBox::ComputeEnglobing(const std::vector<I
     for (const auto& primitive : primitives) {
         vec2 pos = primitive.second.getPosition();
         vec2 size = primitive.first->getRelativeSize()*primitive.second.getScale();
-        // std::cout << pos.transpose() << " " << size.transpose() << std::endl;
         minCorner = minCorner.cwiseMin(pos - size*0.5);
         maxCorner = maxCorner.cwiseMax(pos + size*0.5);
     }
     maxCorner.array() += padding;
     minCorner.array() -= padding;
-    // std::cout << "Min corner: " << minCorner.transpose() << ", Max corner: " << maxCorner.transpose() << std::endl;
 
     int min_depth = std::numeric_limits<int>::max();
     for (const auto& primitive : primitives) {

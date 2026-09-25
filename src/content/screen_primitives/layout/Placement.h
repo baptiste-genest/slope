@@ -139,7 +139,7 @@ inline PrimitiveInSlide PlaceBottomLeft(ScreenPrimitivePtr ptr,scalar padding = 
     P(1) = 1- ptr->getRelativeSize()(1)*0.5-padding;
     return {ptr,StateInSlide(P)};
 }
-  
+
 
 
 

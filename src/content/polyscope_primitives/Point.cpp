@@ -58,7 +58,6 @@ void slope::Point::updateVectors(const TimeObject& t)
     for (int i = 0;i<vectors.size();i++){
         if (vectors[i].first->q->isEnabled()){
             vecs X = {vectors[i].second(t)};
-            //std::cout << "norm " << X[0].transpose() << std::endl;
             auto name = getPolyscopeName() + std::to_string(i);
             vectors[i].first->q = pc->addVectorQuantity(name,X);
             vectors[i].first->q->setVectorLengthScale(X[0].norm(),false);

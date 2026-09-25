@@ -506,7 +506,7 @@ void slope::GenerateLatex(const path &filename,
 
     if (int rc = runCommand(latex_cmd)) {
         spdlog::error("[error while generating latex] cmd fail (exit {}) {}",rc,latex_cmd);
-        std::cerr << Tail(Options::LogPath,20) << std::endl;
+        spdlog::error("{}",Tail(Options::LogPath,20));
         throw std::runtime_error("Fail to generate latex");
     }
 

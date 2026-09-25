@@ -119,7 +119,7 @@ public:
     }
 
     virtual void updatePos(const vec2& p) override {
-        std::cerr << "[WARNING] cannot change labeled anchor position by hand" << std::endl;
+        spdlog::warn("cannot change labeled anchor position by hand");
     }
 
     virtual scalar getScale() const override {

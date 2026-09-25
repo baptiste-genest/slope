@@ -59,9 +59,6 @@ inline bool folder_exists(const path& filename) {
 }
 
 
-using namespace std;
-using namespace Eigen;
-
 template<class T>
 using Matrix = Eigen::Matrix<T,-1,-1>;
 
@@ -71,11 +68,11 @@ using Vector = Eigen::Vector<T,-1>;
 // Writes a matrix as comma separated values, one row per line.
 // Adapted from https://aleksandarhaber.com/eigen-matrix-library-c-tutorial-saving-and-loading-data-in-from-a-csv-file/
 template<class T>
-void SaveMatrix(string fileName, const Matrix<T> &M) {
+void SaveMatrix(std::string fileName, const Matrix<T> &M) {
     //https://eigen.tuxfamily.org/dox/structEigen_1_1IOFormat.html
-    const static IOFormat CSVFormat(FullPrecision, DontAlignCols, ", ", "\n");
+    const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n");
 
-    ofstream file(fileName);
+    std::ofstream file(fileName);
     if (file.is_open())
     {
         file << M.format(CSVFormat);
@@ -85,11 +82,11 @@ void SaveMatrix(string fileName, const Matrix<T> &M) {
 
 // Writes a vector as comma separated values.
 template<class T>
-void SaveVec(string fileName, const Vector<T> &V) {
+void SaveVec(std::string fileName, const Vector<T> &V) {
     //https://eigen.tuxfamily.org/dox/structEigen_1_1IOFormat.html
-    const static IOFormat CSVFormat(FullPrecision, DontAlignCols, ", ", "\n");
+    const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ", ", "\n");
 
-    ofstream file(fileName);
+    std::ofstream file(fileName);
     if (file.is_open())
     {
         file << V.format(CSVFormat);
@@ -101,26 +98,26 @@ void SaveVec(string fileName, const Vector<T> &V) {
 
 // Reads a matrix from comma separated values. Throws if the file is missing, empty or ragged.
 template<typename T>
-Matrix<T> LoadMatrix(string fileToOpen)
+Matrix<T> LoadMatrix(std::string fileToOpen)
 {
-    vector<T> matrixEntries;
-    ifstream matrixDataFile(fileToOpen);
+    std::vector<T> matrixEntries;
+    std::ifstream matrixDataFile(fileToOpen);
     if (!matrixDataFile)
         throw std::runtime_error("cannot open matrix file \"" + fileToOpen + "\"");
-    string matrixRowString;
-    string matrixEntry;
+    std::string matrixRowString;
+    std::string matrixEntry;
     int matrixRowNumber = 0;
     size_t columns = 0;
 
-    while (getline(matrixDataFile, matrixRowString)) // here we read a row by row of matrixDataFile and store every line into the string variable matrixRowString
+    while (std::getline(matrixDataFile, matrixRowString)) // here we read a row by row of matrixDataFile and store every line into the std::string variable matrixRowString
     {
-        if (matrixRowString.find_first_not_of(" \t\r") == string::npos)
+        if (matrixRowString.find_first_not_of(" \t\r") == std::string::npos)
             continue;
         const size_t before = matrixEntries.size();
-        stringstream matrixRowStringStream(matrixRowString); //convert matrixRowString that is a string to a stream variable.
-        while (getline(matrixRowStringStream, matrixEntry, ',')) // here we read pieces of the stream matrixRowStringStream until every comma, and store the resulting character into the matrixEntry
+        std::stringstream matrixRowStringStream(matrixRowString); //convert matrixRowString that is a std::string to a stream variable.
+        while (std::getline(matrixRowStringStream, matrixEntry, ',')) // here we read pieces of the stream matrixRowStringStream until every comma, and store the resulting character into the matrixEntry
         {
-            try { matrixEntries.push_back(stod(matrixEntry)); }
+            try { matrixEntries.push_back(std::stod(matrixEntry)); }
             catch (const std::exception&) {
                 throw std::runtime_error("matrix file \"" + fileToOpen + "\": \"" + matrixEntry + "\" is not a number");
             }
@@ -134,12 +131,12 @@ Matrix<T> LoadMatrix(string fileToOpen)
     }
     if (matrixEntries.empty())
         throw std::runtime_error("matrix file \"" + fileToOpen + "\" is empty");
-    return Map<Eigen::Matrix<T, Dynamic, Dynamic, RowMajor>>(matrixEntries.data(), matrixRowNumber, matrixEntries.size() / matrixRowNumber);
+    return Eigen::Map<Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(matrixEntries.data(), matrixRowNumber, matrixEntries.size() / matrixRowNumber);
 }
 
 // Reads a vector from a file with one column.
 template<typename T>
-Vector<T> LoadVec(string fileToOpen)
+Vector<T> LoadVec(std::string fileToOpen)
 {
     return LoadMatrix<T>(fileToOpen);
 }
