@@ -246,7 +246,7 @@ void slope::Latex::AddFileToPrefix(const path &p)
     path fp = formatPath(p);
     std::ifstream t(fp);
     if (!t)
-        throw std::runtime_error("cannot read latex prefix file \"" + fp.string() + "\"");
+        ReloadErrors::missingFile(fp, "cannot read latex prefix file \"" + fp.string() + "\"");
     std::stringstream buffer;
     buffer << t.rdbuf();
     context += buffer.str();
@@ -256,6 +256,11 @@ void slope::Latex::AddFileToPrefix(const path &p)
         part.last_modified = std::filesystem::last_write_time(fp);
     } catch (const std::exception&) {}
     context_parts.push_back(part);
+}
+
+void slope::Latex::RemoveFileFromPrefix(const path &p)
+{
+    std::erase_if(context_parts, [&](const ContextPart& c) { return c.is_file && c.value == p.string(); });
 }
 
 void slope::Latex::rebuildContext()
@@ -642,7 +647,10 @@ slope::LatexBatchResult slope::GenerateLatexBatch(const std::vector<LatexJob> &j
 
 void slope::LatexLoader::Init(path P)
 {
-    source_path = formatPath(P);
+    const path p = formatPath(P);
+    if (!io::file_exists(p))
+        ReloadErrors::missingFile(p, "did not find latex source json file \"" + p.string() + "\"");
+    source_path = p;
     parseJson();
     source_last_modified = std::filesystem::last_write_time(source_path);
     initialized = true;

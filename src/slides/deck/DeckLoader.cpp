@@ -81,7 +81,8 @@ void DeckLoader::init(path deck_file)
     FileEditor::registerExtra(source_path);
     Latex::default_origin = source_path;
     parse();
-    loadLatexResources();
+    // early so C++ formulas made before the first build get the macros; a failure is the build's to report
+    try { loadLatexResources(); } catch (const std::exception&) {}
     source_last_modified = std::filesystem::last_write_time(source_path);
     latex_generation = LatexLoader::generation;
     initialized = true;
@@ -92,20 +93,34 @@ void DeckLoader::init(path deck_file)
 // commands.tex / latex.json when present
 void DeckLoader::loadLatexResources()
 {
+    // a named file must exist, the editor then offers to create it; a default is optional
     auto pick = [&](const char* key, const char* fallback) -> std::string {
         if (source.is_object() && source.contains(key)) {
+            if (!source[key].is_string())
+                throw std::runtime_error("\"" + std::string(key) + "\" takes a file name");
             std::string f = source[key];
             if (!io::file_exists(formatPath(f)))
-                throw std::runtime_error("deck file references missing \""
-                                         + std::string(key) + "\" file " + f);
+                ReloadErrors::missingFile(formatPath(f), "deck file references missing \""
+                                          + std::string(key) + "\" file " + f);
             return f;
         }
         return io::file_exists(formatPath(fallback)) ? fallback : "";
     };
-    if (auto f = pick("commands", "commands.tex"); f != "")
-        Latex::AddFileToPrefix(f);
+    // run at every build, so an edited or renamed file is taken without a restart
+    if (auto f = pick("commands", "commands.tex"); f != commands_file) {
+        if (!commands_file.empty()) {
+            Latex::RemoveFileFromPrefix(commands_file);
+            commands_file.clear();
+            Latex::rebuildContext();
+        }
+        if (!f.empty())
+            Latex::AddFileToPrefix(f);
+        commands_file = f;
+        Latex::RegenerateAll();
+    }
     if (auto f = pick("latex", "latex.json"); f != "")
-        LatexLoader::Init(f);
+        if (!LatexLoader::initialized || LatexLoader::source_path != path(formatPath(f)))
+            LatexLoader::Init(f);
 
 }
 
@@ -609,6 +624,7 @@ void DeckLoader::buildImpl(SlideManager& show)
         return false;
     };
     applyDeckConfig();
+    loadLatexResources();
     // read at every build, so a "snippets:" line added live is loaded. Loading is
     // idempotent, so a rebuild does not stack duplicates
     if (source.contains("snippets")) {

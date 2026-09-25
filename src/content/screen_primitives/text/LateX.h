@@ -111,6 +111,7 @@ struct Latex : public TextualPrimitive {
     }
 
     static void AddFileToPrefix(const path& p);
+    static void RemoveFileFromPrefix(const path& p);
 
     // the deck's inline "preamble:", added after the file-backed prefix parts
     static TexObject deck_prefix;

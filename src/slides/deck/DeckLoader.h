@@ -373,6 +373,7 @@ private:
     bool source_unparsed = false;   // the file on disk does not parse, whatever still builds
     // last LatexLoader::generation this deck was built against
     int latex_generation = 0;
+    std::string commands_file;      // the macro file this deck put in the latex prefix
     bool initialized = false;
 
     // primitives are cached across rebuilds so a hot reload reuses textures,
