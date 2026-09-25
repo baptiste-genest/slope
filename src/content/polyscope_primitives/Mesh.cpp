@@ -8,6 +8,8 @@ slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,bool smooth)
     Faces F;
 
     std::ifstream in(formatPath(objfile));
+    if (!in)
+        throw std::runtime_error("mesh: cannot open \"" + objfile + "\"");
 
     std::string line;
 
@@ -21,7 +23,8 @@ slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,bool smooth)
         // --- vertex ---
         if (tag == "v") {
             double x, y, z;
-            iss >> x >> y >> z;
+            if (!(iss >> x >> y >> z))
+                throw std::runtime_error("mesh \"" + objfile + "\": bad vertex line \"" + line + "\"");
             V.emplace_back(x, y, z);
         }
 
@@ -37,7 +40,11 @@ slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,bool smooth)
                 // read only vertex index before '/'
                 std::getline(tss, v_str, '/');
 
-                long vi = std::stol(v_str);
+                long vi;
+                try { vi = std::stol(v_str); }
+                catch (const std::exception&) {
+                    throw std::runtime_error("mesh \"" + objfile + "\": bad face line \"" + line + "\"");
+                }
 
                 // OBJ supports negative indices
                 if (vi < 0)
@@ -45,6 +52,8 @@ slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,bool smooth)
                 else
                     vi = vi - 1; // 1-based → 0-based
 
+                if (vi < 0 || vi >= static_cast<long>(V.size()))
+                    throw std::runtime_error("mesh \"" + objfile + "\": face index out of range in \"" + line + "\"");
                 face.push_back(vi);
             }
 
@@ -52,6 +61,9 @@ slope::Mesh::MeshPtr slope::Mesh::Add(const std::string &objfile,bool smooth)
                 F.push_back(std::move(face));
         }
     }
+
+    if (V.empty() || F.empty())
+        throw std::runtime_error("mesh \"" + objfile + "\": no vertices or no faces");
 
     MeshPtr rslt = NewPrimitive<Mesh>(V,F,smooth);
     return rslt;
