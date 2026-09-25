@@ -740,10 +740,8 @@ SLGLuint loadImageTexture(const std::string& file, SLGLenum filter, SLGLenum wra
     stbi_set_flip_vertically_on_load(1);
     unsigned char* px = stbi_load(file.c_str(), &w, &h, &comp, 4);
     stbi_set_flip_vertically_on_load(0); // restore the global (shared with Image)
-    if (!px) {
-        spdlog::error("[shader] channel image not found: {}", file);
-        return 0;
-    }
+    if (!px)
+        throw std::runtime_error("[shader] cannot load texture image \"" + file + "\"");
     SLGLint prev_tex = 0;
     g.GetIntegerv(SL_TEXTURE_BINDING_2D, &prev_tex);
     SLGLuint tex = 0;
@@ -1142,6 +1140,8 @@ void Shader::setTexture(const std::string& name, const path& image_file, Filter 
 {
     if (name.empty()) return;
     const std::string file = formatPath(image_file);
+    if (std::error_code ec; !std::filesystem::is_regular_file(file, ec))
+        throw std::runtime_error("[shader] texture \"" + name + "\" : no image at \"" + file + "\"");
 
     // already holding exactly this, keep it rather than decoding the file again
     auto it = textures.find(name);

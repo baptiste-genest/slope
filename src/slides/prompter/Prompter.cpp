@@ -134,10 +134,8 @@ void slope::Prompter::erase(TimeStamp fromBegin)
 void slope::Prompter::loadScript()
 {
     std::ifstream script(script_file);
-    if (!script.is_open()) {
-        spdlog::error("[prompter] cannot open script file: {}", script_file);
-        return;
-    }
+    if (!script.is_open())
+        throw std::runtime_error("[prompter] cannot open script file \"" + script_file + "\"");
     std::string line;
     while (std::getline(script, line))
     {
@@ -148,7 +146,7 @@ void slope::Prompter::loadScript()
             line.erase(remove(line.begin(), line.end(), ']'), line.end());
             current_tag = line;
         } else if (!line.empty() && current_tag.empty()) {
-            std::cerr << "[prompter] invalid script format: missing [TAG] before text" << std::endl;
+            throw std::runtime_error("[prompter] " + script_file + " : text before the first [TAG] : \"" + line + "\"");
         } else {
             if (!scripts.contains(current_tag))
                 scripts[current_tag] = "";

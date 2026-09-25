@@ -223,10 +223,9 @@ VideoPtr Video::Add(const std::string& file, int decode_width, bool loop, bool a
     std::string path = formatPath(file);
     VideoInfo   info = probeVideo(path);
 
-    if (!info.valid()) {
-        spdlog::error("[video] {} is not playable, the slide will show nothing", path);
-        return NewPrimitive<Video>(path, info, 0, 0, loop, autoplay);
-    }
+    if (!info.valid())
+        throw std::runtime_error("[video] \"" + path + "\" is missing or has no video stream "
+                                 "(read with " + Options::PathToFFPROBE + ")");
 
     // never decode more pixels than the screen shows, a 4K frame is 33 MB
     // through the pipe and over the bus for pixels thrown away on arrival

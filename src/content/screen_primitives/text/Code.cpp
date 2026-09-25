@@ -3,6 +3,7 @@
 #include "imgui_internal.h"
 #include "content/config/Options.h"
 #include "content/config/io.h"
+#include "content/config/ReloadErrors.h"
 #include "polyscope/render/engine.h"
 #include <tree_sitter/api.h>
 
@@ -22,9 +23,16 @@ ImFont* fontOf(const CodeStyle& style)
 {
     if (style.font)
         return style.font;
-    if (!Options::CodeFont.empty())
-        if (ImFont* f = Code::LoadFont(Options::CodeFont))
-            return f;
+    if (!Options::CodeFont.empty()) {
+        try {
+            if (ImFont* f = Code::LoadFont(Options::CodeFont))
+                return f;
+        } catch (const std::exception& e) {
+            static bool said = false;
+            if (!said) spdlog::error("{}", e.what());
+            said = true;
+        }
+    }
     if (polyscope::render::engine && polyscope::render::engine->monoFont)
         return polyscope::render::engine->monoFont;
     return ImGui::GetFont();
@@ -170,8 +178,11 @@ const CodeLanguage& CodeLanguage::ForName(const std::string& name)
 {
     static std::map<std::string, CodeLanguage> known;
     if (!grammarNamed(name)) {
-        spdlog::warn("[code] no grammar named '{}' in this build", name);
-        return PlainText();
+        std::string known;
+        for (const auto& n : Available())
+            known += (known.empty() ? "" : ", ") + n;
+        throw std::runtime_error("[code] no grammar named \"" + name + "\" in this build ("
+                                 + known + ")");
     }
     auto it = known.find(name);
     if (it == known.end())
@@ -398,8 +409,8 @@ int Code::pointOf(const std::string& label) const
     // a bare region name means its end
     if (auto it = regions.find(label); it != regions.end())
         return it->second.second;
-    spdlog::warn("[code] no label or region named '{}'", label);
-    return -1;
+    throw std::runtime_error("[code] no label or region named \"" + label + "\" in "
+                             + source_file.string());
 }
 
 int Code::revealOn(int slide) const
@@ -556,11 +567,8 @@ CodePtr Code::FromFile(const path& file, const std::string& begin_marker,
 void Code::reloadFromFile()
 {
     std::ifstream f(source_file);
-    if (!f.is_open()) {
-        spdlog::error("[code] could not open {}", source_file.string());
-        setSource("<missing " + source_file.string() + ">");
-        return;
-    }
+    if (!f.is_open())
+        throw std::runtime_error("[code] cannot open \"" + source_file.string() + "\"");
     std::stringstream buffer;
     buffer << f.rdbuf();
 
@@ -585,11 +593,10 @@ void Code::reloadFromFile()
                 kept += l + "\n";
         }
         if (!found)
-            spdlog::warn("[code] marker '{}' not found in {}", begin_marker, source_file.string());
-        else {
-            source = kept;
-            base = first;
-        }
+            throw std::runtime_error("[code] marker \"" + begin_marker + "\" not found in "
+                                     + source_file.string());
+        source = kept;
+        base = first;
     }
     if (slice_first > 0) {
         // a plain line range, for a file nobody wants to decorate
@@ -605,8 +612,10 @@ void Code::reloadFromFile()
                 kept += l + "\n";
         }
         if (n < slice_first)
-            spdlog::warn("[code] {} has {} lines, asked for {}..{}",
-                         source_file.string(), n, slice_first, slice_last);
+            throw std::runtime_error("[code] " + source_file.string() + " has "
+                                     + std::to_string(n) + " lines, asked for "
+                                     + std::to_string(slice_first) + ".."
+                                     + std::to_string(slice_last));
         source = kept;
         base += slice_first - 1;
     }
@@ -710,9 +719,16 @@ std::string resolveFontFile(const std::string& name)
 ImFont* Code::LoadFont(const path& file, float size)
 {
     static std::map<std::string, ImFont*> cache;
+    static std::map<std::string, std::string> failed;   // so a bad name is not looked up every frame
     const std::string key = file.string() + "@" + std::to_string(size);
     if (auto it = cache.find(key); it != cache.end())
         return it->second;
+    if (auto it = failed.find(key); it != failed.end())
+        throw std::runtime_error(it->second);
+    auto fail = [&](const std::string& msg) {
+        failed[key] = msg;
+        throw std::runtime_error(msg);
+    };
 
     // a path is taken as given, anything else is a family name to look up
     std::error_code ec;
@@ -720,16 +736,15 @@ ImFont* Code::LoadFont(const path& file, float size)
     if (!std::filesystem::is_regular_file(resolved, ec)) {
         resolved = resolveFontFile(file.string());
         if (resolved.empty())
-            spdlog::error("[code] no font matching \"{}\"", file.string());
-        else
-            spdlog::debug("[code] font \"{}\" -> {}", file.string(), resolved);
+            fail("[code] no font matching \"" + file.string() + "\"");
+        spdlog::debug("[code] font \"{}\" -> {}", file.string(), resolved);
     }
 
     ImFont* font = nullptr;
-    if (!resolved.empty() && ImGui::GetCurrentContext()) {
+    if (ImGui::GetCurrentContext()) {
         font = ImGui::GetIO().Fonts->AddFontFromFileTTF(resolved.c_str(), size);
         if (!font)
-            spdlog::error("[code] could not load font {}", resolved);
+            fail("[code] could not load font " + resolved);
     }
     cache[key] = font;
     return font;
@@ -853,7 +868,15 @@ void Code::HotReloadIfModified()
         if (ec || t == c->last_modified)
             continue;
         spdlog::info("[code] reloading {}", c->source_file.string());
-        c->reloadFromFile();
+        // the listing keeps its last good text until the file is fixed
+        c->last_modified = t;
+        try {
+            c->reloadFromFile();
+            ReloadErrors::clear(c->source_file, "code");
+        } catch (const std::exception& e) {
+            spdlog::error("{}", e.what());
+            ReloadErrors::report(c->source_file, "code", e.what());
+        }
     }
 }
 
@@ -868,11 +891,9 @@ void Code::highlight(int first_line, int last_line)
 void Code::highlight(const std::string& region)
 {
     auto it = regions.find(region);
-    if (it == regions.end()) {
-        spdlog::warn("[code] no region named '{}'", region);
-        clearHighlight();
-        return;
-    }
+    if (it == regions.end())
+        throw std::runtime_error("[code] no region named \"" + region + "\" in "
+                                 + source_file.string());
     highlight(it->second.first, it->second.second);
 }
 
@@ -903,9 +924,7 @@ SlideCue Code::reveal(const std::string& label)
     const auto id = pid;
     return {[id, label](int slide) {
         auto c = Primitive::get<Code>(id);
-        const int p = c->pointOf(label);
-        if (p >= 0)   // an unknown label leaves the slide as it was
-            c->reveal_at[slide] = p;
+        c->reveal_at[slide] = c->pointOf(label);
     }};
 }
 
@@ -915,11 +934,9 @@ SlideCue Code::focus(const std::string& region)
     return {[id, region](int slide) {
         auto c = Primitive::get<Code>(id);
         auto it = c->regions.find(region);
-        if (it == c->regions.end()) {
-            spdlog::warn("[code] no region named '{}'", region);
-            c->focus_at[slide] = {0, 0};
-            return;
-        }
+        if (it == c->regions.end())
+            throw std::runtime_error("[code] no region named \"" + region + "\" in "
+                                     + c->source_file.string());
         c->focus_at[slide] = it->second;
     }};
 }
@@ -931,7 +948,6 @@ SlideCue Code::focus(const std::string& from, const std::string& to)
     return {[id, from, to](int slide) {
         auto c = Primitive::get<Code>(id);
         int a = c->pointOf(from), b = c->pointOf(to);
-        if (a < 0 || b < 0) { c->focus_at[slide] = {0, 0}; return; }
         if (b < a) std::swap(a, b);
         // a point sits above the line that follows it
         c->focus_at[slide] = {a + 1, b};

@@ -156,7 +156,7 @@ bool slope::SlideManager::hasGroup(const std::string &tag) const {
 void slope::SlideManager::removeGroup(const std::string &tag) {
     auto it = groups.find(tag);
     if (it == groups.end())
-        return;
+        throw std::runtime_error("no group named \"" + tag + "\" to remove");
     for (const auto& p : it->second)
         removeFromCurrentSlide(p);
 }
@@ -166,6 +166,9 @@ void slope::SlideManager::clearGroups() {
 }
 
 void slope::SlideManager::markKeyframe(const std::string &name) {
+    if (keyframes.contains(name))
+        throw std::runtime_error("keyframe \"" + name + "\" is already on slide "
+                                 + std::to_string(keyframes[name] + 1));
     keyframes[name] = std::max(0, getNumberSlides() - 1);
 }
 

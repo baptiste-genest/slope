@@ -24,6 +24,9 @@ ImVec2 slope::Image::getSize(std::string filename)
     int w,h;
     // Load from file
     unsigned char* image_data = stbi_load(filename.c_str(), &w, &h, NULL, 4);
+    if (image_data == NULL)
+        throw std::runtime_error("could not load image " + filename);
+    stbi_image_free(image_data);
     return ImVec2(w,h);
 }
 

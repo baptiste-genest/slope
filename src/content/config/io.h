@@ -98,17 +98,35 @@ Matrix<T> LoadMatrix(string fileToOpen)
 {
     vector<T> matrixEntries;
     ifstream matrixDataFile(fileToOpen);
+    if (!matrixDataFile)
+        throw std::runtime_error("cannot open matrix file \"" + fileToOpen + "\"");
     string matrixRowString;
     string matrixEntry;
     int matrixRowNumber = 0;
+    size_t columns = 0;
 
     while (getline(matrixDataFile, matrixRowString)) // here we read a row by row of matrixDataFile and store every line into the string variable matrixRowString
     {
+        if (matrixRowString.find_first_not_of(" \t\r") == string::npos)
+            continue;
+        const size_t before = matrixEntries.size();
         stringstream matrixRowStringStream(matrixRowString); //convert matrixRowString that is a string to a stream variable.
         while (getline(matrixRowStringStream, matrixEntry, ',')) // here we read pieces of the stream matrixRowStringStream until every comma, and store the resulting character into the matrixEntry
-            matrixEntries.push_back(stod(matrixEntry));   //here we convert the string to double and fill in the row vector storing all the matrix entries
+        {
+            try { matrixEntries.push_back(stod(matrixEntry)); }
+            catch (const std::exception&) {
+                throw std::runtime_error("matrix file \"" + fileToOpen + "\": \"" + matrixEntry + "\" is not a number");
+            }
+        }
         matrixRowNumber++; //update the column numbers
+        const size_t n = matrixEntries.size() - before;
+        if (matrixRowNumber == 1)
+            columns = n;
+        else if (n != columns)
+            throw std::runtime_error("matrix file \"" + fileToOpen + "\": row " + std::to_string(matrixRowNumber) + " has " + std::to_string(n) + " entries, the first has " + std::to_string(columns));
     }
+    if (matrixEntries.empty())
+        throw std::runtime_error("matrix file \"" + fileToOpen + "\" is empty");
     return Map<Eigen::Matrix<T, Dynamic, Dynamic, RowMajor>>(matrixEntries.data(), matrixRowNumber, matrixEntries.size() / matrixRowNumber);
 }
 

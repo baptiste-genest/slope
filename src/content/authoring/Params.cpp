@@ -1,5 +1,6 @@
 #include "content/authoring/Params.h"
 #include "content/config/io.h"
+#include "content/config/ReloadErrors.h"
 #include "imgui.h"
 #include "spdlog/spdlog.h"
 #include "polyscope/transformation_gizmo.h"
@@ -45,6 +46,11 @@ bool Params::file_loaded = false;
 long Params::frame = 0;
 std::filesystem::file_time_type Params::last_modified;
 
+namespace {
+// an unreadable params.json is never written over, it may hold every tuned value
+bool file_broken = false;
+}
+
 path Params::file()
 {
     return path(Options::ProjectViewsPath) / "params.json";
@@ -59,10 +65,17 @@ void Params::ensureLoaded()
         return;
     try {
         std::ifstream f(file());
-        f >> file_values;
+        json read;
+        f >> read;
+        file_values = std::move(read);
         last_modified = std::filesystem::last_write_time(file());
     } catch (const std::exception& e) {
-        spdlog::warn("could not read {} : {}", file().string(), e.what());
+        // first read may come mid frame, so it is reported rather than thrown
+        const std::string msg = "cannot read " + file().string() + " : " + e.what()
+                              + ", parameters keep their defaults and are not saved until it is fixed";
+        spdlog::error("{}", msg);
+        ReloadErrors::report(file(), "params", msg);
+        file_broken = true;
         file_values = json::object();
     }
 }
@@ -266,8 +279,8 @@ Params::EnumParam Params::AddEnum(const std::string& name,
         return -1;
     };
     if (index(def) < 0 && !e->options.empty())
-        spdlog::warn("parameter \"{}\" defaults to \"{}\", which is not one of "
-                     "its options", name, def);
+        throw std::runtime_error("parameter \"" + name + "\" defaults to \"" + def
+                                 + "\", which is not one of its options");
     if (!keepEditedValue(name)) {
         e->value = std::max(0, index(def));
         applyFileValue(e, name);
@@ -754,10 +767,8 @@ void Params::DirEntry::fromJson(const json& j)
 void Params::setVisible(const std::string& name, Visible v)
 {
     auto it = registry.find(name);
-    if (it == registry.end()) {
-        spdlog::warn("parameter \"{}\" is not registered, nothing to show", name);
-        return;
-    }
+    if (it == registry.end())
+        throw std::runtime_error("parameter \"" + name + "\" is not registered, nothing to show");
     it->second->vis = v;
 }
 
@@ -960,6 +971,10 @@ void Params::saveAllDirty()
 {
     if (dirty.empty())
         return;
+    if (file_broken) {
+        spdlog::error("{} is unreadable, parameters not saved", file().string());
+        return;
+    }
     // only edited parameters are written, the others follow their code defaults
     for (const auto& name : edited)
         if (registry.count(name))
@@ -999,7 +1014,11 @@ void Params::HotReloadIfModified()
             return;
         last_modified = last_write;
         std::ifstream f(file());
-        f >> file_values;
+        json read;
+        f >> read;
+        file_values = std::move(read);
+        file_broken = false;
+        ReloadErrors::clear(file(), "params");
         for (auto& [name, e] : registry)
             if (file_values.contains(name)) {
                 e->fromJson(file_values[name]);
@@ -1009,6 +1028,7 @@ void Params::HotReloadIfModified()
         spdlog::info("parameters reloaded from {}", file().string());
     } catch (const std::exception& e) {
         spdlog::warn("params file unavailable or invalid : {}", e.what());
+        ReloadErrors::report(file(), "params", e.what());
     }
 }
 

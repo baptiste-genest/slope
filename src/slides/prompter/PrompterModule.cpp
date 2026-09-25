@@ -7,14 +7,10 @@ void slope::PrompterModule::setScriptFile(std::string file) {
 }
 
 void slope::PrompterModule::setPromptTag(promptTag tag) {
-    if (prompter_ptr == nullptr){
-        std::cerr << " [ Must set prompt file ]" << std::endl;
-        return;
-    }
-    if (getNumberSlides() == 0){
-        std::cerr << "[ NO CURRENT SLIDE ]" << std::endl;
-        assert(0);
-    }
+    if (prompter_ptr == nullptr)
+        throw std::runtime_error("[prompter] set a prompt file before a prompt tag");
+    if (getNumberSlides() == 0)
+        throw std::runtime_error("[prompter] a prompt tag needs a slide to start on");
     if (!scripts_ranges.empty())
         if (scripts_ranges.back().end == -1)
             scripts_ranges.back().end = getNumberSlides()-2;
@@ -22,10 +18,8 @@ void slope::PrompterModule::setPromptTag(promptTag tag) {
 }
 
 void slope::PrompterModule::closePromptTag() {
-    if (prompter_ptr == nullptr){
-        std::cerr << " [ Must set prompt file ]" << std::endl;
-        return;
-    }
+    if (prompter_ptr == nullptr)
+        throw std::runtime_error("[prompter] set a prompt file before closing a prompt tag");
     // closing before any tag was opened has no range to terminate
     if (scripts_ranges.empty())
         return;

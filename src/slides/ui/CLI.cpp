@@ -21,56 +21,61 @@ int slope::parseCLI(int argc,char** argv) {
     // Simple manual parsing
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-
-        if (arg == "--clear_cache") {
-            clear_cache = true;
-        }
-        else if (arg == "--ignore_cache") {
-            Options::ignore_cache = true;
-        }
-        else if (arg == "--auto-suggest") {
-            Options::AutoSuggest = true;
-        }
-        else if (arg == "--resolution" && i + 1 < argc) {
-            resolution = argv[++i];
-        }
-        else if (arg == "--project_path" && i + 1 < argc) {
-            Options::ProjectPath = argv[++i];
-        }
-        else if (arg == "--data_path" && i + 1 < argc) {
-            data_path = argv[++i];
-        }
-        else if (arg == "--seed" && i + 1 < argc) {
-            seed = std::stoi(argv[++i]);
-        }
-        else if (arg == "--export") {
-            Options::ExportMode = true;
-        }
-        else if (arg == "--export_transitions" && i + 1 < argc) {
-            Options::ExportMode = true;
-            Options::ExportTransitionSamples = std::stoi(argv[++i]);
-        }
-        else if (arg == "--record") {
-            Options::ExportMode = true;
-            Options::RecordMode = true;
-        }
-        else if (arg == "--fps" && i + 1 < argc) {
-            Options::RecordFPS = std::stoi(argv[++i]);
-        }
-        else if (arg == "--record_dwell" && i + 1 < argc) {
-            Options::RecordDwell = std::stod(argv[++i]);
-        }
-        else if (arg == "--check_labels") {
-            Options::CheckLabels = true;
-        }
-        else if (arg == "--rehearse") {
-            Options::Rehearse = true;
-        }
-        else if (arg == "--no_slide_numbers") {
-            Options::HideSlideNumbers = true;
-        }
-        else {
-            std::cerr << "Unknown or incomplete argument: " << arg << std::endl;
+        // std::stoi alone would end the program on a bad number with no word on which flag
+        try {
+            if (arg == "--clear_cache") {
+                clear_cache = true;
+            }
+            else if (arg == "--ignore_cache") {
+                Options::ignore_cache = true;
+            }
+            else if (arg == "--auto-suggest") {
+                Options::AutoSuggest = true;
+            }
+            else if (arg == "--resolution" && i + 1 < argc) {
+                resolution = argv[++i];
+            }
+            else if (arg == "--project_path" && i + 1 < argc) {
+                Options::ProjectPath = argv[++i];
+            }
+            else if (arg == "--data_path" && i + 1 < argc) {
+                data_path = argv[++i];
+            }
+            else if (arg == "--seed" && i + 1 < argc) {
+                seed = std::stoi(argv[++i]);
+            }
+            else if (arg == "--export") {
+                Options::ExportMode = true;
+            }
+            else if (arg == "--export_transitions" && i + 1 < argc) {
+                Options::ExportMode = true;
+                Options::ExportTransitionSamples = std::stoi(argv[++i]);
+            }
+            else if (arg == "--record") {
+                Options::ExportMode = true;
+                Options::RecordMode = true;
+            }
+            else if (arg == "--fps" && i + 1 < argc) {
+                Options::RecordFPS = std::stoi(argv[++i]);
+            }
+            else if (arg == "--record_dwell" && i + 1 < argc) {
+                Options::RecordDwell = std::stod(argv[++i]);
+            }
+            else if (arg == "--check_labels") {
+                Options::CheckLabels = true;
+            }
+            else if (arg == "--rehearse") {
+                Options::Rehearse = true;
+            }
+            else if (arg == "--no_slide_numbers") {
+                Options::HideSlideNumbers = true;
+            }
+            else {
+                std::cerr << "Unknown or incomplete argument: " << arg << std::endl;
+                return 1;
+            }
+        } catch (const std::logic_error&) {
+            std::cerr << "invalid value \"" << argv[i] << "\" for " << arg << std::endl;
             return 1;
         }
     }
@@ -84,7 +89,8 @@ int slope::parseCLI(int argc,char** argv) {
 
     slope::Options::ProjectViewsPath = normalizedDir(slope::path(slope::Options::ProjectPath) / "views");
 
-    slope::Options::CachePath = normalizedDir(std::filesystem::path(argv[0]).parent_path() / "slope_cache");
+    // absolute, or formatPath would read a cache file from inside the project
+    slope::Options::CachePath = normalizedDir(std::filesystem::absolute(std::filesystem::path(argv[0]).parent_path() / "slope_cache"));
 
     // created upfront, a deck that writes to neither used to get no views/
     // ProjectDataPath is left alone, creating it would mask a typo'd path
@@ -123,12 +129,19 @@ int slope::parseCLI(int argc,char** argv) {
     }
 
     auto pos = resolution.find('x');
-    if (pos == std::string::npos){
-        std::cerr << "invalid resolution format" << std::endl;
-        assert(false);
+    try {
+        if (pos == std::string::npos)
+            throw std::invalid_argument("no x");
+        Options::ScreenResolutionWidth = std::stoi(resolution.substr(0,pos));
+        Options::ScreenResolutionHeight = std::stoi(resolution.substr(pos+1));
+    } catch (const std::logic_error&) {
+        std::cerr << "invalid resolution \"" << resolution << "\", write WIDTHxHEIGHT" << std::endl;
+        return 1;
     }
-    Options::ScreenResolutionWidth = std::stoi(resolution.substr(0,pos));
-    Options::ScreenResolutionHeight = std::stoi(resolution.substr(pos+1));
+    if (Options::ScreenResolutionWidth <= 0 || Options::ScreenResolutionHeight <= 0) {
+        std::cerr << "invalid resolution \"" << resolution << "\", write WIDTHxHEIGHT" << std::endl;
+        return 1;
+    }
 
     return 0; //ok
 

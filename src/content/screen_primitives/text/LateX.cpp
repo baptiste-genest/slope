@@ -246,7 +246,7 @@ void slope::Latex::AddFileToPrefix(const path &p)
     path fp = formatPath(p);
     std::ifstream t(fp);
     if (!t)
-        spdlog::warn("could not read latex prefix file {}", fp.string());
+        throw std::runtime_error("cannot read latex prefix file \"" + fp.string() + "\"");
     std::stringstream buffer;
     buffer << t.rdbuf();
     context += buffer.str();

@@ -93,8 +93,8 @@ RGBA parseColor(const json& c)
                     c.size() > 3 ? (float)c[3] : 1.f);
     }
     std::string s = c;
-    if (s.size() < 7 || s[0] != '#')
-        throw std::runtime_error("color must be [r,g,b(,a)] or \"#rrggbb\"");
+    if (s.size() != 7 || s[0] != '#' || s.find_first_not_of("0123456789abcdefABCDEF", 1) != std::string::npos)
+        throw std::runtime_error("color must be [r,g,b(,a)] or \"#rrggbb\", not \"" + s + "\"");
     auto hex = [&](int i) { return std::stoi(s.substr(i, 2), nullptr, 16); };
     return RGBA(hex(1)/255.f, hex(3)/255.f, hex(5)/255.f, 1.f);
 }

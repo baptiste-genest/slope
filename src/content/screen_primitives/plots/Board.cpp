@@ -99,10 +99,8 @@ std::vector<vec2> readCsvPoints(const path& file)
 {
     std::vector<vec2> out;
     std::ifstream in(formatPath(file));
-    if (!in) {
-        spdlog::error("plot : cannot read \"{}\"", formatPath(file));
-        return out;
-    }
+    if (!in)
+        throw std::runtime_error("plot : cannot read \"" + formatPath(file) + "\"");
     std::string line;
     while (std::getline(in, line)) {
         for (char& c : line)
