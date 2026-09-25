@@ -13,8 +13,8 @@ void slope::PrompterModule::setPromptTag(promptTag tag) {
         throw std::runtime_error("[prompter] a prompt tag needs a slide to start on");
     if (!scripts_ranges.empty())
         if (scripts_ranges.back().end == -1)
-            scripts_ranges.back().end = getNumberSlides()-2;
-    scripts_ranges.emplace_back(getNumberSlides()-1,-1,tag);
+            scripts_ranges.back().end = getNumberSlides() - 2;
+    scripts_ranges.emplace_back(getNumberSlides() - 1, -1, tag);
 }
 
 void slope::PrompterModule::closePromptTag() {
@@ -23,5 +23,5 @@ void slope::PrompterModule::closePromptTag() {
     // closing before any tag was opened has no range to terminate
     if (scripts_ranges.empty())
         return;
-    scripts_ranges.back().end = getNumberSlides()-1;
+    scripts_ranges.back().end = getNumberSlides() - 1;
 }

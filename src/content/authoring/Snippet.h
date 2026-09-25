@@ -108,7 +108,8 @@ namespace slope {
  */
 
 class Snippet;
-template<class Sig> class SnippetFn;
+template <class Sig>
+class SnippetFn;
 
 // Global registry of snippet files and of the variables they publish.
 class Snippet {
@@ -141,18 +142,18 @@ public:
     // n is 0 when the name is unknown or its section failed.
     // A missing component converts to 0, and a missing alpha to 1.
     struct Value {
-        std::array<scalar,4> v{{0,0,0,0}};
+        std::array<scalar, 4> v{{0, 0, 0, 0}};
         int n = 0;
 
         // True when the value exists.
         bool valid() const { return n > 0; }
         // Conversions to a number, a boolean, a vector or a color. Missing components are 0, and a missing alpha is 1.
         operator scalar() const { return n ? v[0] : 0; }
-        operator float()  const { return float(n ? v[0] : 0); }
-        operator int()    const { return int(n ? v[0] : 0); }
-        operator bool()   const { return n > 0 && v[0] != 0; }
-        operator vec2()   const { return vec2(v[0], v[1]); }
-        operator vec()    const { return vec(v[0], v[1], v[2]); }
+        operator float() const { return float(n ? v[0] : 0); }
+        operator int() const { return int(n ? v[0] : 0); }
+        operator bool() const { return n > 0 && v[0] != 0; }
+        operator vec2() const { return vec2(v[0], v[1]); }
+        operator vec() const { return vec(v[0], v[1], v[2]); }
         operator RGBA() const {
             return n >= 4 ? RGBA(float(v[0]), float(v[1]), float(v[2]), float(v[3]))
                           : RGBA(float(v[0]), float(v[1]), float(v[2]), 1.f);
@@ -161,10 +162,10 @@ public:
         // The conversions above are ambiguous with constructors that accept any type, such as those of Eigen.
         // They only work in an assignment. To pass a value to a function, name the conversion.
         //   eisenstein(Snippet::get("z1").v2(), ...);
-        scalar num()  const { return n ? v[0] : 0; }
-        vec2   v2()   const { return operator vec2(); }
-        vec    v3()   const { return operator vec(); }
-        RGBA   rgba() const { return operator RGBA(); }
+        scalar num() const { return n ? v[0] : 0; }
+        vec2 v2() const { return operator vec2(); }
+        vec v3() const { return operator vec(); }
+        RGBA rgba() const { return operator RGBA(); }
     };
 
     // What a block of calls read.
@@ -236,7 +237,8 @@ public:
                        int nargs, scalar* out, int nout, bool exact = true);
 
     // Typed handle to a callable section.
-    template<class Sig> using fn = SnippetFn<Sig>;
+    template <class Sig>
+    using fn = SnippetFn<Sig>;
 
 private:
     // Creates the Lua state once.
@@ -245,42 +247,55 @@ private:
 
 namespace snippet_detail {
 
-template<class T> struct Marshal;
+template <class T>
+struct Marshal;
 
-template<> struct Marshal<scalar> {
+template <>
+struct Marshal<scalar> {
     static constexpr int N = 1;
     static void put(scalar* d, scalar x) { d[0] = x; }
     static scalar get(const scalar* d) { return d[0]; }
 };
-template<> struct Marshal<float> {
+template <>
+struct Marshal<float> {
     static constexpr int N = 1;
     static void put(scalar* d, float x) { d[0] = x; }
     static float get(const scalar* d) { return float(d[0]); }
 };
-template<> struct Marshal<int> {
+template <>
+struct Marshal<int> {
     static constexpr int N = 1;
     static void put(scalar* d, int x) { d[0] = x; }
     static int get(const scalar* d) { return int(d[0]); }
 };
-template<> struct Marshal<vec2> {
+template <>
+struct Marshal<vec2> {
     static constexpr int N = 2;
-    static void put(scalar* d, const vec2& x) { d[0] = x(0); d[1] = x(1); }
+    static void put(scalar* d, const vec2& x) {
+        d[0] = x(0);
+        d[1] = x(1);
+    }
     static vec2 get(const scalar* d) { return vec2(d[0], d[1]); }
 };
-template<> struct Marshal<vec> {
+template <>
+struct Marshal<vec> {
     static constexpr int N = 3;
-    static void put(scalar* d, const vec& x) { d[0] = x(0); d[1] = x(1); d[2] = x(2); }
+    static void put(scalar* d, const vec& x) {
+        d[0] = x(0);
+        d[1] = x(1);
+        d[2] = x(2);
+    }
     static vec get(const scalar* d) { return vec(d[0], d[1], d[2]); }
 };
 
-}
+} // namespace snippet_detail
 
 /*
  * A callable section, resolved once and called many times.
  *   auto f = Snippet::fn<vec(vec,int)>("wobble", identity);
  * The fallback is returned when the snippet is missing or failing.
  */
-template<class R, class... A>
+template <class R, class... A>
 class SnippetFn<R(A...)> {
     using RM = snippet_detail::Marshal<std::decay_t<R>>;
     static constexpr int NIN = (0 + ... + snippet_detail::Marshal<std::decay_t<A>>::N);
@@ -307,7 +322,7 @@ public:
     }
 
 private:
-    template<class T>
+    template <class T>
     static void pack(scalar* d, int& k, const T& x) {
         using M = snippet_detail::Marshal<std::decay_t<T>>;
         M::put(d + k, x);
@@ -317,7 +332,6 @@ private:
     Snippet::CallPtr call;
     R fb{};
 };
-
 
 // A world vector, either fixed or given by a snippet variable read every frame.
 struct LiveVec {
@@ -330,7 +344,7 @@ struct LiveVec {
     LiveVec(const char* name) : snippet(name) {}
 
     // True when the vector comes from a snippet.
-    bool live() const {return !snippet.empty();}
+    bool live() const { return !snippet.empty(); }
     // Current vector.
     vec value() const;
     // Identifies the source, so a user can cache on it.
@@ -350,7 +364,7 @@ struct LiveScalar {
     LiveScalar(const char* name) : snippet(name) {}
 
     // True when the number comes from a snippet.
-    bool live() const {return !snippet.empty();}
+    bool live() const { return !snippet.empty(); }
     // Current number.
     scalar value() const;
 };
@@ -391,13 +405,15 @@ struct SnippetTexture {
         // Grid size. With res_v equal to 1 the function takes one number.
         int res_u = 256, res_v = 1;
         // Range of the parameter covered by the width.
-        vec2 u = vec2(0,1);
+        vec2 u = vec2(0, 1);
         // Range covered by the height, for a 2D function.
-        vec2 v = vec2(0,1);
+        vec2 v = vec2(0, 1);
         // Number of returned values to keep, from 1 to 4.
         int components = 1;
         // Auto decides from what the section read.
-        enum class When { Auto, Once, Always };
+        enum class When { Auto,
+                          Once,
+                          Always };
         When when = When::Auto;
     };
 
@@ -405,18 +421,18 @@ struct SnippetTexture {
 
     // Changes the spec, which forces a new sampling.
     void configure(const Spec& spec);
-    const Spec& spec() const {return sp;}
+    const Spec& spec() const { return sp; }
 
     // Samples again when needed. Returns true when the samples changed and must be uploaded.
     bool update();
 
     // Samples, row by row, with `components` values per texel.
-    const std::vector<float>& data() const {return samples;}
-    int width() const {return sp.res_u;}
-    int height() const {return std::max(1,sp.res_v);}
-    int components() const {return sp.components;}
+    const std::vector<float>& data() const { return samples; }
+    int width() const { return sp.res_u; }
+    int height() const { return std::max(1, sp.res_v); }
+    int components() const { return sp.components; }
     // True when the section is sampled every frame.
-    bool animated() const {return deps.time;}
+    bool animated() const { return deps.time; }
 
 private:
     Spec sp;
@@ -429,6 +445,6 @@ private:
     void sample();
 };
 
-}
+} // namespace slope
 
 #endif // SNIPPET_H

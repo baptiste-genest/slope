@@ -19,6 +19,6 @@ bool available(const std::filesystem::path& file);
 // Draws the panel of the file inside the current child window. Code is drawn with the font mono at size px.
 void draw(const std::filesystem::path& file, ImFont* mono, float px);
 
-}
+} // namespace WritingTips
 
 } // namespace slope

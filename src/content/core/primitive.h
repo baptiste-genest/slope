@@ -12,9 +12,8 @@
 
 namespace slope {
 
-
 // A primitive together with its state in one slide.
-using PrimitiveInSlide = std::pair<PrimitivePtr,StateInSlide>;
+using PrimitiveInSlide = std::pair<PrimitivePtr, StateInSlide>;
 
 // Replaces the updater of a primitive by id, used when a slide overrides it.
 struct OverrideUpdater {
@@ -35,7 +34,7 @@ struct Primitive {
     using Size = vec2;
 
     // Called every frame after drawing.
-    Updater updater = [] (TimeObject) {};
+    Updater updater = [](TimeObject) {};
 
     // Index of this primitive in the global list.
     PrimitiveID pid;
@@ -45,7 +44,7 @@ struct Primitive {
     // True for 2D primitives drawn over the scene.
     virtual bool isScreenSpace() const = 0;
     // True for primitives that live in the polyscope scene.
-    virtual bool isPolyscopePrimitive() const { return false;}
+    virtual bool isPolyscopePrimitive() const { return false; }
 
     // Registers ptr in the global list and gives it its pid.
     static void addPrimitive(PrimitivePtr ptr);
@@ -54,8 +53,8 @@ struct Primitive {
     static PrimitivePtr get(PrimitiveID id);
 
     // Same as get, cast to T without checking the type.
-    template<class T>
-    static std::shared_ptr<T> get(PrimitiveID id){
+    template <class T>
+    static std::shared_ptr<T> get(PrimitiveID id) {
         return std::static_pointer_cast<T>(primitives[id]);
     }
 
@@ -71,13 +70,13 @@ struct Primitive {
     }
 
     // Draws the primitive during a slide.
-    virtual void play(const TimeObject& t,const StateInSlide& sis);
+    virtual void play(const TimeObject& t, const StateInSlide& sis);
 
     // Draws the primitive while it appears.
-    virtual void intro(const TimeObject& t,const StateInSlide& sis);
+    virtual void intro(const TimeObject& t, const StateInSlide& sis);
 
     // Draws the primitive while it disappears.
-    virtual void outro(const TimeObject& t,const StateInSlide& sis);
+    virtual void outro(const TimeObject& t, const StateInSlide& sis);
 
     // True when the primitive is currently shown.
     bool isEnabled() const;
@@ -113,18 +112,18 @@ struct Primitive {
     void upFirstSlideNumber(int f);
 
     // Forgets the first slide of appearance. Needed before recomposing slides at runtime.
-    void resetFirstSlideNumber() {first_slide_to_appear = std::numeric_limits<int>::max();}
+    void resetFirstSlideNumber() { first_slide_to_appear = std::numeric_limits<int>::max(); }
 
     // Builds an updater that replaces this primitive's one for a single slide.
     OverrideUpdater setUpdater(const Updater& up);
 
 protected:
     // Draws the primitive once, in the normal state.
-    virtual void draw(const TimeObject& time,const StateInSlide& sis) = 0;
+    virtual void draw(const TimeObject& time, const StateInSlide& sis) = 0;
     // Draws one frame of the appearance.
-    virtual void playIntro(const TimeObject& t,const StateInSlide& sis) = 0;
+    virtual void playIntro(const TimeObject& t, const StateInSlide& sis) = 0;
     // Draws one frame of the disappearance.
-    virtual void playOutro(const TimeObject& t,const StateInSlide& sis) = 0;
+    virtual void playOutro(const TimeObject& t, const StateInSlide& sis) = 0;
     // Hides or shows the primitive with no bookkeeping.
     virtual void forceDisable();
     // Same for showing.
@@ -138,8 +137,8 @@ protected:
 };
 
 // Copies a primitive and registers the copy.
-template<class T>
-static std::shared_ptr<T> DuplicatePrimitive(std::shared_ptr<T> ptr){
+template <class T>
+static std::shared_ptr<T> DuplicatePrimitive(std::shared_ptr<T> ptr) {
     auto other = std::make_shared<T>(*ptr);
     Primitive::addPrimitive(other);
     other->initPolyscope();
@@ -147,14 +146,13 @@ static std::shared_ptr<T> DuplicatePrimitive(std::shared_ptr<T> ptr){
 }
 
 // Builds a primitive and registers it.
-template <class T,typename... Args>
-std::shared_ptr<T> NewPrimitive(Args&& ... args){
+template <class T, typename... Args>
+std::shared_ptr<T> NewPrimitive(Args&&... args) {
     auto ptr = std::make_shared<T>(std::forward<Args>(args)...);
     Primitive::addPrimitive(ptr);
     return ptr;
 }
 
-
-}
+} // namespace slope
 
 #endif // PRIMITIVE_H

@@ -77,14 +77,14 @@ constexpr std::array<NamedRate, 8> kRates{{
 } // namespace
 
 RateFunc RateFromName(std::string_view name) {
-    for (const auto &r : kRates)
+    for (const auto& r : kRates)
         if (r.name == name)
             return r.func;
     return nullptr;
 }
 
-const char *NameOfRate(RateFunc f) {
-    for (const auto &r : kRates)
+const char* NameOfRate(RateFunc f) {
+    for (const auto& r : kRates)
         if (r.func == f)
             return r.name.data();
     return "custom";

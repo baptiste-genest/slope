@@ -8,30 +8,26 @@
 namespace slope {
 
 // A triangle or polygon mesh.
-class Mesh : public PolyscopePrimitive
-  {
-  public:
-
+class Mesh : public PolyscopePrimitive {
+public:
     // Gives a new position for a vertex.
     using VertexMap = std::function<vec(const Vertex&)>;
 
     using MeshPtr = std::shared_ptr<Mesh>;
     Mesh() {}
 
-
     /// Builds a mesh from its vertices and faces.
     /// @param vertices the vertex positions
     /// @param faces the faces, as lists of vertex indices
     /// @param smooth if true, uses smooth shading
-    Mesh(const vecs &vertices, const Faces &faces,bool smooth = false);
-
+    Mesh(const vecs& vertices, const Faces& faces, bool smooth = false);
 
     // Loads a mesh from an .obj file.
-    static MeshPtr Add(const std::string& objfile,bool smooth = true);
+    static MeshPtr Add(const std::string& objfile, bool smooth = true);
 
     // Builds a mesh from vertices and faces.
-    static MeshPtr Add(const vecs& V,const Faces& F,bool smooth = true){
-      return NewPrimitive<Mesh>(V,F,smooth);
+    static MeshPtr Add(const vecs& V, const Faces& F, bool smooth = true) {
+        return NewPrimitive<Mesh>(V, F, smooth);
     }
 
     // Turns smooth shading on or off.
@@ -50,8 +46,8 @@ class Mesh : public PolyscopePrimitive
     // Structure of polyscope, for direct access.
     polyscope::SurfaceMesh* pc;
 
-    const vecs& getVertices() const {return vertices;}
-    const Faces& getFaces() const {return faces;}
+    const vecs& getVertices() const { return vertices; }
+    const Faces& getFaces() const { return faces; }
 
     // Moves the vertices to X, which must have the same size.
     void updateMesh(const vecs& X);
@@ -71,8 +67,8 @@ protected:
     // PolyscopePrimitive interface
 public:
     virtual void initPolyscope() override;
-  };
+};
 
-  }
+} // namespace slope
 
 #endif // MESH_H

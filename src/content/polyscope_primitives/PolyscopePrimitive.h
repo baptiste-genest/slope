@@ -11,8 +11,7 @@ class PolyscopePrimitive;
 using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
 
 // Base of the primitives that wrap a polyscope structure.
-class PolyscopePrimitive : public Primitive
-{
+class PolyscopePrimitive : public Primitive {
 public:
     PolyscopePrimitive();
 
@@ -24,29 +23,29 @@ public:
     std::string getPolyscopeName() const;
 
     // Places the primitive at the origin of the scene, with opacity alpha.
-    PrimitiveInSlide at(scalar alpha=1);
+    PrimitiveInSlide at(scalar alpha = 1);
 
     // Primitive interface
 public:
-    void draw(const TimeObject& t, const StateInSlide &sis) override;
-    void playIntro(const TimeObject& t,const StateInSlide &sis) override;
-    void playOutro(const TimeObject& t,const StateInSlide &sis) override;
+    void draw(const TimeObject& t, const StateInSlide& sis) override;
+    void playIntro(const TimeObject& t, const StateInSlide& sis) override;
+    void playOutro(const TimeObject& t, const StateInSlide& sis) override;
 
     // Places the primitive with a transform.
-    PrimitiveInSlide at(const Transform& T,scalar alpha=1);
+    PrimitiveInSlide at(const Transform& T, scalar alpha = 1);
 
     // Places the primitive at a position.
-    PrimitiveInSlide at(scalar x,scalar y,scalar z,scalar alpha=1);
+    PrimitiveInSlide at(scalar x, scalar y, scalar z, scalar alpha = 1);
 
-    PrimitiveInSlide at(const vec& x,scalar alpha=1);
+    PrimitiveInSlide at(const vec& x, scalar alpha = 1);
 
     // Places the primitive with the transform stored under a label, which a gizmo can edit.
-    PrimitiveInSlide at(const std::string& label,scalar alpha = 1);
+    PrimitiveInSlide at(const std::string& label, scalar alpha = 1);
 
     // Places the primitive with a transform whose fields are values or snippet names read every frame.
-    PrimitiveInSlide at(const LiveTransform& T,scalar alpha = 1);
+    PrimitiveInSlide at(const LiveTransform& T, scalar alpha = 1);
     // Same, inside the frame of the label, which the gizmo can still move.
-    PrimitiveInSlide at(const std::string& label,const LiveTransform& T,scalar alpha = 1);
+    PrimitiveInSlide at(const std::string& label, const LiveTransform& T, scalar alpha = 1);
 
     void forceDisable() override;
 
@@ -58,9 +57,9 @@ public:
 
     // Sets the color, either Color(r,g,b) or Color("name"), which can be tuned or given by a snippet.
     void setColor(const Color& c);
-    const Color& getColor() const {return color;}
+    const Color& getColor() const { return color; }
     // Color given when the structure was registered.
-    glm::vec3 getDefaultColor() const {return default_color;}
+    glm::vec3 getDefaultColor() const { return default_color; }
     // Goes back to the default color.
     void resetColor();
 
@@ -82,6 +81,7 @@ public:
     Transform localTransform;
 
     bool isPolyscopePrimitive() const override { return true; }
+
 protected:
     polyscope::Structure* polyscope_ptr = nullptr;
 
@@ -105,10 +105,9 @@ private:
     void syncColor();
 };
 // Shows a polyscope quantity, such as a scalar field, during its slides.
-template<class T>
-class PolyscopeQuantity : public Primitive
-{
-public :
+template <class T>
+class PolyscopeQuantity : public Primitive {
+public:
     using PCQuantityPtr = std::shared_ptr<PolyscopeQuantity>;
     // Wraps the quantity and hides it until its slide.
     static PCQuantityPtr Add(T* ptr) {
@@ -121,28 +120,27 @@ public :
     // Primitive interface
 public:
     T* q;
-    void draw(const TimeObject &time, const StateInSlide &sis) override {q->setEnabled(true);}
-    void playIntro(const TimeObject& t, const StateInSlide &sis) override {q->setEnabled(true);}
+    void draw(const TimeObject& time, const StateInSlide& sis) override { q->setEnabled(true); }
+    void playIntro(const TimeObject& t, const StateInSlide& sis) override { q->setEnabled(true); }
     // A quantity cannot fade, so it stays visible until the end of the outro.
-    void playOutro(const TimeObject& t, const StateInSlide &sis) override {
+    void playOutro(const TimeObject& t, const StateInSlide& sis) override {
         if (t.transition_parameter > 0.95)
             q->setEnabled(false);
     }
-    void forceDisable() override {q->setEnabled(false);}
-    bool isScreenSpace() const override {return false;}
+    void forceDisable() override { q->setEnabled(false); }
+    bool isScreenSpace() const override { return false; }
 };
 
 // Wraps a polyscope quantity in a primitive.
-template<typename T>
+template <typename T>
 static PolyscopeQuantity<T>::PCQuantityPtr AddPolyscopeQuantity(T* ptr) {
     return PolyscopeQuantity<T>::Add(ptr);
 }
 
 // Vector fields grow from zero length during the intro and shrink during the outro.
-template<>
-class PolyscopeQuantity<polyscope::SurfaceVertexVectorQuantity> : public Primitive
-{
-public :
+template <>
+class PolyscopeQuantity<polyscope::SurfaceVertexVectorQuantity> : public Primitive {
+public:
     using T = polyscope::SurfaceVertexVectorQuantity;
     using PCQuantityPtr = std::shared_ptr<PolyscopeQuantity<T>>;
     static PCQuantityPtr Add(T* ptr) {
@@ -157,29 +155,26 @@ public :
 public:
     scalar l0;
     T* q;
-    void draw(const TimeObject &time, const StateInSlide &sis) override {
+    void draw(const TimeObject& time, const StateInSlide& sis) override {
         q->setEnabled(true);
-        q->setVectorLengthScale(l0,false);
+        q->setVectorLengthScale(l0, false);
     }
-    void playIntro(const TimeObject& t, const StateInSlide &sis) override {
-        q->setVectorLengthScale(l0*t.transition_parameter,false);
+    void playIntro(const TimeObject& t, const StateInSlide& sis) override {
+        q->setVectorLengthScale(l0 * t.transition_parameter, false);
         q->setEnabled(true);
     }
-    void playOutro(const TimeObject& t, const StateInSlide &sis) override {
-        q->setVectorLengthScale(l0*(1-t.transition_parameter),false);
+    void playOutro(const TimeObject& t, const StateInSlide& sis) override {
+        q->setVectorLengthScale(l0 * (1 - t.transition_parameter), false);
         if (t.transition_parameter > 0.95)
             q->setEnabled(false);
     }
-    void forceDisable() override {q->setEnabled(false);}
-    bool isScreenSpace() const override {return false;}
+    void forceDisable() override { q->setEnabled(false); }
+    bool isScreenSpace() const override { return false; }
 };
 
-
-
-template<>
-class PolyscopeQuantity<polyscope::SurfaceVertexParameterizationQuantity> : public Primitive
-{
-public :
+template <>
+class PolyscopeQuantity<polyscope::SurfaceVertexParameterizationQuantity> : public Primitive {
+public:
     using T = polyscope::SurfaceVertexParameterizationQuantity;
     using PCQuantityPtr = std::shared_ptr<PolyscopeQuantity<T>>;
     static PCQuantityPtr Add(T* ptr) {
@@ -193,28 +188,25 @@ public :
 public:
     scalar l0;
     T* q;
-    void draw(const TimeObject &time, const StateInSlide &sis) override {
+    void draw(const TimeObject& time, const StateInSlide& sis) override {
         q->setEnabled(true);
     }
-    void playIntro(const TimeObject& t, const StateInSlide &sis) override {
+    void playIntro(const TimeObject& t, const StateInSlide& sis) override {
         q->setEnabled(true);
     }
-    void playOutro(const TimeObject& t, const StateInSlide &sis) override {
+    void playOutro(const TimeObject& t, const StateInSlide& sis) override {
         if (t.transition_parameter > 0.95)
             q->setEnabled(false);
     }
-    void forceDisable() override {q->setEnabled(false);}
-    bool isScreenSpace() const override {return false;}
+    void forceDisable() override { q->setEnabled(false); }
+    bool isScreenSpace() const override { return false; }
 };
 
-template<>
+template <>
 PolyscopeQuantity<polyscope::SurfaceVertexVectorQuantity>::PCQuantityPtr AddPolyscopeQuantity(polyscope::SurfaceVertexVectorQuantity* ptr) {
     return PolyscopeQuantity<polyscope::SurfaceVertexVectorQuantity>::Add(ptr);
 }
 
-
-
-
-}
+} // namespace slope
 
 #endif // POLYSCOPEPRIMITIVE_H

@@ -27,42 +27,39 @@ void main() {
 namespace {
 
 // linear interpolation of a sorted point set, clamped at both ends
-Plot::Fn interpolator(std::vector<vec2> pts)
-{
-    std::sort(pts.begin(), pts.end(), [](const vec2& a, const vec2& b){ return a(0) < b(0); });
+Plot::Fn interpolator(std::vector<vec2> pts) {
+    std::sort(pts.begin(), pts.end(), [](const vec2& a, const vec2& b) { return a(0) < b(0); });
     return [pts](scalar x) -> scalar {
         if (pts.empty()) return 0;
         if (x <= pts.front()(0)) return pts.front()(1);
-        if (x >= pts.back()(0))  return pts.back()(1);
+        if (x >= pts.back()(0)) return pts.back()(1);
         const auto it = std::lower_bound(pts.begin(), pts.end(), x,
-                                         [](const vec2& a, scalar v){ return a(0) < v; });
+                                         [](const vec2& a, scalar v) { return a(0) < v; });
         const vec2 b = *it, a = *(it - 1);
         const scalar d = b(0) - a(0);
         return d > 0 ? a(1) + (b(1) - a(1)) * (x - a(0)) / d : a(1);
     };
 }
 
-vec2 bounds(const std::vector<vec2>& pts)
-{
+vec2 bounds(const std::vector<vec2>& pts) {
     if (pts.empty()) return vec2(0, 1);
     const auto [lo, hi] = std::minmax_element(pts.begin(), pts.end(),
-                              [](const vec2& a, const vec2& b){ return a(0) < b(0); });
+                                              [](const vec2& a, const vec2& b) { return a(0) < b(0); });
     return (*hi)(0) > (*lo)(0) ? vec2((*lo)(0), (*hi)(0)) : vec2((*lo)(0), (*lo)(0) + 1);
 }
 
 } // namespace
 
-const std::vector<std::string>& Plot::settingNames()
-{
+const std::vector<std::string>& Plot::settingNames() {
     static const std::vector<std::string> all = {"color", "width", "reveal"};
     return all;
 }
 
-BoardPtr Plot::owner() const
-{
+BoardPtr Plot::owner() const {
     if (auto p = cached.lock()) return p;
     auto p = Board::find(board);
-    if (p) cached = p;
+    if (p)
+        cached = p;
     else {
         static std::set<std::string> said;
         if (said.insert(board).second)
@@ -71,8 +68,7 @@ BoardPtr Plot::owner() const
     return p;
 }
 
-PlotPtr Plot::make(const std::string& name, const BoardRef& board)
-{
+PlotPtr Plot::make(const std::string& name, const BoardRef& board) {
     auto c = NewPrimitive<Plot>();
     c->name = name;
     c->board = board.name;
@@ -103,16 +99,14 @@ PlotPtr Plot::make(const std::string& name, const BoardRef& board)
     return c;
 }
 
-PlotPtr Plot::Add(const std::string& name, BoardRef board, const Fn& f)
-{
+PlotPtr Plot::Add(const std::string& name, BoardRef board, const Fn& f) {
     auto c = make(name, board);
     c->f = f;
     return c;
 }
 
 PlotPtr Plot::Add(const std::string& name, BoardRef board,
-                    const std::vector<vec2>& points)
-{
+                  const std::vector<vec2>& points) {
     auto c = make(name, board);
     c->raw = points;
     c->span = c->data_span = bounds(points);
@@ -121,18 +115,15 @@ PlotPtr Plot::Add(const std::string& name, BoardRef board,
 }
 
 PlotPtr Plot::Add(const std::string& name, BoardRef board,
-                    const std::vector<scalar>& values, const vec2& span)
-{
+                  const std::vector<scalar>& values, const vec2& span) {
     std::vector<vec2> pts;
     for (std::size_t i = 0; i < values.size(); i++)
-        pts.push_back(vec2(span(0) + (span(1) - span(0)) * scalar(i)
-                                   / std::max<scalar>(1, scalar(values.size() - 1)),
+        pts.push_back(vec2(span(0) + (span(1) - span(0)) * scalar(i) / std::max<scalar>(1, scalar(values.size() - 1)),
                            values[i]));
     return Add(name, board.name, pts);
 }
 
-PlotPtr Plot::Add(const std::string& name, BoardRef board, const path& csv)
-{
+PlotPtr Plot::Add(const std::string& name, BoardRef board, const path& csv) {
     auto c = make(name, board);
     c->file = csv;
     c->own_span = true;
@@ -140,8 +131,7 @@ PlotPtr Plot::Add(const std::string& name, BoardRef board, const path& csv)
 }
 
 PlotPtr Plot::FromSnippet(const std::string& name, BoardRef board,
-                            const std::string& section)
-{
+                          const std::string& section) {
     auto c = make(name, board);
     c->live = true;
     // resolved on every sampling, so an edit takes effect at once
@@ -153,16 +143,14 @@ PlotPtr Plot::FromSnippet(const std::string& name, BoardRef board,
 // curve leaves the picture and does not stop. Not to its real depth,
 // which for an underflowed value is hundreds of decades down and reads, in the
 // linearisation the shader draws with, as a line straight through the frame.
-static float offScale(const vec2& yview)
-{
+static float offScale(const vec2& yview) {
     return float(yview(0) - 0.25 * (yview(1) - yview(0)));
 }
 
 // kSamples values over `span`, uploaded as the one row dataAt() reads. The
 // sampling is even in the referential the board draws in, so a log axis takes
 // its samples per decade.
-void Plot::refresh()
-{
+void Plot::refresh() {
     auto p = owner();
     const bool lx = p && p->xlog(), ly = p && p->ylog();
 
@@ -182,8 +170,7 @@ void Plot::refresh()
                                : (p ? p->xview() : span);
     // a log axis that moved takes the floor of the samples with it
     const vec2 wanted_y = ly && p ? p->yview() : view_y;
-    if (lx != log_x || ly != log_y || (want - span).norm() > 1e-9 * (1 + span.norm())
-        || (wanted_y - view_y).norm() > 1e-9 * (1 + view_y.norm())) {
+    if (lx != log_x || ly != log_y || (want - span).norm() > 1e-9 * (1 + span.norm()) || (wanted_y - view_y).norm() > 1e-9 * (1 + view_y.norm())) {
         span = want;
         view_y = wanted_y;
         log_x = lx;
@@ -212,7 +199,7 @@ void Plot::refresh()
         const scalar u = span(0) + (span(1) - span(0)) * i / scalar(kSamples - 1);
         float v;
         if (own_span)
-            v = f ? float(f(u)) : floor_v;        // already in the referential
+            v = f ? float(f(u)) : floor_v; // already in the referential
         else {
             const scalar y = f ? f(log_x ? std::pow(scalar(10), u) : u) : 0;
             v = log_y ? (y > 0 ? float(std::log10(y)) : floor_v) : float(y);
@@ -225,8 +212,7 @@ void Plot::refresh()
 
 // Drawn on by the transition that brings it in, erased by the one that takes
 // it away.
-bool Plot::prepare(const StateInSlide& sis, float u, StateInSlide& on)
-{
+bool Plot::prepare(const StateInSlide& sis, float u, StateInSlide& on) {
     auto p = owner();
     if (!p) return false;
     if (!sized) {
@@ -239,27 +225,31 @@ bool Plot::prepare(const StateInSlide& sis, float u, StateInSlide& on)
     return true;
 }
 
-void Plot::draw(const TimeObject& t, const StateInSlide& sis)
-{ last_frame = t.absolute_frame_number;
-  StateInSlide on; if (prepare(sis, 1, on)) Shader::draw(t, on); }
+void Plot::draw(const TimeObject& t, const StateInSlide& sis) {
+    last_frame = t.absolute_frame_number;
+    StateInSlide on;
+    if (prepare(sis, 1, on)) Shader::draw(t, on);
+}
 
-void Plot::playIntro(const TimeObject& t, const StateInSlide& sis)
-{ last_frame = t.absolute_frame_number;
-  StateInSlide on; if (prepare(sis, float(t.transition_parameter), on)) Shader::playIntro(t, on); }
+void Plot::playIntro(const TimeObject& t, const StateInSlide& sis) {
+    last_frame = t.absolute_frame_number;
+    StateInSlide on;
+    if (prepare(sis, float(t.transition_parameter), on)) Shader::playIntro(t, on);
+}
 
-void Plot::playOutro(const TimeObject& t, const StateInSlide& sis)
-{ last_frame = t.absolute_frame_number;
-  StateInSlide on; if (prepare(sis, float(1 - t.transition_parameter), on)) Shader::playOutro(t, on); }
+void Plot::playOutro(const TimeObject& t, const StateInSlide& sis) {
+    last_frame = t.absolute_frame_number;
+    StateInSlide on;
+    if (prepare(sis, float(1 - t.transition_parameter), on)) Shader::playOutro(t, on);
+}
 
 // A straight run of the line at its own width and ink. An edited program
 // (dashes, a halo) is not shown as such, that wants a second render target.
 void Plot::legendSwatch(ImDrawList* dl, const ImVec2& a, const ImVec2& b,
-                        scalar scale, scalar alpha) const
-{
+                        scalar scale, scalar alpha) const {
     const RGBA ink = settings.ink("color", default_ink);
     const float w = float(settings.num("width", 3, 0, 12) * scale);
-    dl->AddLine(a, b, ImGui::GetColorU32(ImVec4(ink.Value.x, ink.Value.y, ink.Value.z,
-                                                float(ink.Value.w * alpha))), w);
+    dl->AddLine(a, b, ImGui::GetColorU32(ImVec4(ink.Value.x, ink.Value.y, ink.Value.z, float(ink.Value.w * alpha))), w);
 }
 
-}
+} // namespace slope

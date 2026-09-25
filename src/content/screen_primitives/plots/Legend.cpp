@@ -10,8 +10,7 @@ static const std::vector<std::string> kCorners = {"top_right", "top_left",
                                                   "bottom_right", "bottom_left"};
 
 // A caption is a fixed string, so it is compiled once and shared.
-LatexPtr captionLatex(const std::string& body)
-{
+LatexPtr captionLatex(const std::string& body) {
     static std::map<std::string, LatexPtr> made;
     auto it = made.find(body);
     if (it == made.end())
@@ -21,16 +20,20 @@ LatexPtr captionLatex(const std::string& body)
 
 } // namespace
 
-const std::vector<std::string>& Legend::settingNames()
-{
+const std::vector<std::string>& Legend::settingNames() {
     static const std::vector<std::string> all = {
-        "corner", "text_size", "swatch", "padding", "background", "border", "text",
+        "corner",
+        "text_size",
+        "swatch",
+        "padding",
+        "background",
+        "border",
+        "text",
     };
     return all;
 }
 
-LegendPtr Legend::Add(BoardRef board)
-{
+LegendPtr Legend::Add(BoardRef board) {
     auto l = NewPrimitive<Legend>();
     l->name = nameFor(board.name);
     l->board = board.name;
@@ -38,11 +41,11 @@ LegendPtr Legend::Add(BoardRef board)
     return l;
 }
 
-BoardPtr Legend::owner() const
-{
+BoardPtr Legend::owner() const {
     if (auto b = cached.lock()) return b;
     auto b = Board::find(board);
-    if (b) cached = b;
+    if (b)
+        cached = b;
     else {
         static std::set<std::string> said;
         if (said.insert(board).second)
@@ -51,15 +54,13 @@ BoardPtr Legend::owner() const
     return b;
 }
 
-vec2 Legend::getSize() const
-{
+vec2 Legend::getSize() const {
     auto b = owner();
     return b ? b->getSize() : vec2(1, 1);
 }
 
 // Over the board's image, like a scatter.
-void Legend::paint(const TimeObject& t, const StateInSlide& sis, float appeared)
-{
+void Legend::paint(const TimeObject& t, const StateInSlide& sis, float appeared) {
     auto b = owner();
     if (!b) return;
 
@@ -76,8 +77,8 @@ void Legend::paint(const TimeObject& t, const StateInSlide& sis, float appeared)
     const StateInSlide on = b->frame(sis);
     const scalar sc = on.getScale();
     const scalar alpha = on.getAlpha() * std::clamp(scalar(appeared), scalar(0), scalar(1));
-    const float pad   = float(settings.num("padding", 12, 0, 40) * sc);
-    const float swat  = float(settings.num("swatch", 46, 10, 140) * sc);
+    const float pad = float(settings.num("padding", 12, 0, 40) * sc);
+    const float swat = float(settings.num("swatch", 46, 10, 140) * sc);
     const scalar size = settings.num("text_size", 0.4, 0.1, 1.5);
 
     // the box is as wide as the caption that needs the most
@@ -140,21 +141,18 @@ void Legend::paint(const TimeObject& t, const StateInSlide& sis, float appeared)
         texs[i]->setColor(Color(text_ink.Value.x, text_ink.Value.y, text_ink.Value.z));
         StateInSlide s;
         s.anchor = anchors[i];
-        s.scale  = sc;
-        s.alpha  = a;
+        s.scale = sc;
+        s.alpha = a;
         texs[i]->draw(t, s);
 
         cy += float(sizes[i](1)) + pad;
     }
 }
 
-void Legend::draw(const TimeObject& t, const StateInSlide& sis)
-{ paint(t, sis, 1); }
+void Legend::draw(const TimeObject& t, const StateInSlide& sis) { paint(t, sis, 1); }
 
-void Legend::playIntro(const TimeObject& t, const StateInSlide& sis)
-{ paint(t, sis, float(t.transition_parameter)); }
+void Legend::playIntro(const TimeObject& t, const StateInSlide& sis) { paint(t, sis, float(t.transition_parameter)); }
 
-void Legend::playOutro(const TimeObject& t, const StateInSlide& sis)
-{ paint(t, sis, float(1 - t.transition_parameter)); }
+void Legend::playOutro(const TimeObject& t, const StateInSlide& sis) { paint(t, sis, float(1 - t.transition_parameter)); }
 
-}
+} // namespace slope

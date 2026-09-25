@@ -38,15 +38,15 @@ struct Settings {
     bool isSet(const std::string& key) const { return stated.count(key) > 0; }
 
     // Current value of a setting. A number between lo and hi, where lo equal to hi means no bounds.
-    scalar      num(const std::string& key, scalar def, scalar lo = 0, scalar hi = 0) const;
+    scalar num(const std::string& key, scalar def, scalar lo = 0, scalar hi = 0) const;
     // A number with no upper bound and a lower bound `floor`.
-    scalar      atLeast(const std::string& key, scalar def, scalar floor = 0) const;
+    scalar atLeast(const std::string& key, scalar def, scalar floor = 0) const;
     // A pair of numbers, such as a range.
-    vec2        rect(const std::string& key, const vec2& def) const;
+    vec2 rect(const std::string& key, const vec2& def) const;
     // A color.
-    RGBA        ink(const std::string& key, const RGBA& def) const;
+    RGBA ink(const std::string& key, const RGBA& def) const;
     // A boolean.
-    bool        flag(const std::string& key, bool def) const;
+    bool flag(const std::string& key, bool def) const;
     // One name among a list of options.
     std::string choice(const std::string& key, const std::vector<std::string>& options,
                        const std::string& def) const;
@@ -217,6 +217,6 @@ struct BoardRef {
     BoardRef(const BoardPtr& p) : name(p ? p->name : std::string()) {}
 };
 
-}
+} // namespace slope
 
 #endif // BOARD_H

@@ -2,13 +2,11 @@
 #include "extern/json.hpp"
 #include <stdexcept>
 
-slope::CameraViewPtr slope::CameraView::Add(const vec& f,const vec& t, const vec &up,bool flyTo)
-{
-    return std::make_shared<CameraView>(toVec3(f),toVec3(t),toVec3(up),flyTo);
+slope::CameraViewPtr slope::CameraView::Add(const vec& f, const vec& t, const vec& up, bool flyTo) {
+    return std::make_shared<CameraView>(toVec3(f), toVec3(t), toVec3(up), flyTo);
 }
 
-slope::CameraViewPtr slope::CameraView::Add(std::string file, bool flyTo)
-{
+slope::CameraViewPtr slope::CameraView::Add(std::string file, bool flyTo) {
     file = formatCameraFilename(file);
     std::ifstream camfile(file);
     if (!camfile.is_open())
@@ -17,25 +15,24 @@ slope::CameraViewPtr slope::CameraView::Add(std::string file, bool flyTo)
                     std::istreambuf_iterator<char>());
     str = removeResolutionFromCamfile(str);
 
-    auto cam = std::make_shared<CameraView>(str,flyTo);
+    auto cam = std::make_shared<CameraView>(str, flyTo);
     try {
         auto j = nlohmann::json::parse(str);
         if (j.contains("fov"))
             cam->setSavedFov(j["fov"].get<float>());
-    } catch (const std::exception&) {}
+    } catch (const std::exception&) {
+    }
     return cam;
 }
 
-std::string slope::formatCameraFilename(std::string file)
-{
-    if (file[0] != '/'){
+std::string slope::formatCameraFilename(std::string file) {
+    if (file[0] != '/') {
         file = Options::ProjectViewsPath + file + ".json";
     }
     return file;
 }
 
-std::string slope::removeResolutionFromCamfile(std::string str)
-{
+std::string slope::removeResolutionFromCamfile(std::string str) {
     using json = nlohmann::json;
     json j = json::parse(str);
     {

@@ -13,8 +13,7 @@ class MeshScalarField;
 using MeshScalarFieldPtr = std::shared_ptr<MeshScalarField>;
 
 // A scalar value per vertex shown on a mesh with a colormap.
-class MeshScalarField : public Primitive
-{
+class MeshScalarField : public Primitive {
 public:
     using Quantity = polyscope::SurfaceVertexScalarQuantity;
 
@@ -40,19 +39,19 @@ public:
     void setBaseline(scalar v);
 
     // Quantity of polyscope, for direct access.
-    Quantity* getQuantity() const {return q;}
+    Quantity* getQuantity() const { return q; }
 
-    const scalars& getValues() const {return values;}
+    const scalars& getValues() const { return values; }
 
     // Primitive interface
 public:
     void initPolyscope() override;
-    bool isScreenSpace() const override {return false;}
+    bool isScreenSpace() const override { return false; }
 
 protected:
-    void draw(const TimeObject& t,const StateInSlide& sis) override;
-    void playIntro(const TimeObject& t,const StateInSlide& sis) override;
-    void playOutro(const TimeObject& t,const StateInSlide& sis) override;
+    void draw(const TimeObject& t, const StateInSlide& sis) override;
+    void playIntro(const TimeObject& t, const StateInSlide& sis) override;
+    void playOutro(const TimeObject& t, const StateInSlide& sis) override;
     void forceEnable() override;
     void forceDisable() override;
 
@@ -62,7 +61,7 @@ private:
     scalars values, scratch;
 
     Quantity* q = nullptr;
-    std::pair<double,double> range;
+    std::pair<double, double> range;
     scalar baseline = 0;
     bool baseline_set = false;
 
@@ -79,6 +78,6 @@ private:
     void uploadField(scalar p);
 };
 
-}
+} // namespace slope
 
 #endif // MESHSCALARFIELD_H

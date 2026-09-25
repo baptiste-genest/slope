@@ -28,19 +28,19 @@ using ColorType = glm::vec4;
  */
 class Color {
     std::string label = "";
-    ColorType value = ColorType(1,1,1,1);
+    ColorType value = ColorType(1, 1, 1, 1);
     mutable Params::ColorParam handle;
 
 public:
     // White.
     Color() {}
     // Named color, with a default used until it is edited.
-    Color(std::string label, ColorType def = ColorType(0.4,0.1,0.8,1));
+    Color(std::string label, ColorType def = ColorType(0.4, 0.1, 0.8, 1));
 
     // Fixed color.
     Color(ColorType value) : value(value) {}
 
-    Color(float r,float g,float b,float a = 1) : value(r,g,b,a) {}
+    Color(float r, float g, float b, float a = 1) : value(r, g, b, a) {}
 
     // True for a named color.
     bool isPersistent() const { return !label.empty(); }
@@ -52,35 +52,35 @@ public:
         // A snippet can own the name instead, since names are shared with Params.
         if (Snippet::get(label).valid()) {
             const RGBA c = Snippet::get(label, 4).rgba();
-            return ColorType(c.Value.x,c.Value.y,c.Value.z,c.Value.w);
+            return ColorType(c.Value.x, c.Value.y, c.Value.z, c.Value.w);
         }
         // Declared here only when no section did it before, to avoid a name clash.
         if (!handle.entry)
-            handle = Params::AddColor(label, RGBA(value.x,value.y,value.z,value.w));
+            handle = Params::AddColor(label, RGBA(value.x, value.y, value.z, value.w));
         const RGBA c = *handle;
-        return ColorType(c.Value.x,c.Value.y,c.Value.z,c.Value.w);
+        return ColorType(c.Value.x, c.Value.y, c.Value.z, c.Value.w);
     }
 
     // Current value as an ImColor.
     ImColor getImColor() const {
         ColorType c = getValue();
-        return ImColor(c.x,c.y,c.z,c.w);
+        return ImColor(c.x, c.y, c.z, c.w);
     }
 
     // Current value as r, g, b, a.
-    std::array<float,4> toArray() const {
+    std::array<float, 4> toArray() const {
         ColorType c = getValue();
-        return  {c.x,c.y,c.z,c.w};
+        return {c.x, c.y, c.z, c.w};
     }
 };
 
 // Linear blend of two colors, giving c1 at t=0 and c2 at t=1.
-inline Color Lerp(const Color& c1,const Color& c2,float t) {
+inline Color Lerp(const Color& c1, const Color& c2, float t) {
     Color result;
     auto v1 = c1.getValue();
     auto v2 = c2.getValue();
-    result = Color(v1 + t*(v2-v1));
+    result = Color(v1 + t * (v2 - v1));
     return result;
 }
 
-}
+} // namespace slope

@@ -22,26 +22,26 @@ namespace slope {
 
 namespace {
 
-enum class Kind { None, Deck, Shader, Snippet };
+enum class Kind { None,
+                  Deck,
+                  Shader,
+                  Snippet };
 
-const ImVec4 kKey     = theme::Cyan;      // keys and signatures
-const ImVec4 kValue   = theme::Orange;    // what a key takes
-const ImVec4 kComment = theme::Comment;   // comments in the examples
+const ImVec4 kKey = theme::Cyan;        // keys and signatures
+const ImVec4 kValue = theme::Orange;    // what a key takes
+const ImVec4 kComment = theme::Comment; // comments in the examples
 
-std::string lowerExt(const std::filesystem::path& p)
-{
+std::string lowerExt(const std::filesystem::path& p) {
     std::string e = p.extension().string();
     std::transform(e.begin(), e.end(), e.begin(), [](unsigned char c) { return char(std::tolower(c)); });
     return e;
 }
 
-bool listed(const std::vector<std::filesystem::path>& v, const std::filesystem::path& p)
-{
+bool listed(const std::vector<std::filesystem::path>& v, const std::filesystem::path& p) {
     return std::find(v.begin(), v.end(), p) != v.end();
 }
 
-Kind classify(const std::filesystem::path& file)
-{
+Kind classify(const std::filesystem::path& file) {
     const std::string e = lowerExt(file);
     if (e == ".yaml" || e == ".yml")
         return Kind::Deck;
@@ -53,8 +53,7 @@ Kind classify(const std::filesystem::path& file)
 }
 
 // the watcher lists touch the disk, so a file is classified once
-Kind kindOf(const std::filesystem::path& file)
-{
+Kind kindOf(const std::filesystem::path& file) {
     static std::filesystem::path last;
     static Kind kind = Kind::None;
     if (file != last) {
@@ -64,14 +63,12 @@ Kind kindOf(const std::filesystem::path& file)
     return kind;
 }
 
-ImGuiTextFilter& filter()
-{
+ImGuiTextFilter& filter() {
     static ImGuiTextFilter f;
     return f;
 }
 
-void filterBox()
-{
+void filterBox() {
     ImGuiTextFilter& f = filter();
     ImGui::SetNextItemWidth(-FLT_MIN);
     if (ImGui::InputTextWithHint("##tips-filter", "filter", f.InputBuf, IM_ARRAYSIZE(f.InputBuf)))
@@ -79,8 +76,7 @@ void filterBox()
 }
 
 // code lines in mono, "//" or "--" comments dimmed, only the ones the filter keeps
-void codeBlock(const std::string& text, ImFont* mono, float px, const char* comment)
-{
+void codeBlock(const std::string& text, ImFont* mono, float px, const char* comment) {
     ImGui::PushFont(mono, px);
     ImGui::PushTextWrapPos(0.f);
     std::istringstream in(text);
@@ -112,8 +108,7 @@ void codeBlock(const std::string& text, ImFont* mono, float px, const char* comm
     ImGui::PopFont();
 }
 
-std::string joined(const std::set<std::string>& keys, const std::set<std::string>& skip = {})
-{
+std::string joined(const std::set<std::string>& keys, const std::set<std::string>& skip = {}) {
     std::string out;
     for (const auto& k : keys)
         if (!skip.count(k))
@@ -122,8 +117,7 @@ std::string joined(const std::set<std::string>& keys, const std::set<std::string
 }
 
 // a keyword and what goes with it, hidden when the filter matches neither
-void keyRow(const std::string& key, const std::string& fields, ImFont* mono, float px)
-{
+void keyRow(const std::string& key, const std::string& fields, ImFont* mono, float px) {
     if (filter().IsActive() && !filter().PassFilter(key.c_str()) && !filter().PassFilter(fields.c_str()))
         return;
     ImGui::PushFont(mono, px);
@@ -142,10 +136,8 @@ void keyRow(const std::string& key, const std::string& fields, ImFont* mono, flo
 
 // "formula: tex formula", then the item's other fields
 void itemRow(const std::string& key, const std::string& value, const std::string& fields,
-             ImFont* mono, float px)
-{
-    if (filter().IsActive() && !filter().PassFilter(key.c_str())
-        && !filter().PassFilter(value.c_str()) && !filter().PassFilter(fields.c_str()))
+             ImFont* mono, float px) {
+    if (filter().IsActive() && !filter().PassFilter(key.c_str()) && !filter().PassFilter(value.c_str()) && !filter().PassFilter(fields.c_str()))
         return;
     ImGui::PushFont(mono, px);
     ImGui::PushTextWrapPos(0.f);
@@ -166,8 +158,7 @@ void itemRow(const std::string& key, const std::string& value, const std::string
 }
 
 // a signature in mono and what it gives, below it
-void apiRow(const char* signature, const char* what, ImFont* mono, float px)
-{
+void apiRow(const char* signature, const char* what, ImFont* mono, float px) {
     if (filter().IsActive() && !filter().PassFilter(signature) && !filter().PassFilter(what))
         return;
     ImGui::PushFont(mono, px);
@@ -184,8 +175,7 @@ void apiRow(const char* signature, const char* what, ImFont* mono, float px)
     ImGui::Unindent();
 }
 
-void prose(const char* text)
-{
+void prose(const char* text) {
     if (filter().IsActive())
         return;
     ImGui::PushTextWrapPos(0.f);
@@ -193,8 +183,7 @@ void prose(const char* text)
     ImGui::PopTextWrapPos();
 }
 
-void deckTips(ImFont* mono, float px)
-{
+void deckTips(ImFont* mono, float px) {
     if (ImGui::CollapsingHeader("Shape", ImGuiTreeNodeFlags_DefaultOpen)) {
         codeBlock(R"(snippets: anim.lua
 template:          # every frame
@@ -216,7 +205,8 @@ slides:
   - frame:
       - title: Results
       - figure: results
-        file: other.png)", mono, px, "#");
+        file: other.png)",
+                  mono, px, "#");
     }
 
     auto docRows = [&](const KeyDoc& keys) {
@@ -239,8 +229,7 @@ slides:
     if (ImGui::CollapsingHeader("config:", ImGuiTreeNodeFlags_DefaultOpen))
         docRows(deckConfigKeys());
 
-    if (ImGui::CollapsingHeader("Placement (every screen item)", ImGuiTreeNodeFlags_DefaultOpen))
-    {
+    if (ImGui::CollapsingHeader("Placement (every screen item)", ImGuiTreeNodeFlags_DefaultOpen)) {
         keyRow("keys", joined(placementFields()), mono, px);
         apiRow("offset: [x, y]", "shifts a placed item", mono, px);
         apiRow("follow: name", "a param, snippet variable or placer, 2D or 3D", mono, px);
@@ -250,7 +239,7 @@ slides:
 
     const std::pair<ItemSpec::Kind, const char*> families[] = {
         {ItemSpec::Kind::Screen, "Screen items"},
-        {ItemSpec::Kind::Scene,  "Scene items"},
+        {ItemSpec::Kind::Scene, "Scene items"},
         {ItemSpec::Kind::Custom, "Slide items"},
     };
     for (const auto& [kind, label] : families) {
@@ -281,23 +270,21 @@ slides:
 // signatures are read from the files, so a new function shows up by itself;
 // only the descriptions are kept here
 
-const std::map<std::string, std::string>& stdlibFileDocs()
-{
+const std::map<std::string, std::string>& stdlibFileDocs() {
     static const std::map<std::string, std::string> d = {
-        {"camera.glsl",   "rays for a 3D shader, and depth against polyscope's scene"},
+        {"camera.glsl", "rays for a 3D shader, and depth against polyscope's scene"},
         {"colormap.glsl", "color maps and value remapping"},
-        {"complex.glsl",  "complex numbers on vec2 (x real, y imaginary), domain coloring; includes colormap"},
-        {"noise.glsl",    "hashes and procedural noise, no textures"},
-        {"plot.glsl",     "curves, grids and axes in the data space set by \"view:\", widths in pixels"},
+        {"complex.glsl", "complex numbers on vec2 (x real, y imaginary), domain coloring; includes colormap"},
+        {"noise.glsl", "hashes and procedural noise, no textures"},
+        {"plot.glsl", "curves, grids and axes in the data space set by \"view:\", widths in pixels"},
         {"raymarch.glsl", "sphere tracing a float sceneSDF(vec3 p) you define; includes camera"},
-        {"sdf.glsl",      "signed distances in 2D and 3D, and ways to combine them"},
-        {"slide.glsl",    "fades and stages that follow the talk"},
+        {"sdf.glsl", "signed distances in 2D and 3D, and ways to combine them"},
+        {"slide.glsl", "fades and stages that follow the talk"},
     };
     return d;
 }
 
-const std::map<std::string, std::string>& stdlibFnDocs()
-{
+const std::map<std::string, std::string>& stdlibFnDocs() {
     static const std::map<std::string, std::string> d = {
         // camera
         {"lookAtRay", "ray from ro towards target, lens is the focal length"},
@@ -317,8 +304,10 @@ const std::map<std::string, std::string>& stdlibFnDocs()
         {"sceneOcclusion", "0 visible to 1 hidden, eased over fade"},
         {"sceneWorldPos", "world position of the 3D scene's surface here"},
         // colormap
-        {"viridis", "perceptual map, t in 0..1"}, {"magma", "perceptual map, t in 0..1"},
-        {"inferno", "perceptual map, t in 0..1"}, {"plasma", "perceptual map, t in 0..1"},
+        {"viridis", "perceptual map, t in 0..1"},
+        {"magma", "perceptual map, t in 0..1"},
+        {"inferno", "perceptual map, t in 0..1"},
+        {"plasma", "perceptual map, t in 0..1"},
         {"turbo", "rainbow map, most contrast, not uniform"},
         {"grayscale", "black to white"},
         {"coolwarm", "diverging map, zero at t = 0.5"},
@@ -328,15 +317,22 @@ const std::map<std::string, std::string>& stdlibFnDocs()
         {"hsv2rgb", "hue, saturation, value to rgb"},
         {"isoline", "1 on the isolines of v, grad = length of its screen gradient"},
         // complex
-        {"I", "the imaginary unit"}, {"ONE", "the real unit"},
-        {"cinv", "1 / a"}, {"cconj", "conjugate"}, {"carg", "argument"}, {"cabs", "modulus"},
-        {"clog", "principal logarithm"}, {"cpow", "power"},
+        {"I", "the imaginary unit"},
+        {"ONE", "the real unit"},
+        {"cinv", "1 / a"},
+        {"cconj", "conjugate"},
+        {"carg", "argument"},
+        {"cabs", "modulus"},
+        {"clog", "principal logarithm"},
+        {"cpow", "power"},
         {"mobius", "(az + b) / (cz + d)"},
         {"domainColor", "hue = argument, brightness bands = modulus"},
         {"domainColorGrid", "the same, with spokes argument lines per turn"},
         // noise
-        {"hash11", "random 0..1 from a point"}, {"hash12", "random 0..1 from a point"},
-        {"hash13", "random 0..1 from a point"}, {"hash22", "random vec2 from a point"},
+        {"hash11", "random 0..1 from a point"},
+        {"hash12", "random 0..1 from a point"},
+        {"hash13", "random 0..1 from a point"},
+        {"hash22", "random vec2 from a point"},
         {"hash33", "random vec3 from a point"},
         {"valueNoise", "smooth noise, 0..1"},
         {"gradientNoise", "Perlin-style noise, -1..1"},
@@ -389,7 +385,8 @@ const std::map<std::string, std::string>& stdlibFnDocs()
         {"opSmoothUnion", "union with a fillet of size k"},
         {"opShell", "hollow, thickness 2t"},
         {"opRound", "rounds the edges by r"},
-        {"opRepeat", "tiles space with period c"}, {"opRepeat2", "tiles space with period c"},
+        {"opRepeat", "tiles space with period c"},
+        {"opRepeat2", "tiles space with period c"},
         {"opMirrorX", "mirror across x = 0"},
         {"opRotateY", "rotate around y by a radians"},
         {"opRotate2", "rotate by a radians"},
@@ -410,14 +407,18 @@ const std::map<std::string, std::string>& stdlibFnDocs()
     return d;
 }
 
-struct StdlibEntry { std::string name, signature; };
-struct StdlibFile  { std::string file; std::vector<StdlibEntry> entries; };
+struct StdlibEntry {
+    std::string name, signature;
+};
+struct StdlibFile {
+    std::string file;
+    std::vector<StdlibEntry> entries;
+};
 
 // superseded headers, kept for old shaders but not offered
 bool stdlibHidden(const std::string& file) { return file == "plot2d.glsl"; }
 
-const std::vector<StdlibFile>& stdlib()
-{
+const std::vector<StdlibFile>& stdlib() {
     static const std::vector<StdlibFile> files = [] {
         std::vector<StdlibFile> out;
         std::error_code ec;
@@ -468,8 +469,7 @@ const std::vector<StdlibFile>& stdlib()
     return files;
 }
 
-void stdlibTips(ImFont* mono, float px)
-{
+void stdlibTips(ImFont* mono, float px) {
     if (!ImGui::CollapsingHeader("Standard library", ImGuiTreeNodeFlags_DefaultOpen))
         return;
     prose("#include <file.glsl> for slope's own, #include \"file.glsl\" for the project's.");
@@ -493,8 +493,7 @@ void stdlibTips(ImFont* mono, float px)
     ImGui::Unindent();
 }
 
-void shaderTips(ImFont* mono, float px)
-{
+void shaderTips(ImFont* mono, float px) {
     if (ImGui::CollapsingHeader("Inputs", ImGuiTreeNodeFlags_DefaultOpen)) {
         apiRow("out vec4 fragColor", "write the pixel's color here", mono, px);
         apiRow("vec2 iResolution", "render size, in pixels", mono, px);
@@ -542,8 +541,7 @@ void shaderTips(ImFont* mono, float px)
     }
 }
 
-void snippetTips(ImFont* mono, float px)
-{
+void snippetTips(ImFont* mono, float px) {
     if (ImGui::CollapsingHeader("Sections", ImGuiTreeNodeFlags_DefaultOpen)) {
         codeBlock(R"(--- envelope
 -- a value
@@ -560,13 +558,15 @@ return function(p, i)
 end
 
 --- fig/xrange
--- a name grouped with "/")", mono, px, "--");
+-- a name grouped with "/")",
+                  mono, px, "--");
         prose("Sections read each other by name, in any order.");
     }
     if (ImGui::CollapsingHeader("Values", ImGuiTreeNodeFlags_DefaultOpen)) {
         codeBlock(R"(return x, y, z
 return vec3(x, y, z)
-return {x, y, z})", mono, px, "--");
+return {x, y, z})",
+                  mono, px, "--");
         prose("The same vec3. At most 4 numbers.");
     }
     if (ImGui::CollapsingHeader("Slide time", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -597,19 +597,24 @@ return {x, y, z})", mono, px, "--");
 
 } // namespace
 
-bool WritingTips::available(const std::filesystem::path& file)
-{
+bool WritingTips::available(const std::filesystem::path& file) {
     return kindOf(file) != Kind::None;
 }
 
-void WritingTips::draw(const std::filesystem::path& file, ImFont* mono, float px)
-{
+void WritingTips::draw(const std::filesystem::path& file, ImFont* mono, float px) {
     filterBox();
     switch (kindOf(file)) {
-    case Kind::Deck:    deckTips(mono, px);    break;
-    case Kind::Shader:  shaderTips(mono, px);  break;
-    case Kind::Snippet: snippetTips(mono, px); break;
-    case Kind::None:    break;
+    case Kind::Deck:
+        deckTips(mono, px);
+        break;
+    case Kind::Shader:
+        shaderTips(mono, px);
+        break;
+    case Kind::Snippet:
+        snippetTips(mono, px);
+        break;
+    case Kind::None:
+        break;
     }
 }
 

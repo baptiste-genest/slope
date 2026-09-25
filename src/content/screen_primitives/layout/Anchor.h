@@ -22,11 +22,10 @@ struct AnchorState {
 };
 
 // A screen position with an optional scale, angle and opacity, used to place primitives.
-class Anchor
-{
+class Anchor {
 public:
     // True when the anchor is stored under a label and can be edited.
-    virtual bool isPersistent() const {return false;}
+    virtual bool isPersistent() const { return false; }
 
     // Moves the anchor, ignored by anchors that cannot move.
     virtual void updatePos(const vec2& p) = 0;
@@ -34,24 +33,24 @@ public:
     // Relative position.
     virtual vec2 getPos() const = 0;
 
-    virtual scalar getScale() const {return 1;}
+    virtual scalar getScale() const { return 1; }
 
     // In radians.
-    virtual scalar getAngle() const {return 0;}
+    virtual scalar getAngle() const { return 0; }
 
-    virtual scalar getAlpha() const {return 1;}
+    virtual scalar getAlpha() const { return 1; }
 };
 
 class AbsoluteAnchor;
 using AbsoluteAnchorPtr = std::shared_ptr<Anchor>;
 // An anchor at a fixed position.
-class AbsoluteAnchor : public Anchor
-{
+class AbsoluteAnchor : public Anchor {
 protected:
     vec2 pos;
+
 public:
     // Anchor at the relative position p.
-    AbsoluteAnchor(const vec2& p) {pos = p;}
+    AbsoluteAnchor(const vec2& p) { pos = p; }
 
     // Builds an anchor at p.
     static AbsoluteAnchorPtr Add(const vec2& p) {
@@ -60,7 +59,7 @@ public:
     virtual vec2 getPos() const override {
         return pos;
     }
-    virtual void updatePos(const vec2 &p) override {
+    virtual void updatePos(const vec2& p) override {
         pos = p;
     }
 };
@@ -71,8 +70,7 @@ extern AbsoluteAnchorPtr GlobalAnchor;
 class LabelAnchor;
 using LabelAnchorPtr = std::shared_ptr<LabelAnchor>;
 // An anchor whose position, scale, angle and opacity are stored in views/<label>.pos and edited by dragging.
-class LabelAnchor : public Anchor
-{
+class LabelAnchor : public Anchor {
 protected:
     std::string label = "";
 
@@ -81,7 +79,7 @@ protected:
 
     // Data for the startup report, see reportLabelIssues().
     // Number of anchors that use each label.
-    inline static std::map<std::string,int> label_usage;
+    inline static std::map<std::string, int> label_usage;
     // Labels that had no .pos file yet.
     inline static std::set<std::string> created_labels;
     // Same, emptied by whoever suggests a shorter name for them.
@@ -92,13 +90,12 @@ protected:
     inline static std::set<std::string> unreadable_labels;
 
 public:
-
     virtual bool isPersistent() const override { return true; }
 
     // Anchor for a label. A label with no file starts at the default position.
     LabelAnchor(std::string l) : label(l) {
         label_usage[label]++;
-        writeAtLabel(AnchorState{},false);
+        writeAtLabel(AnchorState{}, false);
     }
 
     // The label.
@@ -115,7 +112,7 @@ public:
 
     virtual vec2 getPos() const override {
         AnchorState s = readFromLabel();
-        return GlobalAnchor->getPos() + vec2(s.x,s.y);
+        return GlobalAnchor->getPos() + vec2(s.x, s.y);
     }
 
     virtual void updatePos(const vec2& p) override {
@@ -161,7 +158,8 @@ public:
     // Change one field of the stored state. The overwrite argument is unused.
     void writePosAtLabel(scalar x, scalar y, bool /*overwrite*/) const {
         AnchorState s = readFromLabel();
-        s.x = x; s.y = y;
+        s.x = x;
+        s.y = y;
         writeToSession(s);
     }
     void writeScaleAtLabel(scalar v, bool /*overwrite*/) const {
@@ -190,22 +188,20 @@ vec2 WorldToScreen(const vec& p);
 vec ScreenToWorld(const vec2& p);
 
 // An anchor whose position is computed every frame by a function.
-class DynamicAnchor : public Anchor
-{
+class DynamicAnchor : public Anchor {
 protected:
     std::function<vec2()> anchor;
 
     // Function giving the screen position of the 3D point returned by track.
     static std::function<vec2()> trackScreen(const std::function<vec()>& track) {
-        return [track] () -> vec2 {
+        return [track]() -> vec2 {
             return WorldToScreen(track());
         };
     }
 
-
     // Anchor interface
 public:
-    virtual void updatePos(const vec2 &p) override {}
+    virtual void updatePos(const vec2& p) override {}
     virtual vec2 getPos() const override {
         return anchor();
     }
@@ -224,11 +220,10 @@ public:
     }
     // Anchor at the screen position of a fixed 3D point.
     static std::shared_ptr<DynamicAnchor> Add(const vec& x) {
-        std::function<vec()> p = [x](){return x;};
+        std::function<vec()> p = [x]() { return x; };
         return AddTracker(p);
     }
-
 };
-}
+} // namespace slope
 
 #endif // ANCHOR_H

@@ -173,20 +173,28 @@ public:
     // The callable can also take the TimeObject of the primitive,
     // so a uniform can follow the talk without capturing any outside state.
     //   fx->bind("fade", [](const TimeObject& t){ return t.from_action; });
-    template<class F>
+    template <class F>
     void bind(const std::string& name, F f) {
         if constexpr (std::is_invocable_v<F&, const TimeObject&>) {
             using R = std::decay_t<std::invoke_result_t<F&, const TimeObject&>>;
-            if constexpr (std::is_same_v<R, vec2>)      bindV2(name, [f](const TimeObject& t){ return f(t); });
-            else if constexpr (std::is_same_v<R, vec>)  bindV3(name, [f](const TimeObject& t){ return f(t); });
-            else if constexpr (std::is_same_v<R, RGBA>) bindV4(name, [f](const TimeObject& t){ return f(t); });
-            else                                        bindF (name, [f](const TimeObject& t){ return float(f(t)); });
+            if constexpr (std::is_same_v<R, vec2>)
+                bindV2(name, [f](const TimeObject& t) { return f(t); });
+            else if constexpr (std::is_same_v<R, vec>)
+                bindV3(name, [f](const TimeObject& t) { return f(t); });
+            else if constexpr (std::is_same_v<R, RGBA>)
+                bindV4(name, [f](const TimeObject& t) { return f(t); });
+            else
+                bindF(name, [f](const TimeObject& t) { return float(f(t)); });
         } else {
             using R = std::decay_t<std::invoke_result_t<F&>>;
-            if constexpr (std::is_same_v<R, vec2>)      bindV2(name, [f](const TimeObject&){ return f(); });
-            else if constexpr (std::is_same_v<R, vec>)  bindV3(name, [f](const TimeObject&){ return f(); });
-            else if constexpr (std::is_same_v<R, RGBA>) bindV4(name, [f](const TimeObject&){ return f(); });
-            else                                        bindF (name, [f](const TimeObject&){ return float(f()); });
+            if constexpr (std::is_same_v<R, vec2>)
+                bindV2(name, [f](const TimeObject&) { return f(); });
+            else if constexpr (std::is_same_v<R, vec>)
+                bindV3(name, [f](const TimeObject&) { return f(); });
+            else if constexpr (std::is_same_v<R, RGBA>)
+                bindV4(name, [f](const TimeObject&) { return f(); });
+            else
+                bindF(name, [f](const TimeObject&) { return float(f()); });
         }
     }
     // Sets a live int or bool uniform. bind() uploads every scalar as a float, which a "uniform int" rejects,
@@ -250,8 +258,10 @@ public:
     // The number of textures that can be bound at once is the number of texture units of the driver
     // (at least 16, usually 32), and one of them is kept for the depth buffer of the scene.
     // How a texture is sampled between texels, and outside [0,1].
-    enum class Filter { Nearest, Linear };
-    enum class Wrap   { Clamp, Repeat };
+    enum class Filter { Nearest,
+                        Linear };
+    enum class Wrap { Clamp,
+                      Repeat };
 
     // Uses an image file as texture, loaded once. Setting the same file with the same filter and wrap again does nothing,
     // so a declarative owner can declare all its textures again at low cost (see retainTextures).
@@ -280,12 +290,9 @@ public:
     // Reserved name of channel i.
     static std::string ChannelName(int i);
     void setChannel(int i, const path& image_file,
-                    Filter f = Filter::Linear, Wrap w = Wrap::Clamp)
-    { setTexture(ChannelName(i), image_file, f, w); }
-    void setChannel(int i, const ShaderPtr& src, int attachment = 0)
-    { setTexture(ChannelName(i), src, attachment); }
-    void setChannelSelf(int i, int attachment = 0)
-    { setTextureSelf(ChannelName(i), attachment); }
+                    Filter f = Filter::Linear, Wrap w = Wrap::Clamp) { setTexture(ChannelName(i), image_file, f, w); }
+    void setChannel(int i, const ShaderPtr& src, int attachment = 0) { setTexture(ChannelName(i), src, attachment); }
+    void setChannelSelf(int i, int attachment = 0) { setTextureSelf(ChannelName(i), attachment); }
     void clearChannel(int i) { clearTexture(ChannelName(i)); }
 
     // Uses RGBA32F targets instead of 8 bits, for values that must survive many feedback iterations without banding,
@@ -338,7 +345,7 @@ public:
     void bindView(std::function<vec2()> center, std::function<vec2()> half);
     // Sets the view from its lower and upper corners, or reads them every frame.
     void setViewRect(const vec2& lo, const vec2& hi);
-    void bindViewRect(std::function<std::pair<vec2,vec2>()> rect);
+    void bindViewRect(std::function<std::pair<vec2, vec2>()> rect);
     // Half extent as uploaded. For a view given by a scalar, x comes from the aspect ratio.
     vec2 viewHalf() const { return resolveViewHalf(); }
     vec2 viewCenter() const { return view_center ? view_center() : vec2::Zero(); }
@@ -364,7 +371,7 @@ public:
     // setChannel(i, src, attachment) and the readback functions with an attachment reach the others. The maximum is 4.
     void setTargets(int n);
     // Number of outputs.
-    int  targets() const { return num_targets; }
+    int targets() const { return num_targets; }
 
     // upload arbitrary data as a texture
     // Uses an array from the CPU as a float texture. `comps` is the number of components per texel,
@@ -376,8 +383,7 @@ public:
                     int comps = 1, Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp);
     void setTexture(const std::string& name, const std::vector<float>& data,
                     int w, int h, int comps = 1,
-                    Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp)
-    { setTexture(name, data.data(), w, h, comps, f, wrap); }
+                    Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp) { setTexture(name, data.data(), w, h, comps, f, wrap); }
     // a snippet function as a texture
     // Samples a callable section on a grid and uses the result as texture.
     // A section that reads t is sampled again at every frame, and one that does not is sampled once.
@@ -389,11 +395,9 @@ public:
 
     // Same, for a numbered channel.
     void setData(int i, const float* data, int w, int h, int comps = 1,
-                 Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp)
-    { setTexture(ChannelName(i), data, w, h, comps, f, wrap); }
+                 Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp) { setTexture(ChannelName(i), data, w, h, comps, f, wrap); }
     void setData(int i, const std::vector<float>& data, int w, int h, int comps = 1,
-                 Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp)
-    { setTexture(ChannelName(i), data.data(), w, h, comps, f, wrap); }
+                 Filter f = Filter::Linear, Wrap wrap = Wrap::Clamp) { setTexture(ChannelName(i), data.data(), w, h, comps, f, wrap); }
 
     // shader storage buffers (SSBO)
     // Large structured buffers that the shader can read and write.
@@ -401,16 +405,14 @@ public:
     // fx->setBuffer(0, seeds) uploads an array from the CPU as it is.
     // Take care of the std430 packing when types are mixed, since a vec3 is aligned to 16 bytes.
     void setBuffer(int binding, const void* data, std::size_t bytes);
-    template<class T>
-    void setBuffer(int binding, const std::vector<T>& v)
-    { setBuffer(binding, v.data(), v.size() * sizeof(T)); }
+    template <class T>
+    void setBuffer(int binding, const std::vector<T>& v) { setBuffer(binding, v.data(), v.size() * sizeof(T)); }
     // Allocates a buffer of `bytes` filled with zeros, for scratch data, output or atomic operations.
     void allocBuffer(int binding, std::size_t bytes);
     // Reads a buffer back after the shader has run. A barrier follows every draw. Returns false on failure.
     bool readBuffer(int binding, void* dst, std::size_t bytes) const;
-    template<class T>
-    bool readBuffer(int binding, std::vector<T>& v) const
-    { return readBuffer(binding, v.data(), v.size() * sizeof(T)); }
+    template <class T>
+    bool readBuffer(int binding, std::vector<T>& v) const { return readBuffer(binding, v.data(), v.size() * sizeof(T)); }
     // Releases the buffer at this binding.
     void clearBuffer(int binding);
     // Sets a buffer to a value on the GPU. A pass that accumulates into it with atomics needs this at the start of every frame,
@@ -434,8 +436,8 @@ public:
     // Color of one pixel of an attachment.
     RGBA readbackPixel(int x, int y, int attachment = 0) const;
     // Size of the rendering in pixels.
-    int  bufferWidth()  const { return res_x; }
-    int  bufferHeight() const { return res_y; }
+    int bufferWidth() const { return res_x; }
+    int bufferHeight() const { return res_y; }
 
     // Reads and compiles again every shader from a file whose source changed,
     // and compiles every shader again when the keyframes of the deck move.
@@ -477,48 +479,54 @@ private:
     // array uniforms, clamped to the length the shader declared
     void setArray(const std::string& name, std::vector<float> data, int comps);
     void uploadArray(const std::string& name, int loc, const float* v, int count, int comps);
-    int  arrayCapacity(const std::string& name);
-    int  uniformLocation(const std::string& name);
+    int arrayCapacity(const std::string& name);
+    int uniformLocation(const std::string& name);
 
     // .cpp-side helpers building the GL upload closures for bind()
-    void bindF (const std::string& name, std::function<float(const TimeObject&)> f);
+    void bindF(const std::string& name, std::function<float(const TimeObject&)> f);
     void bindV2(const std::string& name, std::function<vec2(const TimeObject&)> f);
     void bindV3(const std::string& name, std::function<vec(const TimeObject&)> f);
     void bindV4(const std::string& name, std::function<RGBA(const TimeObject&)> f);
 
     std::string fragment_src;
-    unsigned int program = 0;   // GLuint; kept opaque to avoid a GL include here
+    unsigned int program = 0; // GLuint; kept opaque to avoid a GL include here
     unsigned int vao = 0;
 
     // one target for a plain shader, two (ping-pong) for feedback. buf[cur]
     // always holds the latest output.
     static constexpr int kMaxTargets = 4;
-    struct Target { unsigned int tex[kMaxTargets] = {0,0,0,0}; unsigned int fbo = 0; };
+    struct Target {
+        unsigned int tex[kMaxTargets] = {0, 0, 0, 0};
+        unsigned int fbo = 0;
+    };
     Target buf[2];
-    int num_targets = 1;        // number of color outputs (MRT)
-    int cur = 0;                // buf[cur] = latest output
-    bool feedback = false;      // some channel samples our previous frame
-    bool float_buffer = false;  // RGBA32F targets
-    bool hidden = false;        // compute-only, updates but never blits
+    int num_targets = 1;       // number of color outputs (MRT)
+    int cur = 0;               // buf[cur] = latest output
+    bool feedback = false;     // some channel samples our previous frame
+    bool float_buffer = false; // RGBA32F targets
+    bool hidden = false;       // compute-only, updates but never blits
     unsigned int self_filter = 0x2601 /*LINEAR*/;
-    unsigned int self_wrap   = 0x812F /*CLAMP_TO_EDGE*/;
+    unsigned int self_wrap = 0x812F /*CLAMP_TO_EDGE*/;
 
     // one bound texture, whatever it is sourced from
     struct Texture {
         // NB: "None" is an X11 macro, so the empty state is "Off"
-        enum class Kind { Off, Image, ShaderOut, Self } kind = Kind::Off;
+        enum class Kind { Off,
+                          Image,
+                          ShaderOut,
+                          Self } kind = Kind::Off;
         unsigned int image_tex = 0; // Kind::Image (image file *or* data texture), owned
         int w = 0, h = 0;           // size, reported through <name>_size
         int comps = 0;              // >0 when it is a float data texture
         // Kind::ShaderOut. Weak, the source may be dropped while we still
         // hold this texture.
         std::weak_ptr<Shader> src;
-        int attachment = 0;         // Kind::ShaderOut, which MRT output to read
+        int attachment = 0; // Kind::ShaderOut, which MRT output to read
 
         // what it was loaded from, so re-setting the same image is a no-op
         std::string file;
         Filter filter = Filter::Linear;
-        Wrap   wrap   = Wrap::Clamp;
+        Wrap wrap = Wrap::Clamp;
 
         // >= 0 for the four ShaderToy channels, which also feed
         // iChannelResolution[i], which a named texture has no part in
@@ -528,27 +536,27 @@ private:
         // program they belong to is stamped so a relink re-resolves them.
         int sampler_loc = -1, size_loc = -1;
         unsigned int loc_program = 0;
-        int unit = -1;              // texture unit assigned at bind time
+        int unit = -1; // texture unit assigned at bind time
     };
-    static constexpr int kChannels = 4;   // how many iChannelN the prelude declares
+    static constexpr int kChannels = 4; // how many iChannelN the prelude declares
     std::map<std::string, Texture> textures;
 
     // sampled snippets, re-uploaded on the frames they actually change
     struct SnippetTex {
         std::shared_ptr<SnippetTexture> tex;
         Filter filter = Filter::Linear;
-        Wrap   wrap   = Wrap::Clamp;
+        Wrap wrap = Wrap::Clamp;
     };
     std::map<std::string, SnippetTex> snippet_textures;
     void refreshSnippetTextures();
 
     // polyscope's depth buffer goes on the unit just past the textures, so it
     // depends on how many are bound this frame
-    int  scene_depth_unit = kChannels;
+    int scene_depth_unit = kChannels;
     bool bound_scene_depth = false;
     // how many units were handed out on the last draw, to unbind exactly those
     int bound_units = 0;
-    bool wants_scene_depth = false;   // useSceneDepth()
+    bool wants_scene_depth = false; // useSceneDepth()
 
     // Number of live shaders that asked for the scene depth. The original number of peeling passes is restored
     // when the last one goes away.
@@ -571,7 +579,10 @@ private:
     // Shared, so that shareBuffer() can hand the same buffer to another pass.
     // The GL name is deliberately not freed on destruction, a Shader can
     // outlive the context (see ~Shader), and the driver reclaims it then.
-    struct StorageBuffer { unsigned int id = 0; std::size_t bytes = 0; };
+    struct StorageBuffer {
+        unsigned int id = 0;
+        std::size_t bytes = 0;
+    };
     using StorageBufferPtr = std::shared_ptr<StorageBuffer>;
     std::map<int, StorageBufferPtr> ssbos;
 
@@ -583,7 +594,7 @@ private:
         int from_begin = -1, from_action = -1, inner_time = -1, delta_time = -1;
         int absolute_frame_number = -1, relative_frame_number = -1;
         int transition_parameter = -1, slide_progress = -1;
-        int iSlideTime = -1;   // float[KF_SLIDE_COUNT], for secondsSinceKeyframe
+        int iSlideTime = -1; // float[KF_SLIDE_COUNT], for secondsSinceKeyframe
         int iView = -1, iViewInv = -1, iProj = -1, iProjInv = -1;
         int iCamPos = -1, iCamFov = -1, iScreenRect = -1, iWindowSize = -1;
         int iViewCenter = -1, iViewHalf = -1;
@@ -606,8 +617,8 @@ private:
     // 1:1, rather than through the 1920x1080-relative scaling an explicit
     // resolution goes through
     bool explicit_resolution = false;
-    bool gl_ready = false;      // resources created (needs a live context)
-    bool compiled = false;      // last compile succeeded
+    bool gl_ready = false; // resources created (needs a live context)
+    bool compiled = false; // last compile succeeded
     bool needs_recompile = true;
 
     // mouse click latch, for iMouse.zw (position of the last press over the rect)
@@ -646,14 +657,13 @@ private:
     // What was last uploaded to iViewCenter/iViewHalf, and the rect it was
     // drawn into (window relative, y down). worldToScreen inverts these rather
     // than re-reading the callables, so it cannot disagree with the image.
-    mutable vec2   drawn_view_center = vec2::Zero();
-    mutable vec2   drawn_view_half   = vec2(1, 1);
-    mutable vec2   drawn_rect_min = vec2::Zero(), drawn_rect_max = vec2(1, 1);
-    mutable bool   rect_recorded  = false;
-    bool bad_view_reported = false;   // a degenerate view is said once, not per frame
+    mutable vec2 drawn_view_center = vec2::Zero();
+    mutable vec2 drawn_view_half = vec2(1, 1);
+    mutable vec2 drawn_rect_min = vec2::Zero(), drawn_rect_max = vec2(1, 1);
+    mutable bool rect_recorded = false;
+    bool bad_view_reported = false; // a degenerate view is said once, not per frame
 
-
-    void ensureResources();     // lazy GL init, on first draw
+    void ensureResources(); // lazy GL init, on first draw
     void recompile();
     void renderToTexture(const TimeObject& t, const StateInSlide& sis);
     void reloadFromFile();
@@ -672,23 +682,23 @@ private:
     // placed more than once per slide, so these queue rather than overwrite.
     // The rect is captured here since the callback has no ImGui window stack.
     struct PendingRender {
-        TimeObject   time;
+        TimeObject time;
         StateInSlide sis;
-        ImVec2       pmin, pmax;
+        ImVec2 pmin, pmax;
     };
     std::vector<PendingRender> pending;
     std::size_t pending_next = 0;
-    int  record_frame = -1;             // ImGui frame the queue was built for
+    int record_frame = -1;              // ImGui frame the queue was built for
     bool render_error_reported = false; // throttles the exception log to once
 
     // the rect the callback is currently rendering for, taken from its job
     ImVec2 pending_pmin, pending_pmax;
-    bool   use_pending_rect = false;
+    bool use_pending_rect = false;
 
     // every live Shader, so keyframe/#include invalidation reaches all of them
     inline static std::vector<Shader*> all_shaders;
 };
 
-}
+} // namespace slope
 
 #endif // SHADER_H

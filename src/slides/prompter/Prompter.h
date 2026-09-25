@@ -13,8 +13,7 @@ namespace slope {
 using promptTag = std::string;
 
 // A second window that shows the speaker notes of the current slide.
-class Prompter
-{
+class Prompter {
 public:
     // Prompter for a script file. The window opens at the first use.
     Prompter(std::string script_file);
@@ -33,8 +32,8 @@ private:
     // Draws a text in the window.
     void render(const std::string& text, TimeStamp fromBegin);
 
-    GLFWwindow*   window = nullptr;
-    ImGuiContext* ctx    = nullptr;
+    GLFWwindow* window = nullptr;
+    ImGuiContext* ctx = nullptr;
 
     std::string script_file;
     std::string current_tag;

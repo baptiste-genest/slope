@@ -29,13 +29,13 @@ public:
 protected:
     std::vector<std::string> inputArgs(int64_t start_frame) const override;
     int64_t wantedFrame(const TimeObject& t) override;
-    bool    hasTimeline() const override { return false; }
-    size_t  queueLimit(size_t frame_bytes) const override { return 2; }
+    bool hasTimeline() const override { return false; }
+    size_t queueLimit(size_t frame_bytes) const override { return 2; }
 
 private:
     std::string input_format_;
 };
 
-}
+} // namespace slope
 
 #endif // WEBCAM_H

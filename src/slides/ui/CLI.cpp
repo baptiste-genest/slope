@@ -7,8 +7,7 @@
 #include <cassert>
 #include <spdlog/spdlog.h>
 
-
-int slope::parseCLI(int argc,char** argv) {
+int slope::parseCLI(int argc, char** argv) {
     using namespace slope;
 
     bool clear_cache = false;
@@ -25,52 +24,37 @@ int slope::parseCLI(int argc,char** argv) {
         try {
             if (arg == "--clear_cache") {
                 clear_cache = true;
-            }
-            else if (arg == "--ignore_cache") {
+            } else if (arg == "--ignore_cache") {
                 Options::ignore_cache = true;
-            }
-            else if (arg == "--auto-suggest") {
+            } else if (arg == "--auto-suggest") {
                 Options::AutoSuggest = true;
-            }
-            else if (arg == "--resolution" && i + 1 < argc) {
+            } else if (arg == "--resolution" && i + 1 < argc) {
                 resolution = argv[++i];
-            }
-            else if (arg == "--project_path" && i + 1 < argc) {
+            } else if (arg == "--project_path" && i + 1 < argc) {
                 Options::ProjectPath = argv[++i];
-            }
-            else if (arg == "--data_path" && i + 1 < argc) {
+            } else if (arg == "--data_path" && i + 1 < argc) {
                 data_path = argv[++i];
-            }
-            else if (arg == "--seed" && i + 1 < argc) {
+            } else if (arg == "--seed" && i + 1 < argc) {
                 seed = std::stoi(argv[++i]);
-            }
-            else if (arg == "--export") {
+            } else if (arg == "--export") {
                 Options::ExportMode = true;
-            }
-            else if (arg == "--export_transitions" && i + 1 < argc) {
+            } else if (arg == "--export_transitions" && i + 1 < argc) {
                 Options::ExportMode = true;
                 Options::ExportTransitionSamples = std::stoi(argv[++i]);
-            }
-            else if (arg == "--record") {
+            } else if (arg == "--record") {
                 Options::ExportMode = true;
                 Options::RecordMode = true;
-            }
-            else if (arg == "--fps" && i + 1 < argc) {
+            } else if (arg == "--fps" && i + 1 < argc) {
                 Options::RecordFPS = std::stoi(argv[++i]);
-            }
-            else if (arg == "--record_dwell" && i + 1 < argc) {
+            } else if (arg == "--record_dwell" && i + 1 < argc) {
                 Options::RecordDwell = std::stod(argv[++i]);
-            }
-            else if (arg == "--check_labels") {
+            } else if (arg == "--check_labels") {
                 Options::CheckLabels = true;
-            }
-            else if (arg == "--rehearse") {
+            } else if (arg == "--rehearse") {
                 Options::Rehearse = true;
-            }
-            else if (arg == "--no_slide_numbers") {
+            } else if (arg == "--no_slide_numbers") {
                 Options::HideSlideNumbers = true;
-            }
-            else {
+            } else {
                 std::cerr << "Unknown or incomplete argument: " << arg << std::endl;
                 return 1;
             }
@@ -105,7 +89,7 @@ int slope::parseCLI(int argc,char** argv) {
         if (!ec)
             slope::Options::LogPath = (tmp / "slope.log").string();
     }
-    std::ofstream(slope::Options::LogPath,std::ios::trunc);
+    std::ofstream(slope::Options::LogPath, std::ios::trunc);
 
     if (data_path.empty())
         slope::Options::ProjectDataPath = slope::Options::ProjectPath;
@@ -114,11 +98,11 @@ int slope::parseCLI(int argc,char** argv) {
 
     if (seed == -1)
         srand(time(NULL));
-    else{
+    else {
         srand(seed);
     }
 
-    if (clear_cache){
+    if (clear_cache) {
         spdlog::info("clearing cache");
         // std::filesystem, Windows has no "rm -rf"
         std::error_code ec;
@@ -132,8 +116,8 @@ int slope::parseCLI(int argc,char** argv) {
     try {
         if (pos == std::string::npos)
             throw std::invalid_argument("no x");
-        Options::ScreenResolutionWidth = std::stoi(resolution.substr(0,pos));
-        Options::ScreenResolutionHeight = std::stoi(resolution.substr(pos+1));
+        Options::ScreenResolutionWidth = std::stoi(resolution.substr(0, pos));
+        Options::ScreenResolutionHeight = std::stoi(resolution.substr(pos + 1));
     } catch (const std::logic_error&) {
         std::cerr << "invalid resolution \"" << resolution << "\", write WIDTHxHEIGHT" << std::endl;
         return 1;
@@ -144,5 +128,4 @@ int slope::parseCLI(int argc,char** argv) {
     }
 
     return 0; //ok
-
 }

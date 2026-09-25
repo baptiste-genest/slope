@@ -1,21 +1,18 @@
 #include "content/screen_primitives/text/Text.h"
 #include "polyscope/view.h"
 
-
 namespace slope {
 
 // Scale at which Text is drawn on screen. display() and getSize() must use the same value.
 static constexpr float kFontScale = 1.5f;
 
-Text::TextPtr Text::Add(const std::string &content)
-{
+Text::TextPtr Text::Add(const std::string& content) {
     TextPtr rslt = NewPrimitive<Text>();
     rslt->content = content;
     return rslt;
 }
 
-void Text::display(const StateInSlide &sis) const
-{
+void Text::display(const StateInSlide& sis) const {
     //set imgui font size
     ImGui::SetWindowFontScale(kFontScale);
 
@@ -30,11 +27,11 @@ void Text::display(const StateInSlide &sis) const
     // ink follows the background, as the rest of the HUD already does
     const auto& bg = polyscope::view::bgColor;
     style->Colors[ImGuiCol_Text] =
-        RGBA(ImVec4(1.f-bg[0], 1.f-bg[1], 1.f-bg[2], sis.getAlpha()));
+        RGBA(ImVec4(1.f - bg[0], 1.f - bg[1], 1.f - bg[2], sis.getAlpha()));
     auto S = ImGui::GetWindowSize();
 
     auto P = sis.getAbsolutePosition();
-    ImGui::SetCursorPos(ImVec2(P.x - size.x*0.5,P.y - size.y*0.5));
+    ImGui::SetCursorPos(ImVec2(P.x - size.x * 0.5, P.y - size.y * 0.5));
     ImGui::Text(content.c_str());
 
     style->Colors[ImGuiCol_Text] = old;
@@ -42,21 +39,18 @@ void Text::display(const StateInSlide &sis) const
     //ImGui::PopFont();
 }
 
-void Text::playIntro(const TimeObject&, const StateInSlide &sis)
-{
+void Text::playIntro(const TimeObject&, const StateInSlide& sis) {
     display(sis);
 }
 
-void Text::playOutro(const TimeObject&, const StateInSlide &sis)
-{
+void Text::playOutro(const TimeObject&, const StateInSlide& sis) {
     display(sis);
 }
 
-Primitive::Size Text::getSize() const
-{
+Primitive::Size Text::getSize() const {
     // must agree with display(), the hit box and relative placement use it
     auto size = ImGui::CalcTextSize(content.c_str());
     return Size(size.x * kFontScale, size.y * kFontScale);
 }
 
-}
+} // namespace slope

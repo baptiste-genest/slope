@@ -13,8 +13,7 @@ const std::map<int, TimeTypeSec>* TimeObject::slide_times = nullptr;
 
 // -2 for an unknown label, warned once, so every query answers false
 static int keyframeIndex(const std::map<std::string, int>* keyframes,
-                         const std::string& name)
-{
+                         const std::string& name) {
     if (keyframes) {
         auto it = keyframes->find(name);
         if (it != keyframes->end())
@@ -50,7 +49,7 @@ TimeTypeSec TimeObject::secondsSinceKeyframe(const std::string& name) const {
     if (k < 0 || !slide_times)
         return 0;
     auto it = slide_times->find(k);
-    if (it == slide_times->end())      // not reached yet
+    if (it == slide_times->end()) // not reached yet
         return 0;
     return std::max<TimeTypeSec>(0, from_begin - it->second);
 }
@@ -66,8 +65,8 @@ parameter TimeObject::slidePosition() const {
 // window reaches 0 before the next leaves it.
 static parameter window(parameter p, parameter a, parameter b, bool sequential) {
     const parameter k = sequential ? 2 : 1;
-    const parameter rise = std::clamp<parameter>(k*(p - a) + 1, 0, 1);
-    const parameter fall = std::clamp<parameter>(k*(b - p) + 1, 0, 1);
+    const parameter rise = std::clamp<parameter>(k * (p - a) + 1, 0, 1);
+    const parameter fall = std::clamp<parameter>(k * (b - p) + 1, 0, 1);
     return smoothstep(std::min(rise, fall));
 }
 
@@ -90,7 +89,7 @@ parameter TimeObject::sinceKeyframe(const std::string& name, bool sequential) co
     int k = keyframeIndex(keyframes, name);
     if (k < 0) return 0;
     const parameter kk = sequential ? 2 : 1;
-    return smoothstep(std::clamp<parameter>(kk*(slidePosition() - parameter(k)) + 1, 0, 1));
+    return smoothstep(std::clamp<parameter>(kk * (slidePosition() - parameter(k)) + 1, 0, 1));
 }
 
 int TimeObject::slidesSinceKeyframe(const std::string& name) const {
@@ -100,4 +99,4 @@ int TimeObject::slidesSinceKeyframe(const std::string& name) const {
     return shownFrame() - k;
 }
 
-}
+} // namespace slope

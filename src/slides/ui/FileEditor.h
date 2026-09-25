@@ -52,7 +52,10 @@ public:
     std::function<int(const std::filesystem::path& file)> currentFrameOf;
 
 private:
-    enum class Pending { None, Switch, Reload, Overwrite };
+    enum class Pending { None,
+                         Switch,
+                         Reload,
+                         Overwrite };
 
     // Builds the list of files.
     void refreshFileList();
@@ -90,57 +93,57 @@ private:
     // Files shown in the list.
     std::vector<std::filesystem::path> files;
     // Selected file, empty if none.
-    std::filesystem::path              current;
+    std::filesystem::path current;
     // Text being edited.
-    std::string                        buffer;
-    std::filesystem::file_time_type    disk_mtime{};
+    std::string buffer;
+    std::filesystem::file_time_type disk_mtime{};
     // True when the buffer differs from the file.
-    bool                               dirty = false;
-    bool                               load_failed = false;
+    bool dirty = false;
+    bool load_failed = false;
     // Message of the last failed save, shown in the toolbar.
-    std::string                        save_error;
+    std::string save_error;
     // True when the buffer was replaced while a text field was active.
-    bool                               widget_reload = false;
+    bool widget_reload = false;
     // Set when Enter was typed. The indentation is added at the next callback.
-    bool                               indent_pending = false;
+    bool indent_pending = false;
     // Text that a filtered key stands for, such as spaces for a Tab in yaml.
-    std::string                        pending_insert;
+    std::string pending_insert;
     // Set when Ctrl+/ was pressed. It is applied at the next callback.
-    bool                               comment_pending = false;
+    bool comment_pending = false;
     // Set when Tab or Shift+Tab was pressed. It is applied at the next callback.
-    bool                               tab_pending = false;
-    bool                               shift_tab_pending = false;
+    bool tab_pending = false;
+    bool shift_tab_pending = false;
     // Cursor position set by a click in the outline, applied at the next callback.
-    int                                jump_to = -1;
+    int jump_to = -1;
     // Line that the jump puts at the top.
-    int                                scroll_line = -1;
+    int scroll_line = -1;
     // Set when Enter was pressed in this frame in the active field.
-    bool                               enter_raw = false;
+    bool enter_raw = false;
     // Set when ImGui already turned that Enter into a new line.
-    bool                               enter_handled = false;
+    bool enter_handled = false;
     // Modifiers of the last Enter inserted by hand.
-    int                                logged_mods = -1;
+    int logged_mods = -1;
     // Listed files that are not on disk. It is refreshed with the list.
-    std::set<std::filesystem::path>    missing;
+    std::set<std::filesystem::path> missing;
     // Time in seconds of the last refresh, used to limit how often it happens.
-    double                             last_refresh = -1;
+    double last_refresh = -1;
     // Multiplier of the font size.
-    float                              text_scale = 1.4f;
+    float text_scale = 1.4f;
     // True when the documentation panel is shown, for files that have one.
-    bool                               show_tips = true;
+    bool show_tips = true;
 
     // A confirmation that waits for an answer, and the file that a Switch opens.
-    Pending                            pending = Pending::None;
-    std::filesystem::path              pending_file;
+    Pending pending = Pending::None;
+    std::filesystem::path pending_file;
 
     // Tree-sitter highlight of the current buffer, computed again when it changes.
     // Name of the CodeLanguage, or an empty string if none.
-    std::string                        language;
-    std::vector<Code::HighlightRun>    runs;
-    std::size_t                        hl_hash = 0;
+    std::string language;
+    std::vector<Code::HighlightRun> runs;
+    std::size_t hl_hash = 0;
     // Monospace font, one face whose size is set at every frame.
-    ImFont*                            mono = nullptr;
-    bool                               font_tried = false;
+    ImFont* mono = nullptr;
+    bool font_tried = false;
 };
 
 } // namespace slope

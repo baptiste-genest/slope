@@ -29,25 +29,22 @@ namespace slope {
 
 namespace {
 
-constexpr float kBasePx = 16.f;   // editor font size at text_scale 1
+constexpr float kBasePx = 16.f; // editor font size at text_scale 1
 constexpr float kTipsWidth = 380.f;
-constexpr int kBgAlpha = 235;    // the slide stays faintly visible behind the text
+constexpr int kBgAlpha = 235; // the slide stays faintly visible behind the text
 
-std::vector<std::filesystem::path>& extras()
-{
+std::vector<std::filesystem::path>& extras() {
     static std::vector<std::filesystem::path> v;
     return v;
 }
 
-std::filesystem::path normalized(const std::filesystem::path& p)
-{
+std::filesystem::path normalized(const std::filesystem::path& p) {
     std::error_code ec;
     auto v = std::filesystem::weakly_canonical(p, ec);
     return ec ? p : v;
 }
 
-std::string modNames(int mods)
-{
+std::string modNames(int mods) {
     std::string out;
     auto add = [&](int bit, const char* name) {
         if (mods & bit) out += (out.empty() ? "" : "+") + std::string(name);
@@ -59,8 +56,7 @@ std::string modNames(int mods)
     return out.empty() ? "no modifier" : out;
 }
 
-std::string shortName(const std::filesystem::path& p)
-{
+std::string shortName(const std::filesystem::path& p) {
     auto parent = p.parent_path().filename();
     return parent.empty() ? p.filename().string()
                           : (parent / p.filename()).string();
@@ -68,16 +64,15 @@ std::string shortName(const std::filesystem::path& p)
 
 struct OutlineEntry {
     std::string text;
-    int offset;   // start of its line in the buffer
-    int frame;    // its index among the frames, -1 for a top-level key
+    int offset; // start of its line in the buffer
+    int frame;  // its index among the frames, -1 for a top-level key
 };
 
 // top-level keys, and each frame named by its first title
-std::vector<OutlineEntry> deckOutline(const std::string& buf)
-{
+std::vector<OutlineEntry> deckOutline(const std::string& buf) {
     std::vector<OutlineEntry> out;
     int frames = 0;
-    int untitled = -1;   // the last frame, until its title is seen
+    int untitled = -1; // the last frame, until its title is seen
     for (size_t b = 0; b <= buf.size();) {
         size_t e = buf.find('\n', b);
         if (e == std::string::npos)
@@ -112,16 +107,14 @@ std::vector<OutlineEntry> deckOutline(const std::string& buf)
 
 } // namespace
 
-void FileEditor::registerExtra(const std::filesystem::path& p)
-{
+void FileEditor::registerExtra(const std::filesystem::path& p) {
     auto v = normalized(p);
     auto& e = extras();
     if (std::find(e.begin(), e.end(), v) == e.end())
         e.push_back(v);
 }
 
-void FileEditor::refreshFileList()
-{
+void FileEditor::refreshFileList() {
     std::vector<std::filesystem::path> all;
     // the shader stdlib is slope's own, a shader including it does not make it the author's
     const auto stdlib = normalized(Options::ShaderPath);
@@ -159,8 +152,7 @@ void FileEditor::refreshFileList()
     }
 }
 
-void FileEditor::requestOpen(const std::filesystem::path& raw)
-{
+void FileEditor::requestOpen(const std::filesystem::path& raw) {
     // the list and the reload errors are keyed by canonical paths
     const auto p = normalized(raw);
     if (p == current)
@@ -173,14 +165,12 @@ void FileEditor::requestOpen(const std::filesystem::path& raw)
     openFile(p);
 }
 
-void FileEditor::openFile(const std::filesystem::path& p)
-{
+void FileEditor::openFile(const std::filesystem::path& p) {
     current = p;
     loadFromDisk();
 }
 
-void FileEditor::loadFromDisk()
-{
+void FileEditor::loadFromDisk() {
     load_failed = false;
     dirty = false;
     save_error.clear();
@@ -214,8 +204,7 @@ void FileEditor::loadFromDisk()
     language = lang.valid() ? lang.name : std::string();
 }
 
-bool FileEditor::changedOnDisk() const
-{
+bool FileEditor::changedOnDisk() const {
     if (current.empty())
         return false;
     std::error_code ec;
@@ -225,31 +214,32 @@ bool FileEditor::changedOnDisk() const
 
 // Dracula palette for the editor. The CodeStyle of Code is tuned for a light slide,
 // so its colors would disappear on the dark background of the editor.
-const CodeStyle& FileEditor::editorStyle()
-{
+const CodeStyle& FileEditor::editorStyle() {
     static const CodeStyle s = [] {
         auto hex = [](int r, int g, int b) {
             return Color(r / 255.f, g / 255.f, b / 255.f);
         };
         CodeStyle c;
-        c.text     = hex(0xF8, 0xF8, 0xF2);   // foreground
-        c.keyword  = hex(0xFF, 0x79, 0xC6);   // pink
-        c.type     = hex(0x8B, 0xE9, 0xFD);   // cyan
-        c.comment  = hex(0x82, 0x8F, 0xBE);   // muted blue, lifted off Dracula's #6272A4
-        c.literal  = hex(0xF1, 0xFA, 0x8C);   // yellow (strings)
-        c.preproc  = hex(0xFF, 0x79, 0xC6);   // pink
-        c.function = hex(0x50, 0xFA, 0x7B);   // green
-        c.constant = hex(0xBD, 0x93, 0xF9);   // purple (numbers, constants)
-        c.variable = hex(0xF8, 0xF8, 0xF2);   // foreground
-        c.op       = hex(0xFF, 0x79, 0xC6);   // pink
+        c.text = hex(0xF8, 0xF8, 0xF2);     // foreground
+        c.keyword = hex(0xFF, 0x79, 0xC6);  // pink
+        c.type = hex(0x8B, 0xE9, 0xFD);     // cyan
+        c.comment = hex(0x82, 0x8F, 0xBE);  // muted blue, lifted off Dracula's #6272A4
+        c.literal = hex(0xF1, 0xFA, 0x8C);  // yellow (strings)
+        c.preproc = hex(0xFF, 0x79, 0xC6);  // pink
+        c.function = hex(0x50, 0xFA, 0x7B); // green
+        c.constant = hex(0xBD, 0x93, 0xF9); // purple (numbers, constants)
+        c.variable = hex(0xF8, 0xF8, 0xF2); // foreground
+        c.op = hex(0xFF, 0x79, 0xC6);       // pink
         return c;
     }();
     return s;
 }
 
-void FileEditor::rehighlight()
-{
-    if (language.empty()) { runs.clear(); return; }
+void FileEditor::rehighlight() {
+    if (language.empty()) {
+        runs.clear();
+        return;
+    }
     std::size_t h = std::hash<std::string>{}(buffer);
     if (h == hl_hash) return;
     hl_hash = h;
@@ -257,8 +247,7 @@ void FileEditor::rehighlight()
 }
 
 // written aside then renamed, so a failed write never truncates the original
-bool FileEditor::saveToDisk()
-{
+bool FileEditor::saveToDisk() {
     namespace fs = std::filesystem;
     if (current.empty())
         return false;
@@ -299,8 +288,7 @@ bool FileEditor::saveToDisk()
     return true;
 }
 
-void FileEditor::drawPendingPopup()
-{
+void FileEditor::drawPendingPopup() {
     const char* title = "Unsaved changes##file-editor";
     if (pending == Pending::None)
         return;
@@ -322,17 +310,29 @@ void FileEditor::drawPendingPopup()
             done();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Discard")) { openFile(pending_file); done(); }
+        if (ImGui::Button("Discard")) {
+            openFile(pending_file);
+            done();
+        }
         break;
     case Pending::Reload:
         ImGui::Text("Discard your changes to %s and reload it from disk?", name.c_str());
-        if (ImGui::Button("Reload")) { loadFromDisk(); done(); }
+        if (ImGui::Button("Reload")) {
+            loadFromDisk();
+            done();
+        }
         break;
     case Pending::Overwrite:
         ImGui::Text("%s changed on disk since it was loaded.", name.c_str());
-        if (ImGui::Button("Overwrite")) { saveToDisk(); done(); }
+        if (ImGui::Button("Overwrite")) {
+            saveToDisk();
+            done();
+        }
         ImGui::SameLine();
-        if (ImGui::Button("Reload from disk")) { loadFromDisk(); done(); }
+        if (ImGui::Button("Reload from disk")) {
+            loadFromDisk();
+            done();
+        }
         break;
     case Pending::None:
         break;
@@ -345,15 +345,13 @@ void FileEditor::drawPendingPopup()
     ImGui::EndPopup();
 }
 
-bool FileEditor::isYaml() const
-{
+bool FileEditor::isYaml() const {
     const auto ext = current.extension();
     return ext == ".yaml" || ext == ".yml";
 }
 
 // the previous line's indentation, one level deeper in yaml after "- " or a trailing ":"
-std::string FileEditor::indentAfter(const char* buf, int cursor) const
-{
+std::string FileEditor::indentAfter(const char* buf, int cursor) const {
     const int end = std::max(0, cursor - 1);
     int begin = end;
     while (begin > 0 && buf[begin - 1] != '\n')
@@ -374,8 +372,7 @@ std::string FileEditor::indentAfter(const char* buf, int cursor) const
     return indent;
 }
 
-std::string FileEditor::commentMarker() const
-{
+std::string FileEditor::commentMarker() const {
     std::string ext = current.extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return char(std::tolower(c)); });
     if (ext == ".yaml" || ext == ".yml" || ext == ".py" || ext == ".sh" || ext == ".cmake")
@@ -384,16 +381,14 @@ std::string FileEditor::commentMarker() const
         return "--";
     if (ext == ".tex" || ext == ".sty")
         return "%";
-    if (ext == ".glsl" || ext == ".frag" || ext == ".vert" || ext == ".comp" || ext == ".geom"
-        || ext == ".c" || ext == ".h" || ext == ".cpp" || ext == ".hpp" || ext == ".js")
+    if (ext == ".glsl" || ext == ".frag" || ext == ".vert" || ext == ".comp" || ext == ".geom" || ext == ".c" || ext == ".h" || ext == ".cpp" || ext == ".hpp" || ext == ".js")
         return "//";
     return "";
 }
 
 // Applies to every line that the selection touches, or to the line of the caret.
 // The lines are uncommented when all of them are already commented.
-void FileEditor::toggleComment(ImGuiInputTextCallbackData* d) const
-{
+void FileEditor::toggleComment(ImGuiInputTextCallbackData* d) const {
     const std::string m = commentMarker();
     if (m.empty())
         return;
@@ -424,7 +419,7 @@ void FileEditor::toggleComment(ImGuiInputTextCallbackData* d) const
     for (int s : starts) {
         const int ind = indentOf(s);
         if (s + ind == lineEnd(s))
-            continue;   // blank lines are left as they are
+            continue; // blank lines are left as they are
         any = true;
         min_indent = std::min(min_indent, ind);
         if (std::string_view(d->Buf + s + ind, size_t(lineEnd(s) - s - ind)).substr(0, m.size()) != m)
@@ -465,13 +460,12 @@ void FileEditor::toggleComment(ImGuiInputTextCallbackData* d) const
 }
 
 // like toggleComment, but widens/narrows the indent instead of a comment marker
-void FileEditor::indentSelection(ImGuiInputTextCallbackData* d, bool dedent) const
-{
-    constexpr int width = 2;   // spaces per indent level, matches yaml's own
+void FileEditor::indentSelection(ImGuiInputTextCallbackData* d, bool dedent) const {
+    constexpr int width = 2; // spaces per indent level, matches yaml's own
 
     if (d->SelectionStart == d->SelectionEnd) {
         if (dedent)
-            return;   // nothing sensible to remove without a selection
+            return; // nothing sensible to remove without a selection
         const std::string ins(width, ' ');
         const int at = d->CursorPos;
         d->InsertChars(at, ins.c_str());
@@ -504,8 +498,7 @@ void FileEditor::indentSelection(ImGuiInputTextCallbackData* d, bool dedent) con
         const int s = *it;
         if (dedent) {
             int n = 0;
-            while (n < width && s + n < d->BufTextLen
-                   && (d->Buf[s + n] == ' ' || d->Buf[s + n] == '\t'))
+            while (n < width && s + n < d->BufTextLen && (d->Buf[s + n] == ' ' || d->Buf[s + n] == '\t'))
                 ++n;
             if (n == 0)
                 continue;
@@ -522,16 +515,15 @@ void FileEditor::indentSelection(ImGuiInputTextCallbackData* d, bool dedent) con
 }
 
 // a shader gets the smallest body that compiles, so creating it is not an error
-bool FileEditor::createFile()
-{
+bool FileEditor::createFile() {
     namespace fs = std::filesystem;
     save_error.clear();
     std::error_code ec;
     fs::create_directories(current.parent_path(), ec);
     std::string ext = current.extension().string();
-    const std::string starter = ext == ".frag" ? "void main() {\n    fragColor = vec4(0.0);\n}\n"
-                              : ext == ".json" ? "{}\n"
-                              : "";
+    const std::string starter = ext == ".frag"   ? "void main() {\n    fragColor = vec4(0.0);\n}\n"
+                                : ext == ".json" ? "{}\n"
+                                                 : "";
     {
         std::ofstream f(current, std::ios::binary);
         if (f) {
@@ -550,8 +542,7 @@ bool FileEditor::createFile()
     return true;
 }
 
-int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
-{
+int FileEditor::inputCallback(ImGuiInputTextCallbackData* data) {
     auto* self = static_cast<FileEditor*>(data->UserData);
     switch (data->EventFlag) {
     case ImGuiInputTextFlags_CallbackResize:
@@ -561,12 +552,10 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
         break;
     case ImGuiInputTextFlags_CallbackCharFilter:
         // Enter only, a pasted newline keeps the text as it came
-        if (data->EventChar == '\n'
-            && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))) {
+        if (data->EventChar == '\n' && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))) {
             self->indent_pending = true;
             self->enter_handled = true;
-        }
-        else if (data->EventChar == '\t') {
+        } else if (data->EventChar == '\t') {
             // A tab character is never inserted. indentSelection adds spaces below.
             self->tab_pending = true;
             return 1;
@@ -635,8 +624,7 @@ int FileEditor::inputCallback(ImGuiInputTextCallbackData* data)
 }
 
 // It does not take the focus, because the next E would then go to the text and not close the window.
-void FileEditor::jumpToCurrentFrame()
-{
+void FileEditor::jumpToCurrentFrame() {
     if (current.empty() || !isYaml() || !currentFrameOf)
         return;
     const int frame = currentFrameOf(current);
@@ -652,16 +640,17 @@ void FileEditor::jumpToCurrentFrame()
         }
 }
 
-void FileEditor::draw(WindowManager& wm)
-{
+void FileEditor::draw(WindowManager& wm) {
     if (!wm.isOpen(WindowType::FileEditor))
         return;
 
     // loaded on open so the lookup hitch never eats a keystroke
     if (!font_tried) {
         font_tried = true;
-        try { mono = Code::LoadFont("Fira Code", kBasePx); }
-        catch (const std::exception&) {}   // the default face will do
+        try {
+            mono = Code::LoadFont("Fira Code", kBasePx);
+        } catch (const std::exception&) {
+        } // the default face will do
     }
 
     // The set of files changes as slides come and go, and twice a second is often enough.
@@ -746,23 +735,19 @@ void FileEditor::draw(WindowManager& wm)
     }
 
     // Enter as pressed, Ctrl+Enter excepted since ImGui makes it leave the field
-    enter_raw = ImGui::GetActiveID() == body_id && !ImGui::GetIO().KeyCtrl
-             && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter));
+    enter_raw = ImGui::GetActiveID() == body_id && !ImGui::GetIO().KeyCtrl && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter));
     enter_handled = false;
 
     // Ctrl+/, and the key that types '/' on an AZERTY layout, which ImGui sees as Period
-    if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl
-        && (ImGui::IsKeyPressed(ImGuiKey_Slash, false) || ImGui::IsKeyPressed(ImGuiKey_Period, false)))
+    if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl && (ImGui::IsKeyPressed(ImGuiKey_Slash, false) || ImGui::IsKeyPressed(ImGuiKey_Period, false)))
         comment_pending = true;
 
     // this ImGui build's AllowTabInput only implements plain Tab, so dedent is caught here
-    if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyShift
-        && ImGui::IsKeyPressed(ImGuiKey_Tab, false))
+    if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_Tab, false))
         shift_tab_pending = true;
 
     // N types a letter here, so Ctrl+N puts the free label in at the cursor
-    if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl
-        && ImGui::IsKeyPressed(ImGuiKey_N, false)) {
+    if (ImGui::GetActiveID() == body_id && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_N, false)) {
         const std::string l = LabelAnchor::suggestLabel();
         if (l.empty())
             spdlog::warn("[file-editor] could not find a free label to suggest");
@@ -798,13 +783,17 @@ void FileEditor::draw(WindowManager& wm)
         // only when focused, Ctrl+S on the slide saves labels and params
         const bool ctrl_s = win_focused && ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false);
         if (ImGui::Button("Save") || (ctrl_s && dirty)) {
-            if (stale) pending = Pending::Overwrite;
-            else saveToDisk();
+            if (stale)
+                pending = Pending::Overwrite;
+            else
+                saveToDisk();
         }
         ImGui::SameLine();
         if (ImGui::Button("Reload from disk")) {
-            if (dirty) pending = Pending::Reload;
-            else loadFromDisk();
+            if (dirty)
+                pending = Pending::Reload;
+            else
+                loadFromDisk();
         }
         if (load_failed) {
             ImGui::SameLine();
@@ -834,8 +823,7 @@ void FileEditor::draw(WindowManager& wm)
         // what the last reload of this file said, at most 8 lines before it scrolls
         if (auto it = errors.find(current); it != errors.end()) {
             const int n = 1 + int(std::count(it->second.begin(), it->second.end(), '\n'));
-            const float h = float(std::min(n, 8)) * ImGui::GetTextLineHeightWithSpacing()
-                          + 2.f * ImGui::GetStyle().WindowPadding.y;
+            const float h = float(std::min(n, 8)) * ImGui::GetTextLineHeightWithSpacing() + 2.f * ImGui::GetStyle().WindowPadding.y;
             ImGui::BeginChild("errors", ImVec2(0, h), ImGuiChildFlags_Borders);
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.45f, 0.4f, 1.f));
             ImGui::TextUnformatted(it->second.c_str());
@@ -870,8 +858,8 @@ void FileEditor::draw(WindowManager& wm)
 
         // the widget's own ink is transparent, every glyph is drawn below in the Dracula palette
         const ImU32 ink = ImU32(ImColor(editorStyle().text.getImColor()));
-        ImGui::PushStyleColor(ImGuiCol_FrameBg,        IM_COL32(0x28, 0x2A, 0x36, kBgAlpha));
-        ImGui::PushStyleColor(ImGuiCol_Text,           IM_COL32(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0x28, 0x2A, 0x36, kBgAlpha));
+        ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(0x44, 0x47, 0x5A, 255));
 
         // the field takes the cursor from the callback, which only runs while it is active
@@ -879,11 +867,7 @@ void FileEditor::draw(WindowManager& wm)
             ImGui::SetKeyboardFocusHere();
         if (ImGui::InputTextMultiline("##body", buffer.data(), buffer.size() + 1,
                                       avail,
-                                      ImGuiInputTextFlags_AllowTabInput
-                                          | ImGuiInputTextFlags_WordWrap
-                                          | ImGuiInputTextFlags_CallbackResize
-                                          | ImGuiInputTextFlags_CallbackCharFilter
-                                          | ImGuiInputTextFlags_CallbackAlways,
+                                      ImGuiInputTextFlags_AllowTabInput | ImGuiInputTextFlags_WordWrap | ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_CallbackCharFilter | ImGuiInputTextFlags_CallbackAlways,
                                       inputCallback, this)) {
             dirty = true;
         }
@@ -902,7 +886,7 @@ void FileEditor::draw(WindowManager& wm)
             // the state outlives the field's focus, and may describe another file
             const bool active = ImGui::GetActiveID() == body_id;
             ImGuiInputTextState* st = active ? ImGui::GetInputTextState(body_id) : nullptr;
-            scroll.x = 0.f;   // wrapped text never scrolls sideways
+            scroll.x = 0.f; // wrapped text never scrolls sideways
 
             const ImGuiStyle& gs = ImGui::GetStyle();
             ImDrawList* dl = ImGui::GetWindowDrawList();
@@ -917,13 +901,16 @@ void FileEditor::draw(WindowManager& wm)
 
             // Width at which the widget wraps, which is its content area with or without the scrollbar.
             const float wrap_w = body_win
-                ? std::max(1.f, body_win->WorkRect.GetWidth() - (body_win->ScrollbarY ? 0.f : gs.ScrollbarSize))
-                : std::max(1.f, avail.x);
+                                     ? std::max(1.f, body_win->WorkRect.GetWidth() - (body_win->ScrollbarY ? 0.f : gs.ScrollbarSize))
+                                     : std::max(1.f, avail.x);
 
             // one row per wrapped piece of a line, trailing '\n' excluded
-            struct Row { size_t b, e; int line; };
+            struct Row {
+                size_t b, e;
+                int line;
+            };
             std::vector<Row> rows;
-            std::vector<int> line_row;   // first row of each line
+            std::vector<int> line_row; // first row of each line
             for (size_t i = 0, b = 0; i <= buffer.size(); ++i) {
                 if (i != buffer.size() && buffer[i] != '\n')
                     continue;
@@ -934,7 +921,8 @@ void FileEditor::draw(WindowManager& wm)
                     size_t re = i;
                     if (r < i) {
                         re = size_t(ImFontCalcWordWrapPositionEx(font, fs, base + r, base + i, wrap_w,
-                                                                 ImDrawTextFlags_WrapKeepBlanks) - base);
+                                                                 ImDrawTextFlags_WrapKeepBlanks) -
+                                    base);
                         if (re <= r) re = r + 1;
                     }
                     rows.push_back({r, re, li});
@@ -957,7 +945,8 @@ void FileEditor::draw(WindowManager& wm)
             if (st) {
                 cpos = std::clamp(st->GetCursorPos(), 0, int(buffer.size()));
                 cr = 0;
-                while (cr + 1 < n && int(rows[cr + 1].b) <= cpos) ++cr;
+                while (cr + 1 < n && int(rows[cr + 1].b) <= cpos)
+                    ++cr;
             }
 
             // right aligned, on the text's own line positions so they scroll with it
@@ -985,9 +974,11 @@ void FileEditor::draw(WindowManager& wm)
                 size_t seg = b;
                 // first run that reaches into this line
                 size_t k = 0;
-                while (k < runs.size() && runs[k].end <= seg) ++k;
+                while (k < runs.size() && runs[k].end <= seg)
+                    ++k;
                 while (seg < e) {
-                    while (k < runs.size() && runs[k].end <= seg) ++k;
+                    while (k < runs.size() && runs[k].end <= seg)
+                        ++k;
                     ImU32 col;
                     size_t seg_end;
                     if (k < runs.size() && runs[k].begin <= seg) {
@@ -1020,11 +1011,7 @@ void FileEditor::draw(WindowManager& wm)
     ImGui::EndChild();
 
     // the fullscreen slide window hands every uncaptured click to polyscope's camera
-    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows
-                               | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem
-                               | ImGuiHoveredFlags_AllowWhenBlockedByPopup)
-        || pending != Pending::None
-        || (win_focused && ImGui::IsAnyItemActive()))
+    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem | ImGuiHoveredFlags_AllowWhenBlockedByPopup) || pending != Pending::None || (win_focused && ImGui::IsAnyItemActive()))
         ImGui::SetNextFrameWantCaptureMouse(true);
 
     drawPendingPopup();
@@ -1039,13 +1026,9 @@ void FileEditor::draw(WindowManager& wm)
         ImGui::SetNextWindowSize(ImVec2(kTipsWidth, win_size.y));
         theme::push(kBgAlpha / 255.f);
         if (ImGui::Begin("Documentation##file-editor", nullptr,
-                         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
-                             | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings
-                             | ImGuiWindowFlags_NoFocusOnAppearing))
+                         ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing))
             WritingTips::draw(current, mono, kBasePx);
-        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows
-                                   | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)
-            || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsAnyItemActive()))
+        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) || (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsAnyItemActive()))
             ImGui::SetNextFrameWantCaptureMouse(true);
         ImGui::End();
         theme::pop();

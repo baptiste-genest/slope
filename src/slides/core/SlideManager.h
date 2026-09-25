@@ -7,18 +7,17 @@
 #include "content/screen_primitives/layout/Placement.h"
 //#include "slides/ui/Panel.h"
 
-
 namespace slope {
 
 // Blends two states, giving sa at t=0 and sb at t=1.
-StateInSlide transition(parameter t, const StateInSlide &sa, const StateInSlide &sb);
+StateInSlide transition(parameter t, const StateInSlide& sa, const StateInSlide& sb);
 
 // Half of the size of the bounding box of the screen primitives of a slide.
 vec2 computeOffsetToMean(const Slide& buffer);
 
 class SlideManager;
 // Function that places a primitive added with no placement.
-using PlacementTemplate = std::function<void(SlideManager&,ScreenPrimitivePtr)>;
+using PlacementTemplate = std::function<void(SlideManager&, ScreenPrimitivePtr)>;
 
 // Builds the list of slides. Primitives are added to the last slide with operator<<.
 class SlideManager {
@@ -30,9 +29,9 @@ protected:
     bool initialized = false;
 
     // Primitives that are common to two slides, only in the previous one, and only in the next one.
-    using TransitionSets = std::tuple<Primitives,Primitives,Primitives>;
+    using TransitionSets = std::tuple<Primitives, Primitives, Primitives>;
 
-    TransitionSets computeTransitionsBetween(const Slide &A, const Slide &B);
+    TransitionSets computeTransitionsBetween(const Slide& A, const Slide& B);
 
     std::vector<TransitionSets> transitions;
 
@@ -49,12 +48,14 @@ protected:
     // Gives each primitive the index of the first slide where it appears.
     void computeFirstSlideNumbers();
 
-    ScreenPrimitivePtr last_screen_primitive_inserted,centering_root;
+    ScreenPrimitivePtr last_screen_primitive_inserted, centering_root;
     PrimitivePtr last_primitive_inserted;
 
     // State of the centering started by beginCenter.
-    Slide center_buffer;int center_start,center_end;
-    bool centering = false;AnchorPtr center_anchor;
+    Slide center_buffer;
+    int center_start, center_end;
+    bool centering = false;
+    AnchorPtr center_anchor;
 
     std::map<std::string, Primitives> groups;
 
@@ -63,10 +64,9 @@ protected:
     std::map<std::string, int> keyframes;
 
 public:
-
     // Places a primitive with no placement at the center of the screen.
-    PlacementTemplate templater = [] (SlideManager& show,ScreenPrimitivePtr ptr) {
-        show.addToLastSlide(ptr,StateInSlide(vec2(0.5,0.5)));
+    PlacementTemplate templater = [](SlideManager& show, ScreenPrimitivePtr ptr) {
+        show.addToLastSlide(ptr, StateInSlide(vec2(0.5, 0.5)));
     };
 
     // Starts a new empty slide. The background is kept from the previous one.
@@ -79,8 +79,8 @@ public:
     void addSlide(const Slide& s);
 
     // Adds several slides.
-    template<typename... S>
-    void addSlides(const S& ... x) {
+    template <typename... S>
+    void addSlides(const S&... x) {
         (addSlide(x), ...);
     }
 
@@ -99,8 +99,7 @@ public:
     void addToLastSlide(const PrimitiveInSlide& pis);
 
     // Same. forced_order sets the rank used to order primitives of the same depth.
-    void addToLastSlide(PrimitivePtr ptr,const StateInSlide& sis,int forced_order = -1);
-
+    void addToLastSlide(PrimitivePtr ptr, const StateInSlide& sis, int forced_order = -1);
 
     // Removes a primitive, or every primitive of a group, from the last slide.
     void removeFromCurrentSlide(PrimitivePtr ptr);
@@ -120,16 +119,16 @@ public:
     // Gives a name to the slide being built.
     void markKeyframe(const std::string& name);
     // Slide index of each keyframe name.
-    const std::map<std::string, int>& getKeyframes() const {return keyframes;}
-    void clearKeyframes() {keyframes.clear();}
+    const std::map<std::string, int>& getKeyframes() const { return keyframes; }
+    void clearKeyframes() { keyframes.clear(); }
 
     // Index of the first slide of each frame of the deck file that built this show, and the path of that file.
     void setFrameStarts(const path& deck, std::vector<int> starts) {
         frame_deck = deck;
         frame_starts = std::move(starts);
     }
-    const path& getFrameDeck() const {return frame_deck;}
-    const std::vector<int>& getFrameStarts() const {return frame_starts;}
+    const path& getFrameDeck() const { return frame_deck; }
+    const std::vector<int>& getFrameStarts() const { return frame_starts; }
 
     // The last slide, which is the one being built.
     Slide& getLastSlide();
@@ -138,9 +137,9 @@ public:
     ScreenPrimitivePtr getLastScreenPrimitive();
     PrimitivePtr getLastPrimitive();
     // Tags for operator<<. inNextFrame adds a copy of the last slide.
-    struct in_next_frame{};
+    struct in_next_frame {};
     // Starts a new slide. With same_title, the title of the previous slide is kept.
-    struct new_frame{
+    struct new_frame {
         bool same_title = false;
     };
 
@@ -148,7 +147,9 @@ public:
     void handleCenter();
 
     // Tag that starts or ends the centering, see beginCenter and endCenter.
-    struct center_tag{bool open;};
+    struct center_tag {
+        bool open;
+    };
     SlideManager& operator<<(center_tag ct);
 };
 
@@ -181,63 +182,58 @@ inline SlideManager& operator<<(SlideManager& SM, const Keyframe& k) {
     return SM;
 }
 
-
-inline SlideManager& operator<<(SlideManager& SM,const Slide& S) {
+inline SlideManager& operator<<(SlideManager& SM, const Slide& S) {
     SM.addSlide(S);
     return SM;
 }
 
-
-inline SlideManager& operator<<(SlideManager& SM,SlideManager::in_next_frame) {
+inline SlideManager& operator<<(SlideManager& SM, SlideManager::in_next_frame) {
     SM.duplicateLastSlide();
     return SM;
 }
 
+SlideManager& operator<<(SlideManager& SM, SlideManager::new_frame nf);
 
+SlideManager& operator<<(SlideManager& SM, const Replace& R);
 
-SlideManager& operator<<(SlideManager& SM,SlideManager::new_frame nf);
+SlideManager& operator<<(SlideManager& SM, const RelativePlacement& P);
 
-SlideManager& operator<<(SlideManager& SM,const Replace& R);
-
-SlideManager& operator<<(SlideManager& SM,const RelativePlacement& P);
-
-
-inline SlideManager& operator<<(SlideManager& SM,PrimitiveInSlide obj) {
-    SM.addToLastSlide(obj.first,obj.second);
+inline SlideManager& operator<<(SlideManager& SM, PrimitiveInSlide obj) {
+    SM.addToLastSlide(obj.first, obj.second);
     return SM;
 }
 
-SlideManager& operator<<(SlideManager& SM,PrimitivePtr ptr);
+SlideManager& operator<<(SlideManager& SM, PrimitivePtr ptr);
 
-inline SlideManager& operator<<(SlideManager& SM,const StateInSlide& sis) {
+inline SlideManager& operator<<(SlideManager& SM, const StateInSlide& sis) {
     SM.getLastSlide()[SM.getLastScreenPrimitive()] = sis;
     return SM;
 }
 
-inline SlideManager& operator<<(SlideManager& SM,const PrimitiveGroup& G) {
-    for (auto& [ptr,sis] : G.buffer){
-        SM.addToLastSlide(ptr,sis);
+inline SlideManager& operator<<(SlideManager& SM, const PrimitiveGroup& G) {
+    for (auto& [ptr, sis] : G.buffer) {
+        SM.addToLastSlide(ptr, sis);
     }
     return SM;
 }
 
-inline SlideManager& operator<<(SlideManager& SM,CameraViewPtr cam) {
+inline SlideManager& operator<<(SlideManager& SM, CameraViewPtr cam) {
     SM.getLastSlide().camera = cam;
     return SM;
 }
 
-inline SlideManager& operator<<(SlideManager& SM,const Background& bg) {
+inline SlideManager& operator<<(SlideManager& SM, const Background& bg) {
     SM.getLastSlide().background = bg.color;
     return SM;
 }
 
 // A cue adjusts a primitive that the slide already has, and adds nothing.
-inline SlideManager& operator<<(SlideManager& SM,const SlideCue& cue) {
-    cue.apply(SM.getNumberSlides()-1);
+inline SlideManager& operator<<(SlideManager& SM, const SlideCue& cue) {
+    cue.apply(SM.getNumberSlides() - 1);
     return SM;
 }
 
-inline SlideManager& operator<<(SlideManager& SM,OverrideUpdater update) {
+inline SlideManager& operator<<(SlideManager& SM, OverrideUpdater update) {
     auto& S = SM.getCurrentSlide();
     auto primitive = Primitive::get(update.pid);
     S[primitive].updaterOverrided = true;
@@ -245,17 +241,16 @@ inline SlideManager& operator<<(SlideManager& SM,OverrideUpdater update) {
     return SM;
 }
 
-
-inline SlideManager& operator>>(SlideManager& SM,PrimitivePtr ptr) {
+inline SlideManager& operator>>(SlideManager& SM, PrimitivePtr ptr) {
     SM.removeFromCurrentSlide(ptr);
     return SM;
 }
 
-inline SlideManager& operator>>(SlideManager& SM,const PrimitiveGroup& G) {
+inline SlideManager& operator>>(SlideManager& SM, const PrimitiveGroup& G) {
     SM.removeFromCurrentSlide(G);
     return SM;
 }
 
-}
+} // namespace slope
 
 #endif // SLIDEMANAGER_H

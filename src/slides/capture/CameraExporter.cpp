@@ -5,15 +5,13 @@
 #include <fstream>
 #include <spdlog/spdlog.h>
 
-void slope::CameraExporter::save(const std::string& file) const
-{
+void slope::CameraExporter::save(const std::string& file) const {
     std::ofstream camfile(file);
     camfile << removeResolutionFromCamfile(polyscope::view::getCameraJson());
     spdlog::info("current camera view exported at {}", file);
 }
 
-void slope::CameraExporter::drawPopup(WindowManager& wm)
-{
+void slope::CameraExporter::drawPopup(WindowManager& wm) {
     ImGui::OpenPopup("Save current camera");
     ImGui::SetNextWindowSizeConstraints(ImVec2(300, 0), ImVec2(FLT_MAX, FLT_MAX));
 

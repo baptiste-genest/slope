@@ -16,11 +16,11 @@ struct PrimitiveGroup {
 
     // Adds a primitive with the given state.
     PrimitiveGroup& operator<<(const PrimitiveInSlide& pis) {
-        buffer.add(pis.first,pis.second);
+        buffer.add(pis.first, pis.second);
         return *this;
     }
 };
 
-}
+} // namespace slope
 
 #endif // PRIMITIVEGROUP_H

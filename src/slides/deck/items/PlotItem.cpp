@@ -10,14 +10,12 @@ namespace slope {
 namespace {
 
 // The board a plot is drawn in, named outright or the last one declared.
-std::string& lastBoard()
-{
+std::string& lastBoard() {
     static std::string name;
     return name;
 }
 
-std::string boardOf(const json& item, const char* type = "plot")
-{
+std::string boardOf(const json& item, const char* type = "plot") {
     const std::string b = item.value("board", lastBoard());
     if (b.empty())
         throw std::runtime_error(std::string("\"") + type + ": " +
@@ -25,15 +23,13 @@ std::string boardOf(const json& item, const char* type = "plot")
                                  "\" has no board : name one with \"board:\", or declare "
                                  "a board item above it");
     if (!Board::find(b))
-        throw std::runtime_error(std::string("\"") + type + ": " + item[type].get<std::string>()
-                                 + "\" : no board named \"" + b + "\" declared above it");
+        throw std::runtime_error(std::string("\"") + type + ": " + item[type].get<std::string>() + "\" : no board named \"" + b + "\" declared above it");
     return b;
 }
 
 // A deck value in the shape its parameter is saved in. Only "#rrggbb"
 // needs converting.
-json settingValue(const json& v)
-{
+json settingValue(const json& v) {
     if (v.is_string()) {
         const std::string s = v;
         if (!s.empty() && s[0] == '#') {
@@ -47,23 +43,20 @@ json settingValue(const json& v)
 // Every key of an item naming one of `known`, set on that namespace. A
 // setting written here is fixed and never a knob.
 void applySettings(Settings& ns, const std::vector<std::string>& known,
-                   const json& item)
-{
+                   const json& item) {
     for (const auto& [key, value] : item.items())
         if (std::find(known.begin(), known.end(), key) != known.end())
             ns.set(key, settingValue(value));
 }
 
 std::set<std::string> fieldsOf(std::vector<std::string> own,
-                               const std::vector<std::string>& settings)
-{
+                               const std::vector<std::string>& settings) {
     std::set<std::string> f(own.begin(), own.end());
     f.insert(settings.begin(), settings.end());
     return f;
 }
 
-std::pair<int,int> resolution(const json& item)
-{
+std::pair<int, int> resolution(const json& item) {
     if (!item.contains("resolution")) return {1100, 620};
     const json& r = item["resolution"];
     if (!r.is_array() || r.size() != 2)
@@ -72,8 +65,7 @@ std::pair<int,int> resolution(const json& item)
 }
 
 // the points of a scatter, without the sources that only suit a line
-ScatterPtr makeScatter(const json& item)
-{
+ScatterPtr makeScatter(const json& item) {
     const std::string name = item["scatter"];
     const std::string board = boardOf(item, "scatter");
 
@@ -81,22 +73,23 @@ ScatterPtr makeScatter(const json& item)
         return Scatter::Add(name, board, path(item["data"].get<std::string>()));
     if (item.contains("values")) {
         std::vector<scalar> v;
-        for (const auto& n : item["values"]) v.push_back(n.get<scalar>());
+        for (const auto& n : item["values"])
+            v.push_back(n.get<scalar>());
         const vec2 span = item.contains("span") ? readVec2(item["span"], "span") : vec2(0, 1);
         return Scatter::Add(name, board, v, span);
     }
     if (item.contains("points")) {
         std::vector<vec2> p;
-        for (const auto& q : item["points"]) p.push_back(readVec2(q, "points"));
+        for (const auto& q : item["points"])
+            p.push_back(readVec2(q, "points"));
         return Scatter::Add(name, board, p);
     }
     throw std::runtime_error("\"scatter: " + name + "\" needs one source : \"data\" (a csv), "
-                             "\"values\" or \"points\"");
+                                                    "\"values\" or \"points\"");
 }
 
 // one source key, and it says how the numbers are read
-PlotPtr makePlot(const json& item)
-{
+PlotPtr makePlot(const json& item) {
     const std::string name = item["plot"];
     const std::string board = boardOf(item);
 
@@ -106,23 +99,24 @@ PlotPtr makePlot(const json& item)
         return Plot::FromSnippet(name, board, requireSection(item["snippet"], "snippet"));
     if (item.contains("values")) {
         std::vector<scalar> v;
-        for (const auto& n : item["values"]) v.push_back(n.get<scalar>());
+        for (const auto& n : item["values"])
+            v.push_back(n.get<scalar>());
         const vec2 span = item.contains("span") ? readVec2(item["span"], "span") : vec2(0, 1);
         return Plot::Add(name, board, v, span);
     }
     if (item.contains("points")) {
         std::vector<vec2> p;
-        for (const auto& q : item["points"]) p.push_back(readVec2(q, "points"));
+        for (const auto& q : item["points"])
+            p.push_back(readVec2(q, "points"));
         return Plot::Add(name, board, p);
     }
     throw std::runtime_error("\"plot: " + name + "\" needs one source : \"data\" (a csv), "
-                             "\"snippet\" (a Lua function), \"values\" or \"points\". "
-                             "A formula is a Lua section, there is no formula parser");
+                                                 "\"snippet\" (a Lua function), \"values\" or \"points\". "
+                                                 "A formula is a Lua section, there is no formula parser");
 }
 
 // each publishes under its own name, so one walk of the item serves all
-bool applyFigureSettings(const PrimitivePtr& prim, const json& item)
-{
+bool applyFigureSettings(const PrimitivePtr& prim, const json& item) {
     if (auto b = std::dynamic_pointer_cast<Board>(prim)) {
         applySettings(b->settings, Board::settingNames(), item);
         return true;
@@ -146,18 +140,17 @@ bool applyFigureSettings(const PrimitivePtr& prim, const json& item)
 
 } // namespace
 
-std::vector<ItemSpec> plotItemSpecs()
-{
+std::vector<ItemSpec> plotItemSpecs() {
     return {
         {
-            "board", ItemSpec::Kind::Screen,
+            "board",
+            ItemSpec::Kind::Screen,
             fieldsOf({"board", "resolution"}, Board::settingNames()),
             // the name is the identity, one object across the whole deck
             [](const json& i) {
                 auto [w, h] = resolution(i);
                 lastBoard() = i["board"].get<std::string>();
-                return "board:" + i["board"].get<std::string>() + ":"
-                     + std::to_string(w) + "x" + std::to_string(h);
+                return "board:" + i["board"].get<std::string>() + ":" + std::to_string(w) + "x" + std::to_string(h);
             },
             [](const json& i) -> PrimitivePtr {
                 auto [w, h] = resolution(i);
@@ -172,7 +165,8 @@ std::vector<ItemSpec> plotItemSpecs()
             [](const json& i) { return i["board"].get<std::string>(); },
         },
         {
-            "plot", ItemSpec::Kind::Screen,
+            "plot",
+            ItemSpec::Kind::Screen,
             fieldsOf({"plot", "board", "data", "snippet", "values", "points", "span",
                       "caption"},
                      Plot::settingNames()),
@@ -190,15 +184,15 @@ std::vector<ItemSpec> plotItemSpecs()
             [](const json& i) { return i["plot"].get<std::string>(); },
         },
         {
-            "scatter", ItemSpec::Kind::Screen,
+            "scatter",
+            ItemSpec::Kind::Screen,
             fieldsOf({"scatter", "board", "data", "values", "points", "span", "caption"},
                      Scatter::settingNames()),
             [](const json& i) {
                 std::string src;
                 for (const char* k : {"data", "values", "points", "span"})
                     if (i.contains(k)) src += std::string(k) + "=" + i[k].dump() + ";";
-                return "scatter:" + i["scatter"].get<std::string>() + ":"
-                     + boardOf(i, "scatter") + ":" + src;
+                return "scatter:" + i["scatter"].get<std::string>() + ":" + boardOf(i, "scatter") + ":" + src;
             },
             [](const json& i) -> PrimitivePtr { return makeScatter(i); },
             [](const PrimitivePtr& p, const json& i, const std::string&) {
@@ -209,14 +203,14 @@ std::vector<ItemSpec> plotItemSpecs()
         {
             // "legend: fig" is the legend of the board "fig", publishing
             // under "fig_legend/"
-            "legend", ItemSpec::Kind::Screen,
+            "legend",
+            ItemSpec::Kind::Screen,
             fieldsOf({"legend"}, Legend::settingNames()),
             [](const json& i) { return "legend:" + i["legend"].get<std::string>(); },
             [](const json& i) -> PrimitivePtr {
                 const std::string b = i["legend"].get<std::string>();
                 if (!Board::find(b))
-                    throw std::runtime_error("\"legend: " + b + "\" : no board named \"" + b
-                                             + "\" declared above it");
+                    throw std::runtime_error("\"legend: " + b + "\" : no board named \"" + b + "\" declared above it");
                 return Legend::Add(b);
             },
             [](const PrimitivePtr& p, const json& i, const std::string&) {
@@ -228,4 +222,4 @@ std::vector<ItemSpec> plotItemSpecs()
     };
 }
 
-}
+} // namespace slope

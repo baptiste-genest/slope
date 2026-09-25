@@ -2,11 +2,11 @@
 
 namespace slope {
 vec2 CENTER = placement_default::CENTER;
-vec2 TOP    = placement_default::TOP;
+vec2 TOP = placement_default::TOP;
 vec2 BOTTOM = placement_default::BOTTOM;
-}
+} // namespace slope
 
-slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitiveInSlide &other) const {
+slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitiveInSlide& other) const {
 
     ScreenPrimitivePtr ptr = this->ptr;
     auto paddingx = this->paddingx;
@@ -14,19 +14,15 @@ slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitive
     auto X = this->X;
     auto Y = this->Y;
 
-    RelativePlacer rp = [X,Y,ptr,paddingy,paddingx,other] (vec2 other_position) {
-        vec2 S = other.first->getRelativeSize()*other.second.getScale();
+    RelativePlacer rp = [X, Y, ptr, paddingy, paddingx, other](vec2 other_position) {
+        vec2 S = other.first->getRelativeSize() * other.second.getScale();
         vec2 P;
-        switch(X) {
+        switch (X) {
         case REL_LEFT:
-            P(0) = other_position(0)
-                   - S(0)*0.5
-                   - paddingx
-                   - ptr->getRelativeSize()(0)*0.5
-                ;
+            P(0) = other_position(0) - S(0) * 0.5 - paddingx - ptr->getRelativeSize()(0) * 0.5;
             break;
         case ABS_LEFT:
-            P(0) = paddingx + ptr->getRelativeSize()(0)*0.5;
+            P(0) = paddingx + ptr->getRelativeSize()(0) * 0.5;
             break;
         case CENTER_X:
             P(0) = CENTER(0);
@@ -35,26 +31,18 @@ slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitive
             P(0) = other_position(0);
             break;
         case REL_RIGHT:
-            P(0) = other_position(0)
-                   + S(0)*0.5
-                   + paddingx
-                   + ptr->getRelativeSize()(0)*0.5
-                ;
+            P(0) = other_position(0) + S(0) * 0.5 + paddingx + ptr->getRelativeSize()(0) * 0.5;
             break;
         case ABS_RIGHT:
-            P(0) = 1-paddingx-ptr->getRelativeSize()(0)*0.5;
+            P(0) = 1 - paddingx - ptr->getRelativeSize()(0) * 0.5;
             break;
         }
-        switch(Y) {
+        switch (Y) {
         case REL_BOTTOM:
-            P(1) = other_position(1)
-                   + S(1)*0.5
-                   + paddingy
-                   + ptr->getRelativeSize()(1)*0.5
-                ;
+            P(1) = other_position(1) + S(1) * 0.5 + paddingy + ptr->getRelativeSize()(1) * 0.5;
             break;
         case ABS_TOP:
-            P(1) = paddingy-ptr->getRelativeSize()(1)*0.5;
+            P(1) = paddingy - ptr->getRelativeSize()(1) * 0.5;
             break;
         case CENTER_Y:
             P(1) = CENTER(1);
@@ -63,14 +51,10 @@ slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitive
             P(1) = other_position(1);
             break;
         case REL_TOP:
-            P(1) = other_position(1)
-                   - S(1)*0.5
-                   - paddingy
-                   - ptr->getRelativeSize()(1)*0.5
-                ;
+            P(1) = other_position(1) - S(1) * 0.5 - paddingy - ptr->getRelativeSize()(1) * 0.5;
             break;
         case ABS_BOTTOM:
-            P(1) = 1-paddingy - ptr->getRelativeSize()(1)*0.5;
+            P(1) = 1 - paddingy - ptr->getRelativeSize()(1) * 0.5;
             break;
         }
         return P;
@@ -83,8 +67,8 @@ slope::StateInSlide slope::PlaceRelative::computePlacement(const ScreenPrimitive
 
 slope::PrimitiveInSlide slope::PlaceLeft(ScreenPrimitivePtr ptr, scalar y, scalar padding) {
     vec2 P;
-    auto S =ptr->getRelativeSize();
-    P(0) = S(0)*0.5+padding;
+    auto S = ptr->getRelativeSize();
+    P(0) = S(0) * 0.5 + padding;
     P(1) = y;
-    return {ptr,StateInSlide(P)};
+    return {ptr, StateInSlide(P)};
 }

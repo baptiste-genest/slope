@@ -1,7 +1,7 @@
 #include "content/polyscope_primitives/PolyscopePrimitive.h"
 
 size_t slope::PolyscopePrimitive::count = 0;
-std::vector<glm::vec3>  slope::PolyscopePrimitive::colors = {};
+std::vector<glm::vec3> slope::PolyscopePrimitive::colors = {};
 int slope::PolyscopePrimitive::current_color_id = 0;
 
 #include "polyscope/color_management.h"
@@ -9,28 +9,30 @@ int slope::PolyscopePrimitive::current_color_id = 0;
 
 namespace {
 
-glm::vec3 structureColor(polyscope::Structure* s)
-{
-    if (auto* m = dynamic_cast<polyscope::SurfaceMesh*>(s))  return m->getSurfaceColor();
-    if (auto* p = dynamic_cast<polyscope::PointCloud*>(s))   return p->getPointColor();
+glm::vec3 structureColor(polyscope::Structure* s) {
+    if (auto* m = dynamic_cast<polyscope::SurfaceMesh*>(s)) return m->getSurfaceColor();
+    if (auto* p = dynamic_cast<polyscope::PointCloud*>(s)) return p->getPointColor();
     if (auto* c = dynamic_cast<polyscope::CurveNetwork*>(s)) return c->getColor();
-    if (auto* g = dynamic_cast<polyscope::VolumeGrid*>(s))   return g->getColor();
+    if (auto* g = dynamic_cast<polyscope::VolumeGrid*>(s)) return g->getColor();
     return glm::vec3(1);
 }
 
-void pushColor(polyscope::Structure* s, const glm::vec3& c)
-{
-    if (auto* m = dynamic_cast<polyscope::SurfaceMesh*>(s))       m->setSurfaceColor(c);
-    else if (auto* p = dynamic_cast<polyscope::PointCloud*>(s))   p->setPointColor(c);
-    else if (auto* n = dynamic_cast<polyscope::CurveNetwork*>(s)) n->setColor(c);
-    else if (auto* g = dynamic_cast<polyscope::VolumeGrid*>(s))   g->setColor(c);
+void pushColor(polyscope::Structure* s, const glm::vec3& c) {
+    if (auto* m = dynamic_cast<polyscope::SurfaceMesh*>(s))
+        m->setSurfaceColor(c);
+    else if (auto* p = dynamic_cast<polyscope::PointCloud*>(s))
+        p->setPointColor(c);
+    else if (auto* n = dynamic_cast<polyscope::CurveNetwork*>(s))
+        n->setColor(c);
+    else if (auto* g = dynamic_cast<polyscope::VolumeGrid*>(s))
+        g->setColor(c);
 }
 
-}
+} // namespace
 
 slope::PolyscopePrimitive::PolyscopePrimitive() {}
 
-void slope::PolyscopePrimitive::initPolyscopeData(polyscope::Structure *pcptr, bool palette) {
+void slope::PolyscopePrimitive::initPolyscopeData(polyscope::Structure* pcptr, bool palette) {
     polyscope_ptr = pcptr;
     polyscope_ptr->setEnabled(false);
     count++;
@@ -43,7 +45,7 @@ void slope::PolyscopePrimitive::initPolyscopeData(polyscope::Structure *pcptr, b
     reapplyColor();
 }
 
-void slope::PolyscopePrimitive::setColor(const Color &c) {
+void slope::PolyscopePrimitive::setColor(const Color& c) {
     color = c;
     reapplyColor();
 }
@@ -74,57 +76,57 @@ std::string slope::PolyscopePrimitive::getPolyscopeName() const {
 slope::PrimitiveInSlide slope::PolyscopePrimitive::at(scalar alpha) {
     StateInSlide sis;
     sis.alpha = alpha;
-    return {get(pid),sis};
+    return {get(pid), sis};
 }
 
-void slope::PolyscopePrimitive::draw(const TimeObject &t, const StateInSlide &sis) {
+void slope::PolyscopePrimitive::draw(const TimeObject& t, const StateInSlide& sis) {
     syncColor();
     polyscope_ptr->setTransparency(sis.getAlpha());
-    polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
+    polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix() * localTransform.getMatrix());
 }
 
-void slope::PolyscopePrimitive::playIntro(const TimeObject &t, const StateInSlide &sis) {
+void slope::PolyscopePrimitive::playIntro(const TimeObject& t, const StateInSlide& sis) {
     syncColor();
     polyscope_ptr->setTransparency(sis.getAlpha());
-    polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
+    polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix() * localTransform.getMatrix());
 }
 
-void slope::PolyscopePrimitive::playOutro(const TimeObject &t, const StateInSlide &sis) {
+void slope::PolyscopePrimitive::playOutro(const TimeObject& t, const StateInSlide& sis) {
     syncColor();
     polyscope_ptr->setTransparency(sis.getAlpha());
-    polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
+    polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix() * localTransform.getMatrix());
 }
 
-slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const Transform &T, scalar alpha) {
+slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const Transform& T, scalar alpha) {
     StateInSlide sis(T);
     sis.alpha = alpha;
-    return {get(pid),sis};
+    return {get(pid), sis};
 }
 
 slope::PrimitiveInSlide slope::PolyscopePrimitive::at(scalar x, scalar y, scalar z, scalar alpha) {
-    return at(vec(x,y,z),alpha);
+    return at(vec(x, y, z), alpha);
 }
 
-slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const vec &x, scalar alpha) {
-    return at(Transform::Translation(x),alpha);
+slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const vec& x, scalar alpha) {
+    return at(Transform::Translation(x), alpha);
 }
 
-slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const std::string &label, scalar alpha){
+slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const std::string& label, scalar alpha) {
     StateInSlide sis;
     sis.alpha = alpha;
     sis.persistentTransform = PersistentTransform(label);
-    return {get(pid),sis};
+    return {get(pid), sis};
 }
 
-slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const LiveTransform &T, scalar alpha){
+slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const LiveTransform& T, scalar alpha) {
     StateInSlide sis;
     sis.alpha = alpha;
     sis.liveTransform = T;
-    return {get(pid),sis};
+    return {get(pid), sis};
 }
 
-slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const std::string &label, const LiveTransform &T, scalar alpha){
-    auto pis = at(label,alpha);
+slope::PrimitiveInSlide slope::PolyscopePrimitive::at(const std::string& label, const LiveTransform& T, scalar alpha) {
+    auto pis = at(label, alpha);
     pis.second.liveTransform = T;
     return pis;
 }
@@ -149,26 +151,24 @@ void slope::PolyscopePrimitive::forceEnable() {
     polyscope_ptr->setTransparency(0);
 }
 
-bool slope::PolyscopePrimitive::isScreenSpace() const {return false;}
+bool slope::PolyscopePrimitive::isScreenSpace() const { return false; }
 
-void slope::PolyscopePrimitive::resetColorId() {current_color_id = 0;}
+void slope::PolyscopePrimitive::resetColorId() { current_color_id = 0; }
 
 glm::vec3 slope::PolyscopePrimitive::nextPaletteColor() {
     if (colors.size() == 0) {
-        for (int i = 0;i<10;i++)
+        for (int i = 0; i < 10; i++)
             colors.push_back(polyscope::getNextUniqueColor());
         current_color_id = 0;
     }
-    return colors[(current_color_id++)%colors.size()];
+    return colors[(current_color_id++) % colors.size()];
 }
 
-void slope::PolyscopePrimitive::setTransform(const StateInSlide &sis)
-{
-    polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix()*localTransform.getMatrix());
+void slope::PolyscopePrimitive::setTransform(const StateInSlide& sis) {
+    polyscope_ptr->setTransform(sis.getLocalToWorld().getMatrix() * localTransform.getMatrix());
 }
 
-slope::vec slope::PolyscopePrimitive::worldVertex(size_t i) const
-{
+slope::vec slope::PolyscopePrimitive::worldVertex(size_t i) const {
     const vec p = localVertex(i);
     if (polyscope_ptr == nullptr)
         return p;

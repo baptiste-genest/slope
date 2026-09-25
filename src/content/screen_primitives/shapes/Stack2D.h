@@ -20,11 +20,12 @@ using Stack2DPtr = std::shared_ptr<Stack2D>;
  * The stack draws nothing. It is a screen primitive so that arrows and boxes can target the whole block,
  * and so that the block can be dragged as one unit when the handle is a label.
  */
-class Stack2D : public ScreenPrimitive
-{
+class Stack2D : public ScreenPrimitive {
 public:
     // Horizontal alignment of the children inside the block.
-    enum class Align { LEFT, CENTER, RIGHT };
+    enum class Align { LEFT,
+                       CENTER,
+                       RIGHT };
     Align align = Align::LEFT;
     // Vertical gap between children, in relative units.
     scalar spacing = 0.015;
@@ -40,7 +41,7 @@ public:
     void clearChildren();
     // Adds a child at the bottom of the stack.
     void addChild(ScreenPrimitivePtr child);
-    const std::vector<ScreenPrimitivePtr>& getChildren() const {return children;}
+    const std::vector<ScreenPrimitivePtr>& getChildren() const { return children; }
 
     // Returns the state that puts a child in its slot. The slot is computed every frame.
     ScreenPrimitiveInSlide place(ScreenPrimitivePtr child, scalar alpha = 1);
@@ -66,6 +67,6 @@ protected:
     vec2 blockSize() const;
 };
 
-}
+} // namespace slope
 
 #endif // STACK2D_H

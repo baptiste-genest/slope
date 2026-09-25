@@ -6,109 +6,123 @@
 
 namespace slope {
 
-int& deckLine() { static int line = 0; return line; }
-int& deckErrorLine() { static int line = 0; return line; }
+int& deckLine() {
+    static int line = 0;
+    return line;
+}
+int& deckErrorLine() {
+    static int line = 0;
+    return line;
+}
 
-std::string deckWhere()
-{
+std::string deckWhere() {
     return deckLine() > 0 ? " (line " + std::to_string(deckLine()) + ")" : "";
 }
 
-DeckLineScope::DeckLineScope(int line) : prev(deckLine()), thrown(std::uncaught_exceptions())
-{
+DeckLineScope::DeckLineScope(int line) : prev(deckLine()), thrown(std::uncaught_exceptions()) {
     if (line > 0)
         deckLine() = line;
 }
 
-DeckLineScope::~DeckLineScope()
-{
+DeckLineScope::~DeckLineScope() {
     if (std::uncaught_exceptions() > thrown && deckErrorLine() == 0)
         deckErrorLine() = deckLine();
     deckLine() = prev;
 }
 
-const std::set<std::string>& placementFields()
-{
+const std::set<std::string>& placementFields() {
     static const std::set<std::string> f =
-        {"id","at","on","two_sided","follow","offset","alpha","rot","zoom","depth",
-         "below","above","right_of","left_of","padding","group"};
+        {"id", "at", "on", "two_sided", "follow", "offset", "alpha", "rot", "zoom", "depth",
+         "below", "above", "right_of", "left_of", "padding", "group"};
     return f;
 }
 
-const KeyDoc& deckTopLevelKeys()
-{
+const KeyDoc& deckTopLevelKeys() {
     static const KeyDoc k = {
-        {"slides",   "the frames, in order"},
+        {"slides", "the frames, in order"},
         {"template", "items put on every frame"},
-        {"config",   "layout settings"},
+        {"config", "layout settings"},
         {"snippets", "Lua file, or a list of them"},
         {"preamble", "latex lines put before every latex and formula"},
         {"commands", "tex file of macros, commands.tex by default"},
-        {"latex",    "json of latex for load:, latex.json by default"},
+        {"latex", "json of latex for load:, latex.json by default"},
     };
     return k;
 }
 
-const KeyDoc& frameKeys()
-{
+const KeyDoc& frameKeys() {
     static const KeyDoc k = {
-        {"frame",       "the items of one slide"},
-        {"same_title",  "true keeps the previous title"},
+        {"frame", "the items of one slide"},
+        {"same_title", "true keeps the previous title"},
         {"no_template", "true leaves the template out"},
     };
     return k;
 }
 
-const KeyDoc& deckConfigKeys()
-{
+const KeyDoc& deckConfigKeys() {
     static const KeyDoc k = {
-        {"title_scale",   "title size, 1.5 by default"},
-        {"latex_scale",   "text size, 1 by default"},
+        {"title_scale", "title size, 1.5 by default"},
+        {"latex_scale", "text size, 1 by default"},
         {"box_roundness", "box corners, 1 by default"},
-        {"margin",        "gap kept by TOP_LEFT and the other corners, a number or [x, y]"},
-        {"top",           "[x, y] of the TOP label, 0 to 1"},
-        {"center",        "[x, y] of the CENTER label"},
-        {"bottom",        "[x, y] of the BOTTOM label"},
+        {"margin", "gap kept by TOP_LEFT and the other corners, a number or [x, y]"},
+        {"top", "[x, y] of the TOP label, 0 to 1"},
+        {"center", "[x, y] of the CENTER label"},
+        {"bottom", "[x, y] of the BOTTOM label"},
     };
     return k;
 }
 
-const KeyDoc& sceneKeys()
-{
+const KeyDoc& sceneKeys() {
     static const KeyDoc k = {
-        {"transform",  "map of the keys below, or a param or snippet name"},
-        {"  pos",      "[x, y, z], or name"},
-        {"  scale",    "a number, or [x, y, z], or name"},
-        {"  axis",     "[x, y, z] or name, rotation axis, z by default"},
-        {"  angle",    "a number, or name, in degrees"},
-        {"color",      "[r, g, b], \"#rrggbb\", or name"},
-        {"normalize",  "scale and reduce mesh or cloud"},
-};
+        {"transform", "map of the keys below, or a param or snippet name"},
+        {"  pos", "[x, y, z], or name"},
+        {"  scale", "a number, or [x, y, z], or name"},
+        {"  axis", "[x, y, z] or name, rotation axis, z by default"},
+        {"  angle", "a number, or name, in degrees"},
+        {"color", "[r, g, b], \"#rrggbb\", or name"},
+        {"normalize", "scale and reduce mesh or cloud"},
+    };
     return k;
 }
 
-std::string itemValueHint(const std::string& type)
-{
+std::string itemValueHint(const std::string& type) {
     static const std::map<std::string, std::string> hints = {
-        {"title", "text"}, {"latex", "latex text"}, {"formula", "tex formula"},
-        {"load", "latex.json key"}, {"code", "source file"}, {"algo", "algorithm file"},
-        {"image", "image file"}, {"gif", "gif file"}, {"video", "video file"},
-        {"webcam", "device"}, {"shader", "fragment shader file"},
-        {"board", "board name"}, {"plot", "curve name"}, {"scatter", "cloud name"},
+        {"title", "text"},
+        {"latex", "latex text"},
+        {"formula", "tex formula"},
+        {"load", "latex.json key"},
+        {"code", "source file"},
+        {"algo", "algorithm file"},
+        {"image", "image file"},
+        {"gif", "gif file"},
+        {"video", "video file"},
+        {"webcam", "device"},
+        {"shader", "fragment shader file"},
+        {"board", "board name"},
+        {"plot", "curve name"},
+        {"scatter", "cloud name"},
         {"legend", "board name"},
-        {"mesh", "mesh file"}, {"surface", "snippet function"}, {"curve", "snippet function"},
-        {"point", "snippet or [x, y, z]"}, {"cloud", "point cloud file, .ply or .obj"},
-        {"keyframe", "keyframe name"}, {"remove", "id or [ids]"}, {"set", "id"},
-        {"replace", "id, with: id or an item"}, {"object", "C++ object name"}, {"arrow", "map, keys below"},
-        {"box", "[items]"}, {"stack", "[items]"}, {"camera", "camera view name"},
+        {"mesh", "mesh file"},
+        {"surface", "snippet function"},
+        {"curve", "snippet function"},
+        {"point", "snippet or [x, y, z]"},
+        {"cloud", "point cloud file, .ply or .obj"},
+        {"keyframe", "keyframe name"},
+        {"remove", "id or [ids]"},
+        {"set", "id"},
+        {"replace", "id, with: id or an item"},
+        {"object", "C++ object name"},
+        {"arrow", "map, keys below"},
+        {"box", "[items]"},
+        {"stack", "[items]"},
+        {"camera", "camera view name"},
         {"pause", "seconds"},
     };
     auto it = hints.find(type);
     return it == hints.end() ? std::string() : it->second;
 }
 
-const std::vector<ItemSpec>& itemSpecs()
-{
+const std::vector<ItemSpec>& itemSpecs() {
     // built in the order DeckLoader::addItem dispatches : the items that drive
     // the slide first, then the scene, and the screen items last, which is
     // also the loader's fallback branch
@@ -128,8 +142,7 @@ const std::vector<ItemSpec>& itemSpecs()
     return specs;
 }
 
-const ItemSpec* findItemSpec(const json& item)
-{
+const ItemSpec* findItemSpec(const json& item) {
     std::vector<const ItemSpec*> found;
     for (const auto& spec : itemSpecs())
         if (item.contains(spec.type))
@@ -150,8 +163,7 @@ const ItemSpec* findItemSpec(const json& item)
     throw std::runtime_error("an item cannot be several things at once (" + types + "), keep one");
 }
 
-std::string screenItemTypes()
-{
+std::string screenItemTypes() {
     std::string list;
     for (const auto& spec : itemSpecs())
         if (spec.kind == ItemSpec::Kind::Screen)
@@ -159,8 +171,7 @@ std::string screenItemTypes()
     return list;
 }
 
-void warnUnknownKeys(const json& item)
-{
+void warnUnknownKeys(const json& item) {
     const ItemSpec* spec = findItemSpec(item);
     if (!spec)
         return;
@@ -171,4 +182,4 @@ void warnUnknownKeys(const json& item)
             deckWarn("ignored key \"{}\" on a \"{}\" item", key, spec->type);
 }
 
-}
+} // namespace slope

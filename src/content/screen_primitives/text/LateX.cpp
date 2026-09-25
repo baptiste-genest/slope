@@ -10,27 +10,24 @@
 #include <regex>
 //#include <format>
 
-slope::LatexPtr slope::Latex::Add(const TexObject &tex,scalar scale,int width)
-{
-    return MakeObject(tex,scale,width,false);
+slope::LatexPtr slope::Latex::Add(const TexObject& tex, scalar scale, int width) {
+    return MakeObject(tex, scale, width, false);
 }
 
-slope::LatexPtr slope::Formula::Add(const TexObject &tex,scalar scale,int width)
-{
-    return MakeObject(tex,scale,width,true);
+slope::LatexPtr slope::Formula::Add(const TexObject& tex, scalar scale, int width) {
+    return MakeObject(tex, scale, width, true);
 }
 
 // A cache hit is served right away. A miss only queues the primitive, so that every formula
 // declared by a deck is compiled by a single pdflatex run, the first time that a size or a draw is needed.
-slope::LatexPtr slope::Latex::MakeObject(const TexObject &tex, scalar scale, int width, bool formula)
-{
+slope::LatexPtr slope::Latex::MakeObject(const TexObject& tex, scalar scale, int width, bool formula) {
     LatexPtr rslt = NewPrimitive<Latex>();
     rslt->content = tex;
     rslt->tex_source = tex;
     rslt->isFormula = formula;
     rslt->scale = scale;
     rslt->width = width;
-    rslt->full_content = WriteTexFile(tex,formula,width,rslt->tintable);
+    rslt->full_content = WriteTexFile(tex, formula, width, rslt->tintable);
 
     path filename = GetLatexPath(rslt->full_content);
     if (io::file_exists(filename) && !Options::ignore_cache) {
@@ -39,15 +36,14 @@ slope::LatexPtr slope::Latex::MakeObject(const TexObject &tex, scalar scale, int
             rslt->baseline = ReadBaseline(filename);
             return rslt;
         } catch (const std::exception& e) {
-            spdlog::error("[latex] {}",e.what());
+            spdlog::error("[latex] {}", e.what());
         }
     }
     pending.push_back(rslt);
     return rslt;
 }
 
-static std::vector<slope::path> preambleFiles()
-{
+static std::vector<slope::path> preambleFiles() {
     using namespace slope;
     std::vector<path> out;
     for (const auto& part : Latex::context_parts)
@@ -59,8 +55,7 @@ static std::vector<slope::path> preambleFiles()
 }
 
 // on the main thread, the batch thread only returns what failed
-static void adoptResult(const slope::LatexBatchResult& r, const std::vector<slope::LatexPtr>& targets)
-{
+static void adoptResult(const slope::LatexBatchResult& r, const std::vector<slope::LatexPtr>& targets) {
     using namespace slope;
     for (const auto& f : preambleFiles()) {
         if (r.preamble_error.empty())
@@ -75,10 +70,9 @@ static void adoptResult(const slope::LatexBatchResult& r, const std::vector<slop
     Latex::PublishErrors();
 }
 
-void slope::Latex::PublishErrors()
-{
+void slope::Latex::PublishErrors() {
     static std::set<path> reported;
-    std::map<path,std::string> by_file;
+    std::map<path, std::string> by_file;
     for (const auto& p : Primitive::primitives) {
         auto l = std::dynamic_pointer_cast<Latex>(p);
         if (!l || l->compile_error.empty())
@@ -99,8 +93,7 @@ void slope::Latex::PublishErrors()
     }
 }
 
-std::vector<slope::path> slope::Latex::WatchedFiles()
-{
+std::vector<slope::path> slope::Latex::WatchedFiles() {
     std::vector<path> out;
     for (const auto& part : context_parts)
         if (part.is_file)
@@ -110,8 +103,7 @@ std::vector<slope::path> slope::Latex::WatchedFiles()
     return out;
 }
 
-void slope::Latex::FlushPending()
-{
+void slope::Latex::FlushPending() {
     if (pending.empty())
         return;
     auto todo = pending;
@@ -119,8 +111,8 @@ void slope::Latex::FlushPending()
 
     std::vector<LatexJob> jobs;
     for (const auto& l : todo)
-        jobs.push_back({GetLatexPath(l->full_content),TexBody(l->tex_source,l->isFormula,l->width),l->tintable});
-    spdlog::info("compiling {} latex primitives in one batch...",jobs.size());
+        jobs.push_back({GetLatexPath(l->full_content), TexBody(l->tex_source, l->isFormula, l->width), l->tintable});
+    spdlog::info("compiling {} latex primitives in one batch...", jobs.size());
     const auto result = GenerateLatexBatch(jobs);
 
     for (const auto& l : todo) {
@@ -128,76 +120,72 @@ void slope::Latex::FlushPending()
             l->loadTexture(GetLatexPath(l->full_content));
             l->baseline = ReadBaseline(GetLatexPath(l->full_content));
         } catch (const std::exception& e) {
-            spdlog::error("[latex] '{}' : {}",l->tex_source,e.what());
+            spdlog::error("[latex] '{}' : {}", l->tex_source, e.what());
         }
     }
     adoptResult(result, todo);
 }
 
-void slope::Latex::updateContent(json j)
-{
+void slope::Latex::updateContent(json j) {
     isFormula = j[0] == 1;
     content = j[1];
     tex_source = content;
     width = LatexLoader::GetWidth(j);
 }
 
-void slope::Latex::loadTexture(const path &png)
-{
-    auto [sx,sy] = drawScale();
-    tex_sx = std::min(1.0,sx);
-    tex_sy = std::min(1.0,sy);
-    data = loadImage(png,tex_sx,tex_sy);
+void slope::Latex::loadTexture(const path& png) {
+    auto [sx, sy] = drawScale();
+    tex_sx = std::min(1.0, sx);
+    tex_sy = std::min(1.0, sy);
+    data = loadImage(png, tex_sx, tex_sy);
     texture_png = png;
     texels_failed = false;
 }
 
-void slope::Latex::reloadTexels(double k)
-{
+void slope::Latex::reloadTexels(double k) {
     try {
-        ImageData fresh = loadImage(texture_png,tex_sx*k,tex_sy*k);
+        ImageData fresh = loadImage(texture_png, tex_sx * k, tex_sy * k);
         if (data.texture && glfwGetCurrentContext())
-            glDeleteTextures(1,&data.texture);
+            glDeleteTextures(1, &data.texture);
         data = fresh;
-        tex_sx = std::min(1.0,tex_sx*k);
-        tex_sy = std::min(1.0,tex_sy*k);
+        tex_sx = std::min(1.0, tex_sx * k);
+        tex_sy = std::min(1.0, tex_sy * k);
     } catch (const std::exception& e) {
         texels_failed = true;
-        spdlog::error("[latex] {}, keeping the current texture",e.what());
+        spdlog::error("[latex] {}, keeping the current texture", e.what());
     }
 }
 
-void slope::Latex::ensureTexelsFor(double sx, double sy)
-{
-    const double have = std::max(tex_sx,tex_sy);
-    const double need = std::min(1.0,std::max(sx,sy));
+void slope::Latex::ensureTexelsFor(double sx, double sy) {
+    const double have = std::max(tex_sx, tex_sy);
+    const double need = std::min(1.0, std::max(sx, sy));
 
-    if (need > have*1.05 && have < 1) {
+    if (need > have * 1.05 && have < 1) {
         // a 1.5 ladder, so a zoom drag costs a few reloads, not one a frame
-        requestTexels(std::min(1.0/have,
-                               std::pow(1.5,std::ceil(std::log(need/have)/std::log(1.5)))));
+        requestTexels(std::min(1.0 / have,
+                               std::pow(1.5, std::ceil(std::log(need / have) / std::log(1.5)))));
         settling_need = -1;
         return;
     }
 
     // shrinking only softens, so refill once the size stops moving
-    if (need >= have*0.9 || need*data.width < 8) {
+    if (need >= have * 0.9 || need * data.width < 8) {
         settling_need = -1;
         return;
     }
     // an export draws each slide once, nothing to wait for
     if (Options::ExportMode) {
-        requestTexels(need/have);
+        requestTexels(need / have);
         return;
     }
-    if (settling_need < 0 || std::abs(need - settling_need) > settling_need*0.02) {
+    if (settling_need < 0 || std::abs(need - settling_need) > settling_need * 0.02) {
         settling_need = need;
         settling_since = Time::now();
         return;
     }
     if (TimeFrom(settling_since) < 0.25)
         return;
-    requestTexels(need/have);
+    requestTexels(need / have);
     settling_need = -1;
 }
 
@@ -207,26 +195,24 @@ bool slope::Latex::in_render_pass = false;
 // the texture reloadTexels is about to delete, which the driver only reports
 // later, at the frame's own bind. Skipping to a slide (forceNextFrame) plays
 // intros from there, so it takes this path.
-void slope::Latex::requestTexels(double k)
-{
+void slope::Latex::requestTexels(double k) {
     if (texels_failed)
         return;
     if (in_render_pass) {
         reloadTexels(k);
         return;
     }
-    deferred_texels = deferred_texels > 0 ? deferred_texels*k : k;
+    deferred_texels = deferred_texels > 0 ? deferred_texels * k : k;
 }
 
-void slope::Latex::ensureRendered()
-{
-    auto tex_content = WriteTexFile(tex_source,isFormula,width,tintable);
+void slope::Latex::ensureRendered() {
+    auto tex_content = WriteTexFile(tex_source, isFormula, width, tintable);
     if (full_content == tex_content && data.width != -1)
         return;
     path filename = GetLatexPath(tex_content);
     try {
         if (!io::file_exists(filename) || Options::ignore_cache)
-            GenerateLatex(filename,tex_content);
+            GenerateLatex(filename, tex_content);
         loadTexture(filename);
         baseline = ReadBaseline(filename);
     } catch (const std::exception& e) {
@@ -235,13 +221,11 @@ void slope::Latex::ensureRendered()
     full_content = tex_content;
 }
 
-
-void slope::Latex::DeclareMathOperator(const TexObject &name, const TexObject &content) {
+void slope::Latex::DeclareMathOperator(const TexObject& name, const TexObject& content) {
     context += "\\DeclareMathOperator*{\\" + name + "}{" + content + "}";
 }
 
-void slope::Latex::AddFileToPrefix(const path &p)
-{
+void slope::Latex::AddFileToPrefix(const path& p) {
     path fp = formatPath(p);
     std::ifstream t(fp);
     if (!t)
@@ -253,17 +237,16 @@ void slope::Latex::AddFileToPrefix(const path &p)
     ContextPart part{true, p.string(), {}};
     try {
         part.last_modified = std::filesystem::last_write_time(fp);
-    } catch (const std::exception&) {}
+    } catch (const std::exception&) {
+    }
     context_parts.push_back(part);
 }
 
-void slope::Latex::RemoveFileFromPrefix(const path &p)
-{
+void slope::Latex::RemoveFileFromPrefix(const path& p) {
     std::erase_if(context_parts, [&](const ContextPart& c) { return c.is_file && c.value == p.string(); });
 }
 
-void slope::Latex::rebuildContext()
-{
+void slope::Latex::rebuildContext() {
     context = "";
     for (const auto& part : context_parts) {
         if (!part.is_file) {
@@ -278,8 +261,7 @@ void slope::Latex::rebuildContext()
     context += deck_prefix;
 }
 
-void slope::Latex::SetDeckPrefix(const TexObject &tex)
-{
+void slope::Latex::SetDeckPrefix(const TexObject& tex) {
     if (tex == deck_prefix)
         return;
     deck_prefix = tex;
@@ -289,8 +271,7 @@ void slope::Latex::SetDeckPrefix(const TexObject &tex)
 
 // compiled off the render thread, each primitive shows its previous image
 // until PumpBatch picks the new one up
-void slope::Latex::RegenerateAll()
-{
+void slope::Latex::RegenerateAll() {
     FlushPending();
     if (batch_future.valid()) {
         regenerate_again = true;
@@ -304,25 +285,24 @@ void slope::Latex::RegenerateAll()
         if (!l)
             continue;
         l->refreshSource();
-        auto tex_content = WriteTexFile(l->tex_source,l->isFormula,l->width,l->tintable);
+        auto tex_content = WriteTexFile(l->tex_source, l->isFormula, l->width, l->tintable);
         if (l->full_content == tex_content && l->data.width != -1)
             continue;
         l->full_content = tex_content;
         path filename = GetLatexPath(tex_content);
         if (!io::file_exists(filename) || Options::ignore_cache)
-            jobs.push_back({filename,TexBody(l->tex_source,l->isFormula,l->width),l->tintable});
+            jobs.push_back({filename, TexBody(l->tex_source, l->isFormula, l->width), l->tintable});
         batch_targets.push_back(l);
     }
     if (batch_targets.empty()) {
         spdlog::info("... latex up to date!");
         return;
     }
-    spdlog::info("recompiling {} latex primitives ({} to render)...",batch_targets.size(),jobs.size());
-    batch_future = std::async(std::launch::async,[jobs]{return GenerateLatexBatch(jobs);});
+    spdlog::info("recompiling {} latex primitives ({} to render)...", batch_targets.size(), jobs.size());
+    batch_future = std::async(std::launch::async, [jobs] { return GenerateLatexBatch(jobs); });
 }
 
-void slope::Latex::PumpBatch()
-{
+void slope::Latex::PumpBatch() {
     if (!batch_future.valid())
         return;
     if (batch_future.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
@@ -333,10 +313,10 @@ void slope::Latex::PumpBatch()
             l->loadTexture(GetLatexPath(l->full_content));
             l->baseline = ReadBaseline(GetLatexPath(l->full_content));
         } catch (const std::exception& e) {
-            spdlog::error("[latex] {}",e.what());
+            spdlog::error("[latex] {}", e.what());
         }
     }
-    spdlog::info("... {} latex primitives reloaded!",batch_targets.size());
+    spdlog::info("... {} latex primitives reloaded!", batch_targets.size());
     adoptResult(result, batch_targets);
     batch_targets.clear();
     if (regenerate_again) {
@@ -345,8 +325,7 @@ void slope::Latex::PumpBatch()
     }
 }
 
-void slope::Latex::HotReloadPrefixIfModified()
-{
+void slope::Latex::HotReloadPrefixIfModified() {
     FlushPending();
     PumpBatch();
 
@@ -365,7 +344,8 @@ void slope::Latex::HotReloadPrefixIfModified()
                 part.last_modified = last_write;
                 changed = true;
             }
-        } catch (const std::exception&) {}
+        } catch (const std::exception&) {
+        }
     }
     if (!changed)
         return;
@@ -389,7 +369,7 @@ static std::string quote(const std::string& s) {
 // depend on the density (43% spread between 300 and 1200 dpi), so keep it at a
 // constant 1.2pt, the historical 10px at 600 dpi
 static std::string borderPx() {
-    return std::to_string(std::max<std::size_t>(1,(slope::Options::PDFtoPNGDensity*12+360)/720));
+    return std::to_string(std::max<std::size_t>(1, (slope::Options::PDFtoPNGDensity * 12 + 360) / 720));
 }
 
 // glyphs overshoot their tex box (accents, italics, big operators) and a page
@@ -398,12 +378,11 @@ static std::string borderPx() {
 static constexpr double PreviewBorderPt = 5;
 
 // heights above the first baseline, in pt, one per \typeout of the run
-static std::vector<double> ReadBaselineHeights(const slope::path& logfile)
-{
+static std::vector<double> ReadBaselineHeights(const slope::path& logfile) {
     std::vector<double> rslt;
     std::ifstream f(logfile);
     std::string line;
-    while (std::getline(f,line)) {
+    while (std::getline(f, line)) {
         auto at = line.find("SLOPEBASELINE ");
         if (at == std::string::npos)
             continue;
@@ -414,46 +393,42 @@ static std::vector<double> ReadBaselineHeights(const slope::path& logfile)
 
 // -trim records the crop it applied in the png's caNv chunk, which is the only
 // way left to know where the box sat before the ink was cropped out of it
-static int ReadTrimYOffset(const slope::path& png)
-{
-    std::ifstream f(png,std::ios::binary);
+static int ReadTrimYOffset(const slope::path& png) {
+    std::ifstream f(png, std::ios::binary);
     char sig[8];
-    if (!f.read(sig,8))
+    if (!f.read(sig, 8))
         return -1;
     while (f) {
         unsigned char head[8];
-        if (!f.read(reinterpret_cast<char*>(head),8))
+        if (!f.read(reinterpret_cast<char*>(head), 8))
             break;
-        std::uint32_t len = (head[0]<<24)|(head[1]<<16)|(head[2]<<8)|head[3];
-        if (std::memcmp(head+4,"caNv",4) == 0) {
+        std::uint32_t len = (head[0] << 24) | (head[1] << 16) | (head[2] << 8) | head[3];
+        if (std::memcmp(head + 4, "caNv", 4) == 0) {
             unsigned char d[16];
-            if (!f.read(reinterpret_cast<char*>(d),16))
+            if (!f.read(reinterpret_cast<char*>(d), 16))
                 break;
-            return (d[12]<<24)|(d[13]<<16)|(d[14]<<8)|d[15];
+            return (d[12] << 24) | (d[13] << 16) | (d[14] << 8) | d[15];
         }
-        if (std::memcmp(head+4,"IDAT",4) == 0)
+        if (std::memcmp(head + 4, "IDAT", 4) == 0)
             break;
-        f.seekg(len + 4,std::ios::cur);
+        f.seekg(len + 4, std::ios::cur);
     }
     return -1;
 }
 
-slope::path slope::BaselinePath(const path& png) {return png.string() + ".bl";}
+slope::path slope::BaselinePath(const path& png) { return png.string() + ".bl"; }
 
 // distance, in image pixels, from the top of the png down to the tex baseline
-static void WriteBaseline(const slope::path& png,double height_pt)
-{
+static void WriteBaseline(const slope::path& png, double height_pt) {
     using namespace slope;
     int y_off = ReadTrimYOffset(png);
     if (y_off < 0)
         return;
-    double baseline = std::atof(borderPx().c_str())
-                      + (height_pt + PreviewBorderPt)*Options::PDFtoPNGDensity/72.0 - y_off;
+    double baseline = std::atof(borderPx().c_str()) + (height_pt + PreviewBorderPt) * Options::PDFtoPNGDensity / 72.0 - y_off;
     std::ofstream(BaselinePath(png)) << baseline;
 }
 
-double slope::ReadBaseline(const path& png)
-{
+double slope::ReadBaseline(const path& png) {
     std::ifstream f(BaselinePath(png));
     double rslt = -1;
     if (f)
@@ -463,14 +438,13 @@ double slope::ReadBaseline(const path& png)
 
 // stable across compilers and platforms, unlike std::hash, so a cache can be
 // moved with a project
-slope::path slope::GetLatexPath(const TexObject &tex)
-{
+slope::path slope::GetLatexPath(const TexObject& tex) {
     std::uint64_t h = 1469598103934665603ull;
     for (unsigned char c : tex + "|density=" + std::to_string(Options::PDFtoPNGDensity)) {
         h ^= c;
         h *= 1099511628211ull;
     }
-    return Options::CachePath + fmt::format("{:016x}",h) + ".png";
+    return Options::CachePath + fmt::format("{:016x}", h) + ".png";
 }
 
 slope::TexObject slope::Latex::context = "";
@@ -482,9 +456,8 @@ slope::path slope::Latex::default_origin;
 std::vector<slope::LatexPtr> slope::Latex::batch_targets;
 std::vector<slope::LatexPtr> slope::Latex::pending;
 
-void slope::GenerateLatex(const path &filename,
-                          const TexObject &texcontent)
-{
+void slope::GenerateLatex(const path& filename,
+                          const TexObject& texcontent) {
     spdlog::info("Generating latex for '{}'...", texcontent);
 
     // one job name per formula, inside the cache, so two instances cannot clash
@@ -501,12 +474,11 @@ void slope::GenerateLatex(const path &filename,
                                         quote(Options::PathToPDFLATEX),
                                         quote(Options::CachePath),
                                         quote(tex_file.string()),
-                                        quote(Options::LogPath)
-                                        );
+                                        quote(Options::LogPath));
 
     if (int rc = runCommand(latex_cmd)) {
-        spdlog::error("[error while generating latex] cmd fail (exit {}) {}",rc,latex_cmd);
-        spdlog::error("{}",Tail(Options::LogPath,20));
+        spdlog::error("[error while generating latex] cmd fail (exit {}) {}", rc, latex_cmd);
+        spdlog::error("{}", Tail(Options::LogPath, 20));
         throw std::runtime_error("Fail to generate latex");
     }
 
@@ -517,15 +489,14 @@ void slope::GenerateLatex(const path &filename,
                                           quote(pdf_file.string()),
                                           borderPx(),
                                           quote(filename.string()),
-                                          quote(Options::LogPath)
-                                          );
+                                          quote(Options::LogPath));
     if (runCommand(convert_cmd)) {
-        spdlog::error("[error while converting to png] cmd fail {}",convert_cmd);
+        spdlog::error("[error while converting to png] cmd fail {}", convert_cmd);
         throw std::runtime_error("could not convert pdf to png");
     }
 
     auto heights = ReadBaselineHeights(job + ".log");
-    for (auto ext : {".tex",".pdf",".aux",".log"})
+    for (auto ext : {".tex", ".pdf", ".aux", ".log"})
         std::filesystem::remove(job + ext);
 
     // a multi-page pdf makes the converter write <name>-0.png, <name>-1.png ...
@@ -533,37 +504,34 @@ void slope::GenerateLatex(const path &filename,
     if (!io::file_exists(filename))
         throw std::runtime_error("latex produced no image");
     if (heights.size() == 1)
-        WriteBaseline(filename,heights[0]);
+        WriteBaseline(filename, heights[0]);
     spdlog::info("Generating latex for '{}' done.", texcontent);
 }
 
-static std::string pdflatexCmd(const std::string& tex)
-{
+static std::string pdflatexCmd(const std::string& tex) {
     using namespace slope;
     return fmt::format("{} -interaction=nonstopmode -halt-on-error -no-shell-escape -output-directory={} {} >> {} 2>&1",
-                       quote(Options::PathToPDFLATEX),quote(Options::CachePath),
-                       quote(tex),quote(Options::LogPath));
+                       quote(Options::PathToPDFLATEX), quote(Options::CachePath),
+                       quote(tex), quote(Options::LogPath));
 }
 
 // a preamble that fails on its own fails every formula, no use trying them one by one
-static bool PreambleCompiles(bool white,const std::string& job)
-{
+static bool PreambleCompiles(bool white, const std::string& job) {
     using namespace slope;
     {
         std::ofstream f(job + ".tex");
         f << TexPreamble(white) << "\\end{document}\n";
     }
     const bool ok = runCommand(pdflatexCmd(job + ".tex")) == 0;
-    for (auto ext : {".tex",".pdf",".aux",".log"})
+    for (auto ext : {".tex", ".pdf", ".aux", ".log"})
         std::filesystem::remove(job + ext);
     return ok;
 }
 
 // one pdflatex run for every formula sharing a preamble, then a single
 // conversion splitting the pdf pages, so N compiles become 1
-static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& group,
-                         slope::LatexBatchResult& out)
-{
+static void CompileGroup(bool white, const std::vector<const slope::LatexJob*>& group,
+                         slope::LatexBatchResult& out) {
     using namespace slope;
     std::string doc = TexPreamble(white);
     for (const auto* it : group)
@@ -577,17 +545,17 @@ static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& g
     }
 
     bool ok = runCommand(fmt::format("{} -interaction=nonstopmode -halt-on-error -no-shell-escape -output-directory={} {} >> {} 2>&1",
-                                     quote(Options::PathToPDFLATEX),quote(Options::CachePath),
-                                     quote(job + ".tex"),quote(Options::LogPath))) == 0;
+                                     quote(Options::PathToPDFLATEX), quote(Options::CachePath),
+                                     quote(job + ".tex"), quote(Options::LogPath))) == 0;
     if (ok)
         ok = runCommand(fmt::format("{} -density {} -quality 100 {} -trim -bordercolor none -border {} -colorspace sRGB -scene 0 {} >> {} 2>&1",
-                                    quote(Options::PathToCONVERT),Options::PDFtoPNGDensity,
-                                    quote(job + ".pdf"),borderPx(),
+                                    quote(Options::PathToCONVERT), Options::PDFtoPNGDensity,
+                                    quote(job + ".pdf"), borderPx(),
                                     quote(job + "-%d.png"),
                                     quote(Options::LogPath))) == 0;
 
     auto heights = ReadBaselineHeights(job + ".log");
-    for (auto ext : {".tex",".pdf",".aux",".log"})
+    for (auto ext : {".tex", ".pdf", ".aux", ".log"})
         std::filesystem::remove(job + ext);
 
     // page i is formula i, and one spanning two pages would shift every
@@ -599,53 +567,51 @@ static void CompileGroup(bool white,const std::vector<const slope::LatexJob*>& g
 
     // one bad formula fails the document, so fall back to one by one
     if (!ok) {
-        for (std::size_t i = 0;io::file_exists(job + "-" + std::to_string(i) + ".png");i++)
+        for (std::size_t i = 0; io::file_exists(job + "-" + std::to_string(i) + ".png"); i++)
             std::filesystem::remove(job + "-" + std::to_string(i) + ".png");
-        if (!PreambleCompiles(white,job + "_preamble")) {
-            out.preamble_error = Tail(Options::LogPath,15);
-            spdlog::error("[latex] the preamble does not compile, see {}",Options::LogPath);
+        if (!PreambleCompiles(white, job + "_preamble")) {
+            out.preamble_error = Tail(Options::LogPath, 15);
+            spdlog::error("[latex] the preamble does not compile, see {}", Options::LogPath);
             return;
         }
-        spdlog::warn("[latex] batch of {} failed, falling back to one compile per formula",group.size());
+        spdlog::warn("[latex] batch of {} failed, falling back to one compile per formula", group.size());
         for (auto* it : group) {
             try {
-                GenerateLatex(it->png,TexPreamble(white) + it->body + "\\end{document}\n");
+                GenerateLatex(it->png, TexPreamble(white) + it->body + "\\end{document}\n");
             } catch (const std::exception& e) {
-                spdlog::error("[latex] {}",e.what());
-                out.failed[it->png] = std::string(e.what()) + "\n" + Tail(Options::LogPath,12);
+                spdlog::error("[latex] {}", e.what());
+                out.failed[it->png] = std::string(e.what()) + "\n" + Tail(Options::LogPath, 12);
             }
         }
         return;
     }
 
-    for (std::size_t i = 0;i<group.size();i++) {
+    for (std::size_t i = 0; i < group.size(); i++) {
         std::string page = job + "-" + std::to_string(i) + ".png";
         std::error_code ec;
-        std::filesystem::rename(page,group[i]->png,ec);
+        std::filesystem::rename(page, group[i]->png, ec);
         if (ec) {
-            spdlog::error("[latex] missing page {} of the batch",i);
+            spdlog::error("[latex] missing page {} of the batch", i);
             out.failed[group[i]->png] = "missing page of the latex batch";
             continue;
         }
         if (i < heights.size())
-            WriteBaseline(group[i]->png,heights[i]);
+            WriteBaseline(group[i]->png, heights[i]);
     }
 }
 
-slope::LatexBatchResult slope::GenerateLatexBatch(const std::vector<LatexJob> &jobs)
-{
+slope::LatexBatchResult slope::GenerateLatexBatch(const std::vector<LatexJob>& jobs) {
     LatexBatchResult out;
     // the width now travels in the body, so only the glyph color splits a batch
-    std::map<bool,std::vector<const LatexJob*>> groups;
+    std::map<bool, std::vector<const LatexJob*>> groups;
     for (const auto& j : jobs)
         groups[j.white].push_back(&j);
-    for (const auto& [white,group] : groups)
-        CompileGroup(white,group,out);
+    for (const auto& [white, group] : groups)
+        CompileGroup(white, group, out);
     return out;
 }
 
-void slope::LatexLoader::Init(path P)
-{
+void slope::LatexLoader::Init(path P) {
     const path p = formatPath(P);
     if (!io::file_exists(p))
         ReloadErrors::missingFile(p, "did not find latex source json file \"" + p.string() + "\"");
@@ -655,14 +621,12 @@ void slope::LatexLoader::Init(path P)
     initialized = true;
 }
 
-slope::ScreenPrimitiveInSlide slope::LatexLoader::LoadWithAnchor(key k)
-{
+slope::ScreenPrimitiveInSlide slope::LatexLoader::LoadWithAnchor(key k) {
     return Load(k)->at(k);
 }
 
-slope::LatexPtr slope::LatexLoader::Load(key k)
-{
-    if (! source.contains(k))
+slope::LatexPtr slope::LatexLoader::Load(key k) {
+    if (!source.contains(k))
         throw std::runtime_error("Latex source does not contain key " + k);
 
     auto obj = source[k];
@@ -673,15 +637,14 @@ slope::LatexPtr slope::LatexLoader::Load(key k)
 
     int width = GetWidth(obj);
 
-    rslt = Latex::MakeObject(obj[1],1,width,obj[0] == 1);
+    rslt = Latex::MakeObject(obj[1], 1, width, obj[0] == 1);
     rslt->origin = source_path;
     loaded[k] = rslt;
     return rslt;
 }
 
-void slope::LatexLoader::parseJson()
-{
-    if (!io::file_exists(source_path)){
+void slope::LatexLoader::parseJson() {
+    if (!io::file_exists(source_path)) {
         throw std::runtime_error("did not find latex source json file");
     }
     std::ifstream t(source_path);
@@ -692,18 +655,17 @@ void slope::LatexLoader::parseJson()
     std::regex backslash_regex(R"(\\)");
     content = std::regex_replace(content, backslash_regex, R"(\\)");
 
-    if (!json::accept(content)){
+    if (!json::accept(content)) {
         throw std::runtime_error("invalid json in latex source");
     }
     source = json::parse(content);
 }
 
-void slope::LatexLoader::ReloadContentAndUpdate()
-{
+void slope::LatexLoader::ReloadContentAndUpdate() {
     spdlog::info("reloading latex from latex source...");
     try {
         parseJson();
-        for (auto& [key,objptr] : loaded) {
+        for (auto& [key, objptr] : loaded) {
             // a key the edited json no longer has must not fail the reload
             if (!source.contains(key)) {
                 spdlog::warn("latex source no longer defines key {}", key);
@@ -714,45 +676,41 @@ void slope::LatexLoader::ReloadContentAndUpdate()
         Latex::RegenerateAll();
         generation++;
         ReloadErrors::clear(source_path, "json");
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception& e) {
         spdlog::error("Failed to reload latex: {}", e.what());
         ReloadErrors::report(source_path, "json", e.what());
     }
 }
 
-void slope::LatexLoader::HotReloadIfModified()
-{
+void slope::LatexLoader::HotReloadIfModified() {
     static auto last_refresh = Time::now();
-    if (TimeFrom(last_refresh) > 0.2){
+    if (TimeFrom(last_refresh) > 0.2) {
         last_refresh = Time::now();
         try {
             auto last_write = std::filesystem::last_write_time(source_path);
-            if (source_last_modified < last_write ){
-                source_last_modified = last_write ;
+            if (source_last_modified < last_write) {
+                source_last_modified = last_write;
                 ReloadContentAndUpdate();
             }
         } catch (std::exception& e) {
-            spdlog::warn("Latex source unavailable {}",e.what());
+            spdlog::warn("Latex source unavailable {}", e.what());
         }
     }
 }
 
 slope::path slope::LatexLoader::source_path;
 slope::json slope::LatexLoader::source;
-std::map<slope::LatexLoader::key,slope::LatexPtr> slope::LatexLoader::loaded;
+std::map<slope::LatexLoader::key, slope::LatexPtr> slope::LatexLoader::loaded;
 std::filesystem::file_time_type slope::LatexLoader::source_last_modified;
 bool slope::LatexLoader::initialized = false;
 int slope::LatexLoader::generation = 0;
-
 
 // preview/tightpage makes each body its own page, cropped to its own content,
 // so nothing overflows a fixed page any more, and the converter only
 // rasterizes what is actually there.
 // `white` renders the glyphs in white so that the tint applied when drawing can give them any color.
 // It is off by default because the tint multiplies, and would turn every \textcolor of a normal formula black.
-std::string slope::TexPreamble(bool white)
-{
+std::string slope::TexPreamble(bool white) {
     return R"(\documentclass{article}
 \usepackage[active,tightpage]{preview}
 \setlength\PreviewBorder{5pt}
@@ -766,7 +724,8 @@ std::string slope::TexPreamble(bool white)
 \usepackage{ragged2e}
 \usepackage{booktabs}
 \setlength{\parindent}{0pt}
-)" + Latex::context + "\n" +
+)" + Latex::context +
+           "\n" +
            R"(\begin{document}
 )" + (white ? "\\color{white}\n" : "");
 }
@@ -774,26 +733,23 @@ std::string slope::TexPreamble(bool white)
 // the body is boxed before being previewed so that TeX can report the height
 // of that very box. [t] makes it the height above the *first* baseline, which
 // is what aligns two formulas of different heights
-std::string slope::TexBody(const TexObject &tex, bool formula, int width)
-{
+std::string slope::TexBody(const TexObject& tex, bool formula, int width) {
     // the historical textwidth of the article page, so unspecified wrapping
     // keeps breaking lines where it used to
     std::string w = width == -1 ? "493.69707" : std::to_string(width);
     std::string body = formula
-        ? "$\\displaystyle\\begin{aligned}[t]\n" + tex + "\n\\end{aligned}$"
-        : "\\begin{varwidth}[t]{" + w + "pt}\n" + tex + "\n\\end{varwidth}";
+                           ? "$\\displaystyle\\begin{aligned}[t]\n" + tex + "\n\\end{aligned}$"
+                           : "\\begin{varwidth}[t]{" + w + "pt}\n" + tex + "\n\\end{varwidth}";
     return "\\sbox\\slopebox{" + body + "}\n"
-           "\\typeout{SLOPEBASELINE \\the\\ht\\slopebox}\n"
-           "\\begin{preview}\\usebox\\slopebox\\end{preview}\n";
+                                        "\\typeout{SLOPEBASELINE \\the\\ht\\slopebox}\n"
+                                        "\\begin{preview}\\usebox\\slopebox\\end{preview}\n";
 }
 
-std::string slope::WriteTexFile(const TexObject &tex, bool formula, int width, bool white)
-{
-    return TexPreamble(white) + TexBody(tex,formula,width) + "\\end{document}\n";
+std::string slope::WriteTexFile(const TexObject& tex, bool formula, int width, bool white) {
+    return TexPreamble(white) + TexBody(tex, formula, width) + "\\end{document}\n";
 }
 
-std::string slope::Tail(const path &p, std::size_t n)
-{
+std::string slope::Tail(const path& p, std::size_t n) {
     // read last n lines of file at p
     std::ifstream file(p);
     std::deque<std::string> lines;
@@ -809,5 +765,4 @@ std::string slope::Tail(const path &p, std::size_t n)
         result += l + "\n";
     }
     return result;
-
 }

@@ -26,6 +26,6 @@ void declareShaderTextures(const ShaderPtr& shader, const json& item);
 // Sets the "view", which is the region of the plane that the shader draws.
 void declareShaderView(const ShaderPtr& shader, const json& item);
 
-}
+} // namespace slope
 
 #endif // DECK_SHADERITEM_H

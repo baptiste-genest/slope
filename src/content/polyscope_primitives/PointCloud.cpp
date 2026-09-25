@@ -7,8 +7,7 @@
 
 namespace {
 
-slope::vecs readPly(const std::string& file)
-{
+slope::vecs readPly(const std::string& file) {
     happly::PLYData ply(file);
     slope::vecs P;
     for (const auto& x : ply.getVertexPositions())
@@ -16,8 +15,7 @@ slope::vecs readPly(const std::string& file)
     return P;
 }
 
-slope::vecs readObjVertices(const std::string& file)
-{
+slope::vecs readObjVertices(const std::string& file) {
     std::ifstream in(file);
     if (!in)
         throw std::runtime_error("cannot open point cloud file " + file);
@@ -32,19 +30,16 @@ slope::vecs readObjVertices(const std::string& file)
     return P;
 }
 
+} // namespace
+
+slope::PointCloud::PointCloud(const vecs& P, LiveScalar r) : points(P), original_points(P), radius(r) {
 }
 
-slope::PointCloud::PointCloud(const vecs &P,LiveScalar r) : points(P),original_points(P),radius(r)
-{
+slope::PointCloud::PointCloudPtr slope::PointCloud::Add(const vecs& P, LiveScalar radius) {
+    return NewPrimitive<PointCloud>(P, radius);
 }
 
-slope::PointCloud::PointCloudPtr slope::PointCloud::Add(const vecs &P,LiveScalar radius)
-{
-    return NewPrimitive<PointCloud>(P,radius);
-}
-
-slope::PointCloud::PointCloudPtr slope::PointCloud::Add(const std::string &file,LiveScalar radius)
-{
+slope::PointCloud::PointCloudPtr slope::PointCloud::Add(const std::string& file, LiveScalar radius) {
     const std::string full = formatPath(file);
     std::string ext = path(file).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
@@ -57,45 +52,40 @@ slope::PointCloud::PointCloudPtr slope::PointCloud::Add(const std::string &file,
         throw std::runtime_error("point cloud file " + file + " must be a .ply or a .obj");
     if (P.empty())
         throw std::runtime_error("point cloud file " + file + " has no vertices");
-    return Add(P,radius);
+    return Add(P, radius);
 }
 
-void slope::PointCloud::normalize()
-{
+void slope::PointCloud::normalize() {
     normalizeToUnitCube(points);
     original_points = points;
     pc->updatePointPositions(points);
 }
 
-slope::PointCloud::PointCloudPtr slope::PointCloud::apply(const mapping &phi)
-{
+slope::PointCloud::PointCloudPtr slope::PointCloud::apply(const mapping& phi) {
     auto NP = points;
     for (auto& x : NP)
         x = phi(x);
-    return Add(NP,radius);
+    return Add(NP, radius);
 }
 
-slope::PointCloud::PointCloudPtr slope::PointCloud::applyDynamic(const VertexTimeMap &phi)
-{
-    PointCloudPtr rslt = NewPrimitive<PointCloud>(original_points,radius);
-    rslt->updater = [phi,rslt] (const TimeObject& t) {
+slope::PointCloud::PointCloudPtr slope::PointCloud::applyDynamic(const VertexTimeMap& phi) {
+    PointCloudPtr rslt = NewPrimitive<PointCloud>(original_points, radius);
+    rslt->updater = [phi, rslt](const TimeObject& t) {
         auto V = rslt->original_points;
-        for (int i = 0;i<V.size();i++)
-            V[i] = phi({V[i],i},t);
+        for (int i = 0; i < V.size(); i++)
+            V[i] = phi({V[i], i}, t);
         rslt->updateCloud(V);
     };
     return rslt;
 }
 
-void slope::PointCloud::setRadius(const LiveScalar &r)
-{
+void slope::PointCloud::setRadius(const LiveScalar& r) {
     radius = r;
     applied_radius.reset();
     syncRadius();
 }
 
-void slope::PointCloud::syncRadius()
-{
+void slope::PointCloud::syncRadius() {
     if (!pc)
         return;
     scalar r = radius.fixed;
@@ -115,32 +105,28 @@ void slope::PointCloud::syncRadius()
     }
     if (r <= 0 || (applied_radius && *applied_radius == r))
         return;
-    pc->setPointRadius(r,false);
+    pc->setPointRadius(r, false);
     applied_radius = r;
 }
 
-void slope::PointCloud::initPolyscope()
-{
-    pc = polyscope::registerPointCloud(getPolyscopeName(),points);
+void slope::PointCloud::initPolyscope() {
+    pc = polyscope::registerPointCloud(getPolyscopeName(), points);
     applied_radius.reset();
     syncRadius();
     initPolyscopeData(pc);
 }
 
-void slope::PointCloud::draw(const TimeObject &t, const StateInSlide &sis)
-{
+void slope::PointCloud::draw(const TimeObject& t, const StateInSlide& sis) {
     syncRadius();
-    PolyscopePrimitive::draw(t,sis);
+    PolyscopePrimitive::draw(t, sis);
 }
 
-void slope::PointCloud::playIntro(const TimeObject &t, const StateInSlide &sis)
-{
+void slope::PointCloud::playIntro(const TimeObject& t, const StateInSlide& sis) {
     syncRadius();
-    PolyscopePrimitive::playIntro(t,sis);
+    PolyscopePrimitive::playIntro(t, sis);
 }
 
-void slope::PointCloud::playOutro(const TimeObject &t, const StateInSlide &sis)
-{
+void slope::PointCloud::playOutro(const TimeObject& t, const StateInSlide& sis) {
     syncRadius();
-    PolyscopePrimitive::playOutro(t,sis);
+    PolyscopePrimitive::playOutro(t, sis);
 }

@@ -1,7 +1,6 @@
 #ifndef SCREENSHOT_H
 #define SCREENSHOT_H
 
-
 #ifdef __APPLE__
 #include <string>
 #include <spdlog/spdlog.h>
@@ -11,7 +10,7 @@
 
 namespace slope {
 
-  // Saves the content of the window to an image file.
-  void screenshot(std::string file);
-}
+// Saves the content of the window to an image file.
+void screenshot(std::string file);
+} // namespace slope
 #endif // SCREENSHOT_H

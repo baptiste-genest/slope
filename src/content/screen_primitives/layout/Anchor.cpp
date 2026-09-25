@@ -4,10 +4,9 @@
 
 namespace slope {
 
-AnchorPtr GlobalAnchor = AbsoluteAnchor::Add(vec2(0,0));
+AnchorPtr GlobalAnchor = AbsoluteAnchor::Add(vec2(0, 0));
 
-std::set<std::string> LabelAnchor::takeFreshLabels()
-{
+std::set<std::string> LabelAnchor::takeFreshLabels() {
     std::set<std::string> out;
     out.swap(fresh_labels);
     return out;
@@ -15,13 +14,12 @@ std::set<std::string> LabelAnchor::takeFreshLabels()
 
 // c q x y are left out, reading as several sounds or as another letter
 static const std::string label_consonants = "bdfgklmnprstvz";
-static const std::string label_vowels     = "aeiou";
+static const std::string label_vowels = "aeiou";
 
-std::string LabelAnchor::suggestLabel()
-{
+std::string LabelAnchor::suggestLabel() {
     static std::mt19937 rng{std::random_device{}()};
     auto pick = [](const std::string& from) {
-        std::uniform_int_distribution<size_t> d(0, from.size()-1);
+        std::uniform_int_distribution<size_t> d(0, from.size() - 1);
         return from[d(rng)];
     };
     // enough tries that only a deck holding most of the 68600 names gives up
@@ -38,19 +36,18 @@ std::string LabelAnchor::suggestLabel()
     return "";
 }
 
-void LabelAnchor::writeAtLabel(const AnchorState& s, bool overwrite) const
-{
+void LabelAnchor::writeAtLabel(const AnchorState& s, bool overwrite) const {
     std::error_code ec;
     std::filesystem::create_directories(slope::Options::ProjectViewsPath, ec);
     std::string filepath = slope::Options::ProjectViewsPath + label + ".pos";
     bool exists = io::file_exists(filepath);
-    if (!exists || overwrite){
+    if (!exists || overwrite) {
         if (!exists)
             created_labels.insert(label);
-            fresh_labels.insert(label);
+        fresh_labels.insert(label);
         std::ofstream file(filepath);
-        if (!file.is_open()){
-            spdlog::error("could not open file {}",filepath);
+        if (!file.is_open()) {
+            spdlog::error("could not open file {}", filepath);
             throw std::runtime_error("could not open file");
         }
         file << s.x << " " << s.y << " " << s.scale
@@ -58,8 +55,7 @@ void LabelAnchor::writeAtLabel(const AnchorState& s, bool overwrite) const
     }
 }
 
-void LabelAnchor::reportLabelIssues()
-{
+void LabelAnchor::reportLabelIssues() {
     // anchors whose .pos had to be created, almost always a mistyped label
     if (!created_labels.empty()) {
         std::string list;
@@ -101,19 +97,16 @@ void LabelAnchor::reportLabelIssues()
     }
 }
 
-void LabelAnchor::writeToSession(const AnchorState& s) const
-{
+void LabelAnchor::writeToSession(const AnchorState& s) const {
     writeToSessionAt(label, s);
 }
 
-void LabelAnchor::writeToSessionAt(const std::string& label, const AnchorState& s)
-{
+void LabelAnchor::writeToSessionAt(const std::string& label, const AnchorState& s) {
     session_cache[label] = s;
     dirty_labels.insert(label);
 }
 
-void LabelAnchor::saveAllDirty()
-{
+void LabelAnchor::saveAllDirty() {
     // labels that could not be written stay dirty, so the quit warning keeps
     // firing and a later save can still rescue them
     std::set<std::string> unsaved;
@@ -139,13 +132,11 @@ void LabelAnchor::saveAllDirty()
         spdlog::error("{} position(s) could not be saved", dirty_labels.size());
 }
 
-bool LabelAnchor::hasDirty()
-{
+bool LabelAnchor::hasDirty() {
     return !dirty_labels.empty();
 }
 
-AnchorState LabelAnchor::readFromLabel() const
-{
+AnchorState LabelAnchor::readFromLabel() const {
     auto it = session_cache.find(label);
     if (it != session_cache.end())
         return it->second;
@@ -153,7 +144,7 @@ AnchorState LabelAnchor::readFromLabel() const
     // this runs from getPos()/getScale(), i.e. several times per primitive per
     // frame, so whatever we resolve here must land in the cache
     AnchorState rslt;
-    std::ifstream file (slope::Options::ProjectViewsPath + label + ".pos");
+    std::ifstream file(slope::Options::ProjectViewsPath + label + ".pos");
     if (!file.is_open() || !(file >> rslt.x >> rslt.y)) {
         // The file is normally created by the constructor. If it is missing or truncated,
         // the same defaults are used, so the presentation does not stop in the middle of a render.
@@ -177,22 +168,22 @@ AnchorState LabelAnchor::readFromLabel() const
     return rslt;
 }
 
-vec2 WorldToScreen(const vec &p) {
-    glm::vec4 pos = glm::vec4(p(0),p(1),p(2),1);
-    glm::vec4 screenPos = polyscope::view::getCameraPerspectiveMatrix()*polyscope::view::viewMat * pos;
+vec2 WorldToScreen(const vec& p) {
+    glm::vec4 pos = glm::vec4(p(0), p(1), p(2), 1);
+    glm::vec4 screenPos = polyscope::view::getCameraPerspectiveMatrix() * polyscope::view::viewMat * pos;
     screenPos /= screenPos.w;
-    screenPos = (screenPos + glm::vec4(1,1,1,1))/2.f;
-    screenPos.y = 1-screenPos.y;
-    return vec2(screenPos.x,screenPos.y);
+    screenPos = (screenPos + glm::vec4(1, 1, 1, 1)) / 2.f;
+    screenPos.y = 1 - screenPos.y;
+    return vec2(screenPos.x, screenPos.y);
 }
 
 vec ScreenToWorld(const vec2& p) {
     //compute pos such that WorldToScreen(pos) = p
-    glm::vec4 pos = glm::vec4(p(0)*2 - 1,1-p(1)*2,0,1);
-    glm::mat4 Mat = polyscope::view::getCameraPerspectiveMatrix()*polyscope::view::viewMat;
+    glm::vec4 pos = glm::vec4(p(0) * 2 - 1, 1 - p(1) * 2, 0, 1);
+    glm::mat4 Mat = polyscope::view::getCameraPerspectiveMatrix() * polyscope::view::viewMat;
     glm::vec4 worldPos = glm::inverse(Mat) * pos;
     worldPos /= worldPos.w;
-    return vec(worldPos.x,worldPos.y,worldPos.z);
+    return vec(worldPos.x, worldPos.y, worldPos.z);
 }
 
-}
+} // namespace slope

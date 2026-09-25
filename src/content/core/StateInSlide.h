@@ -21,13 +21,13 @@ struct StateInSlide {
     // Opacity between 0 and 1.
     scalar alpha = 1;
     // Moves the position of the anchor.
-    RelativePlacer placer = [] (const vec2& p) {
+    RelativePlacer placer = [](const vec2& p) {
         return p;
     };
     // Where the primitive is attached.
     AnchorPtr anchor = GlobalAnchor;
     // Rotation in radians.
-    scalar angle=0;
+    scalar angle = 0;
     scalar scale = 1;
     // True when the placer holds a user offset, so transitions do not add theirs.
     bool offseted = false;
@@ -45,9 +45,9 @@ struct StateInSlide {
     PlanePlacement plane;
 
     // True when the primitive is pasted on a plane.
-    bool hasPlane() const {return plane.active(persistentTransform);}
+    bool hasPlane() const { return plane.active(persistentTransform); }
     // Transform of the plane, empty when there is none.
-    std::optional<Transform> planeTransform() const {return plane.resolve(persistentTransform);}
+    std::optional<Transform> planeTransform() const { return plane.resolve(persistentTransform); }
 
     // When true, updaterOverride runs instead of the updater of the primitive.
     bool updaterOverrided = false;
@@ -67,7 +67,7 @@ struct StateInSlide {
     }
 
     // State placed at a fixed screen position.
-    StateInSlide(const vec2& x)  {
+    StateInSlide(const vec2& x) {
         anchor = AbsoluteAnchor::Add(x);
     }
 
@@ -79,7 +79,7 @@ struct StateInSlide {
     // Replaces the placement by a shift of x.
     void setOffset(const vec2& x) {
         offseted = true;
-        placer = [x] (const vec2& p) {
+        placer = [x](const vec2& p) {
             return p + x;
         };
     }
@@ -88,7 +88,7 @@ struct StateInSlide {
     void addOffset(const vec2& x) {
         auto old = placer;
         offseted = true;
-        placer = [old,x] (const vec2& p) {
+        placer = [old, x](const vec2& p) {
             return old(p) + x;
         };
     }
@@ -123,13 +123,12 @@ struct StateInSlide {
     ImVec2 getAbsolutePosition() const {
         vec2 P = getPosition();
         auto W = ImGui::GetWindowSize();
-        return ImVec2(P(0)*W.x,P(1)*W.y);
+        return ImVec2(P(0) * W.x, P(1) * W.y);
     }
 };
 
 using StatePtr = std::shared_ptr<StateInSlide>;
 
-
-}
+} // namespace slope
 
 #endif // STATEINSLIDE_H

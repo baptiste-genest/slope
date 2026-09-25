@@ -29,7 +29,7 @@ scalar there_and_back(scalar t);
 RateFunc RateFromName(std::string_view name);
 
 // Returns the name of an easing.
-const char *NameOfRate(RateFunc f);
+const char* NameOfRate(RateFunc f);
 
 } // namespace slope
 

@@ -14,13 +14,13 @@ using TexObject = std::string;
 namespace tex {
 
 // A / B as a fraction.
-inline TexObject frac(const TexObject& A,const TexObject& B) {
-    return "\\frac{" + A +"}{" + B + "}";
+inline TexObject frac(const TexObject& A, const TexObject& B) {
+    return "\\frac{" + A + "}{" + B + "}";
 }
 
 // Scalar product <A,B>.
-inline TexObject dot(const TexObject& A,const TexObject& B) {
-    return "\\langle{" + A +"," + B + "\\rangle}";
+inline TexObject dot(const TexObject& A, const TexObject& B) {
+    return "\\langle{" + A + "," + B + "\\rangle}";
 }
 
 // A transposed.
@@ -33,37 +33,36 @@ inline TexObject text(const TexObject& A) {
     return "\\text{" + A + "}";
 }
 
-
 // A centered on the line.
 inline TexObject center(const TexObject& A) {
     return "\\begin{center} \n" + A + "\n\\end{center}";
 }
 
 // A as a displayed equation, numbered when number is true.
-inline TexObject equation(const TexObject& A,bool number = false) {
+inline TexObject equation(const TexObject& A, bool number = false) {
     if (number)
         return "\\begin{equation} \n" + A + "\n\\end{equation}";
     return "\\begin{equation*} \n" + A + "\n\\end{equation*}";
 }
 
 // A to the power B.
-inline TexObject pow(const TexObject& A,const TexObject& B) {
+inline TexObject pow(const TexObject& A, const TexObject& B) {
     return A + "^{" + B + "}";
 }
 
 // A written above B.
-inline TexObject AaboveB(const TexObject& A,const TexObject& B) {
+inline TexObject AaboveB(const TexObject& A, const TexObject& B) {
     return "\\overset{" + A + "}{" + B + "}";
 }
 
 // A written below B.
-inline TexObject AbelowB(const TexObject& A,const TexObject& B) {
+inline TexObject AbelowB(const TexObject& A, const TexObject& B) {
     return "\\underset{" + A + "}{" + B + "}";
 }
 
 // Partial derivative of order N with respect to the coordinate i, written x, y and z or x_i.
-template<int N = 1>
-inline TexObject del(int i,bool xyz = true) {
+template <int N = 1>
+inline TexObject del(int i, bool xyz = true) {
     TexObject D;
     if (N == 1)
         D = "\\partial ";
@@ -76,13 +75,13 @@ inline TexObject del(int i,bool xyz = true) {
             return D + "y";
         return D + "z";
     }
-    return D + "x_{"+std::to_string(i)+"}";
+    return D + "x_{" + std::to_string(i) + "}";
 }
 
 // Aligned equations, one per line.
 inline TexObject align(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{align*}\n";
-    for (int i= 0;i<texs.size()-1;i++)
+    for (int i = 0; i < texs.size() - 1; i++)
         rslt += texs[i] + "\\\\ \n";
     rslt += texs.back();
     rslt += "\n \\end{align*}";
@@ -97,11 +96,10 @@ TexObject align(ARGS... arguments) {
     return align(data);
 }
 
-
 // Column vector.
 inline TexObject Vec(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{pmatrix}\n";
-    for (int i= 0;i<texs.size()-1;i++)
+    for (int i = 0; i < texs.size() - 1; i++)
         rslt += texs[i] + "\\\\";
     rslt += texs.back();
     rslt += "\\end{pmatrix}";
@@ -119,8 +117,8 @@ TexObject Vec(ARGS... arguments) {
 // Piecewise definition. The list alternates a value and its condition.
 inline TexObject cases(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{cases}\n";
-    for (int i= 0;i<texs.size();i+=2)
-        rslt += texs[i] + " ,&\\quad " + texs[i+1] + " \\\\";
+    for (int i = 0; i < texs.size(); i += 2)
+        rslt += texs[i] + " ,&\\quad " + texs[i + 1] + " \\\\";
     rslt += "\\end{cases}";
     return rslt;
 }
@@ -136,8 +134,8 @@ TexObject cases(ARGS... arguments) {
 // Numbered list.
 inline TexObject enumerate(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{enumerate}\n";
-    for (int i= 0;i<texs.size();i++)
-        rslt +=  "\\item " + texs[i] + '\n';
+    for (int i = 0; i < texs.size(); i++)
+        rslt += "\\item " + texs[i] + '\n';
     rslt += "\\end{enumerate}";
     return rslt;
 }
@@ -150,34 +148,32 @@ TexObject enumerate(ARGS... arguments) {
     return enumerate(data);
 }
 
-
-
 // Matrix with col columns and row rows, given row by row.
-template <int col,int row>
+template <int col, int row>
 inline TexObject Mat(const std::vector<TexObject>& texs) {
     TexObject rslt = "\\begin{pmatrix}\n";
-    for (int j = 0;j<row;j++){
-        for (int i= 0;i<col-1;i++)
-            rslt += texs[j*col + i]+ " & " ;
-        if (j < row-1 )
-            rslt += texs[j*col + (col-1)] + " \\\\ ";
+    for (int j = 0; j < row; j++) {
+        for (int i = 0; i < col - 1; i++)
+            rslt += texs[j * col + i] + " & ";
+        if (j < row - 1)
+            rslt += texs[j * col + (col - 1)] + " \\\\ ";
         else
-            rslt += texs[j*col + (col-1)];
+            rslt += texs[j * col + (col - 1)];
     }
     rslt += "\\end{pmatrix}";
     return rslt;
 }
 
-template <int col,int row,typename... ARGS>
+template <int col, int row, typename... ARGS>
 TexObject Mat(ARGS... arguments) {
     std::vector<TexObject> data;
     data.reserve(sizeof...(arguments));
     (data.emplace_back(arguments), ...);
-    return Mat<col,row>(data);
+    return Mat<col, row>(data);
 }
 
-}
+} // namespace tex
 
-}
+} // namespace slope
 
 #endif // LATEXMACROS_H

@@ -4,8 +4,7 @@
 #include <set>
 #include <cmath>
 
-void slope::HUD::initialize(int n_slides, const std::function<std::string(int)>& get_title)
-{
+void slope::HUD::initialize(int n_slides, const std::function<std::string(int)>& get_title) {
     slide_numbers.resize(n_slides);
     std::set<std::string> done;
 
@@ -22,16 +21,14 @@ void slope::HUD::initialize(int n_slides, const std::function<std::string(int)>&
     }
 }
 
-void slope::HUD::drawSlideNumber(size_t current_slide) const
-{
+void slope::HUD::drawSlideNumber(size_t current_slide) const {
     const auto& DSN = slide_number_display[slide_numbers[current_slide]];
     DSN.first->play(TimeObject(), DSN.second);
 }
 
-void slope::HUD::drawGizmoMode(const std::string& what) const
-{
+void slope::HUD::drawGizmoMode(const std::string& what) const {
     auto* dl = ImGui::GetWindowDrawList();
-    auto  S  = ImGui::GetWindowSize();
+    auto S = ImGui::GetWindowSize();
 
     auto& bg = polyscope::view::bgColor;
     auto inv = [](float f) { return (int)((1.0f - f) * 255 + 0.5f); };
@@ -42,24 +39,23 @@ void slope::HUD::drawGizmoMode(const std::string& what) const
     dl->AddText(ImGui::GetFont(), size, ImVec2(S.x * 0.02f, S.y * 0.02f), col, label.c_str());
 }
 
-void slope::HUD::drawPauseIndicator(float elapsed, float duration) const
-{
+void slope::HUD::drawPauseIndicator(float elapsed, float duration) const {
     float remaining = 1.0f - elapsed / duration;
 
     auto* dl = ImGui::GetWindowDrawList();
-    auto  S  = ImGui::GetWindowSize();
+    auto S = ImGui::GetWindowSize();
 
-    constexpr float padding   = 0.02f;
-    constexpr float norm_y    = 1.0f - 0.07f;
+    constexpr float padding = 0.02f;
+    constexpr float norm_y = 1.0f - 0.07f;
     constexpr float thickness = 2.5f;
-    constexpr int   segments  = 48;
+    constexpr int segments = 48;
 
     float radius = S.y * 0.012f;
     ImVec2 center(S.x * (1.0f - padding) - radius, S.y * norm_y);
 
     auto& bg = polyscope::view::bgColor;
     auto inv = [](float f) { return (int)((1.0f - f) * 255 + 0.5f); };
-    ImU32 col_dim  = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]),  50);
+    ImU32 col_dim = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]), 50);
     ImU32 col_full = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]), 220);
 
     dl->AddCircle(center, radius, col_dim, segments, thickness);
@@ -72,8 +68,7 @@ void slope::HUD::drawPauseIndicator(float elapsed, float duration) const
 }
 
 std::filesystem::path slope::HUD::drawReloadErrors(
-    const std::map<std::filesystem::path, std::string>& errors) const
-{
+    const std::map<std::filesystem::path, std::string>& errors) const {
     std::filesystem::path clicked;
     if (errors.empty())
         return clicked;
@@ -81,9 +76,7 @@ std::filesystem::path slope::HUD::drawReloadErrors(
     const ImVec2 S = ImGui::GetIO().DisplaySize;
     ImGui::SetNextWindowPos(ImVec2(S.x * 0.01f, S.y * 0.99f), ImGuiCond_Always, ImVec2(0.f, 1.f));
     ImGui::SetNextWindowBgAlpha(0.6f);
-    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize
-                                 | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav
-                                 | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
+    const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove;
     if (ImGui::Begin("##reload_errors", nullptr, flags)) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.55f, 0.45f, 1.f));
         ImGui::Text("! %d file%s failed to reload", int(errors.size()), errors.size() > 1 ? "s" : "");

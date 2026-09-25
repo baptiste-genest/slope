@@ -25,10 +25,8 @@
 namespace slope {
 
 // The window, the playback of the slides and the tools around them.
-class Slideshow : public PrompterModule
-{
+class Slideshow : public PrompterModule {
 public:
-
     Slideshow() {}
 
     // Goes to the next slide with a transition.
@@ -49,7 +47,7 @@ public:
     }
 
     // Creates the window and reads the command line.
-    void init(std::string project_name,int argc,char** argv);
+    void init(std::string project_name, int argc, char** argv);
 
     // Jumps to a slide with no transition.
     void goToSlide(int slide_nb);
@@ -62,7 +60,7 @@ public:
     void run();
 
     // True when the command line asked for the help text.
-    bool helpWanted() const {return help_wanted;}
+    bool helpWanted() const { return help_wanted; }
 
     // Builds the slides again while the show runs.
     // It hides what is shown and the given stale primitives, clears the slides, runs the composer
@@ -81,7 +79,6 @@ public:
     void copyLabelSuggestion(bool as_placement = false);
 
 private:
-
     DragEditor drag_editor;
     TimeTracker time_tracker;
     CameraExporter camera_exporter;
@@ -180,7 +177,6 @@ private:
     bool help_wanted = false;
 };
 
-
-}
+} // namespace slope
 
 #endif // SLIDESHOW_H

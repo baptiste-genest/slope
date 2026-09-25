@@ -1,13 +1,13 @@
 #include "slides/core/Slide.h"
 
-void slope::Slide::add(PrimitivePtr p, const StateInSlide &sis){
-    add(p,sis,-1);
+void slope::Slide::add(PrimitivePtr p, const StateInSlide& sis) {
+    add(p, sis, -1);
 }
 
-void slope::Slide::add(PrimitivePtr p, const StateInSlide &sis, int forced_order){
+void slope::Slide::add(PrimitivePtr p, const StateInSlide& sis, int forced_order) {
     if (p->isScreenSpace())
-        if (p->isExclusive()){
-            if (title_primitive != nullptr){
+        if (p->isExclusive()) {
+            if (title_primitive != nullptr) {
                 this->erase(title_primitive);
                 insertion_order.erase(title_primitive);
             }
@@ -20,24 +20,24 @@ void slope::Slide::add(PrimitivePtr p, const StateInSlide &sis, int forced_order
     if (already_present)
         old_sis = (*this)[p];
     (*this)[p] = sis;
-    if (already_present){
-        if (old_sis.updaterOverrided && !sis.updaterOverrided){
+    if (already_present) {
+        if (old_sis.updaterOverrided && !sis.updaterOverrided) {
             (*this)[p].updaterOverrided = true;
             (*this)[p].updaterOverride = old_sis.updaterOverride;
         }
     }
 }
 
-void slope::Slide::add(PrimitivePtr p, const vec2 &pos){
-    add(p,StateInSlide(pos));
+void slope::Slide::add(PrimitivePtr p, const vec2& pos) {
+    add(p, StateInSlide(pos));
 }
 
 std::vector<slope::PrimitiveInSlide> slope::Slide::getDepthSorted() {
     std::vector<PrimitiveInSlide> rslt;
-    for (const auto& pis : *this){
+    for (const auto& pis : *this) {
         rslt.push_back(pis);
     }
-    std::sort(rslt.begin(),rslt.end(),[this](const PrimitiveInSlide& a,const PrimitiveInSlide& b){
+    std::sort(rslt.begin(), rslt.end(), [this](const PrimitiveInSlide& a, const PrimitiveInSlide& b) {
         if (a.first->getDepth() != b.first->getDepth())
             return a.first->getDepth() < b.first->getDepth();
         return orderOf(a.first) < orderOf(b.first);
@@ -45,13 +45,13 @@ std::vector<slope::PrimitiveInSlide> slope::Slide::getDepthSorted() {
     return rslt;
 }
 
-int slope::Slide::orderOf(const PrimitivePtr &p) const {
+int slope::Slide::orderOf(const PrimitivePtr& p) const {
     auto it = insertion_order.find(p);
     return it == insertion_order.end() ? -1 : it->second;
 }
 
-void slope::Slide::add(PrimitiveInSlide pis){
-    add(pis.first,pis.second);
+void slope::Slide::add(PrimitiveInSlide pis) {
+    add(pis.first, pis.second);
 }
 
 void slope::Slide::remove(PrimitivePtr ptr) {
@@ -60,8 +60,8 @@ void slope::Slide::remove(PrimitivePtr ptr) {
 }
 
 std::map<slope::ScreenPrimitivePtr, slope::StateInSlide> slope::Slide::getScreenPrimitives() const {
-    std::map<ScreenPrimitivePtr,StateInSlide> rslt;
-    for (auto&& [ptr,sis] : *this) {
+    std::map<ScreenPrimitivePtr, StateInSlide> rslt;
+    for (auto&& [ptr, sis] : *this) {
         if (!ptr->isScreenSpace())
             continue;
         rslt[std::dynamic_pointer_cast<ScreenPrimitive>(ptr)] = sis;
@@ -70,7 +70,7 @@ std::map<slope::ScreenPrimitivePtr, slope::StateInSlide> slope::Slide::getScreen
 }
 
 std::map<slope::PolyscopePrimitivePtr, slope::StateInSlide> slope::Slide::getPolyscopePrimitives() const {
-    std::map<PolyscopePrimitivePtr,StateInSlide> rslt;
+    std::map<PolyscopePrimitivePtr, StateInSlide> rslt;
     for (auto& pis : *this) {
         if (!pis.first)
             continue;
@@ -95,7 +95,7 @@ void slope::Slide::setCam(bool fly) const {
         */
 }
 
-bool slope::Slide::sameCamera(const Slide &other) const {
+bool slope::Slide::sameCamera(const Slide& other) const {
     if (camera && !other.camera)
         return false;
     if (!camera && other.camera)

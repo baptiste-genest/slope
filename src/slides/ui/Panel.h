@@ -15,7 +15,7 @@ class SlideManager;
 class Panel {
     vec2 meanpos;
     AnchorPtr anchor;
-    ScreenPrimitiveInSlide last_inserted = {nullptr,StateInSlide()};
+    ScreenPrimitiveInSlide last_inserted = {nullptr, StateInSlide()};
     ScreenPrimitivePtr root = nullptr;
     bool reveal;
     Slide buffer;
@@ -24,7 +24,7 @@ class Panel {
 
 public:
     // Panel centered at p. With reveal, each primitive after the root appears on its own slide.
-    Panel(bool reveal = false,vec2 p = CENTER);
+    Panel(bool reveal = false, vec2 p = CENTER);
 
     // The anchor at the center of the panel.
     AnchorPtr getAnchor() const;
@@ -39,11 +39,11 @@ public:
     void addToSlideManager(SlideManager& sm);
 };
 
-inline SlideManager& operator<<(SlideManager& sm,Panel& p) {
+inline SlideManager& operator<<(SlideManager& sm, Panel& p) {
     p.addToSlideManager(sm);
     return sm;
 }
 
-}
+} // namespace slope
 
 #endif // PANEL_H

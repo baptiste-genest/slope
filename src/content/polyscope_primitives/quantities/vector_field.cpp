@@ -1,50 +1,44 @@
 #include "content/polyscope_primitives/quantities/vector_field.h"
 #include <spdlog/spdlog.h>
 
-
 namespace slope {
-VectorField::VectorField(const vecs &X, const vecs &V,double l) : V(V),
-    X(X),length(l)
-{
+VectorField::VectorField(const vecs& X, const vecs& V, double l) : V(V),
+                                                                   X(X), length(l) {
 }
 
-VectorField::VectorFieldPtr VectorField::AddOnGrid(const vecs &V)
-{
+VectorField::VectorFieldPtr VectorField::AddOnGrid(const vecs& V) {
     int n = std::cbrt(V.size());
-    if (n*n*n != V.size()){
+    if (n * n * n != V.size()) {
         spdlog::error("VectorField::AddOnGrid: V.size() ({}) must be a perfect cube", V.size());
         throw std::runtime_error("VectorField::AddOnGrid: V.size() must be a perfect cube");
     }
-    auto coord = buildRangeMapper(0,n-1,-0.5,0.5);
+    auto coord = buildRangeMapper(0, n - 1, -0.5, 0.5);
     vecs X;
-    for (int i = 0;i<n;i++)
-        for (int j = 0;j<n;j++)
-            for (int k = 0;k<n;k++)
-                X.push_back(vec(coord(i),coord(j),coord(k)));
-    return Add(X,V,std::sqrt(2)/(n-1));
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++)
+            for (int k = 0; k < n; k++)
+                X.push_back(vec(coord(i), coord(j), coord(k)));
+    return Add(X, V, std::sqrt(2) / (n - 1));
 }
 
-VectorField::VectorFieldPtr VectorField::EvalOnGrid(const std::function<vec (vec)> &vf, int n,scalar l)
-{
-    auto coord = buildRangeMapper(0,n-1,-0.5*l,l*0.5);
-    vecs X,V;
-    for (int i = 0;i<n;i++)
-        for (int j = 0;j<n;j++)
-            for (int k = 0;k<n;k++){
-                V.push_back(vf(vec(coord(i),coord(j),coord(k))));
-                X.push_back(vec(coord(i),coord(j),coord(k)));
+VectorField::VectorFieldPtr VectorField::EvalOnGrid(const std::function<vec(vec)>& vf, int n, scalar l) {
+    auto coord = buildRangeMapper(0, n - 1, -0.5 * l, l * 0.5);
+    vecs X, V;
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++)
+            for (int k = 0; k < n; k++) {
+                V.push_back(vf(vec(coord(i), coord(j), coord(k))));
+                X.push_back(vec(coord(i), coord(j), coord(k)));
             }
-    return Add(X,V,std::sqrt(2)*l/(n-1));
-
+    return Add(X, V, std::sqrt(2) * l / (n - 1));
 }
 
-void VectorField::initPolyscope()
-{
-    pc = polyscope::registerPointCloud(getPolyscopeName(),X);
+void VectorField::initPolyscope() {
+    pc = polyscope::registerPointCloud(getPolyscopeName(), X);
     pc->setPointRadius(0);
     pc->setEnabled(false);
-    pq = pc->addVectorQuantity("V",V);
-    pq->setVectorRadius(length/20,false);
+    pq = pc->addVectorQuantity("V", V);
+    pq->setVectorRadius(length / 20, false);
 }
 
-}
+} // namespace slope

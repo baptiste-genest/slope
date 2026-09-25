@@ -39,7 +39,7 @@ public:
     static LegendPtr Add(BoardRef board);
 
     // Name under which the settings are published, "<board>_legend".
-    static std::string nameFor(const std::string& board) {return board + "_legend";}
+    static std::string nameFor(const std::string& board) { return board + "_legend"; }
 
     // Names of every setting, in the order of the Tuner.
     static const std::vector<std::string>& settingNames();
@@ -48,7 +48,7 @@ public:
     Settings settings;
 
     // True, because it goes to a corner of its board and not where a slide would put it.
-    bool placesItself() const override {return true;}
+    bool placesItself() const override { return true; }
     // Size in pixels.
     vec2 getSize() const override;
 
@@ -68,6 +68,6 @@ private:
     std::vector<AnchorPtr> anchors;
 };
 
-}
+} // namespace slope
 
 #endif // LEGEND_H

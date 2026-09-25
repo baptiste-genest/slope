@@ -309,8 +309,7 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  * Prefer marking the frames with "keyframe:" and testing t.afterKeyframe, atKeyframe or beforeKeyframe,
  * which follow the deck wherever the mark moves.
  */
-class DeckLoader
-{
+class DeckLoader {
 public:
     using ObjectFactory = std::function<PrimitiveInSlide()>;
     using PrimitiveFactory = std::function<PrimitivePtr()>;
@@ -319,7 +318,7 @@ public:
     // Reads the deck file, for use with a Slideshow that is owned elsewhere.
     void init(path deck_file);
     // True once a deck file was read.
-    bool isInitialized() const {return initialized;}
+    bool isInitialized() const { return initialized; }
 
     // Owned-slideshow mode. It creates the slideshow and the LaTeX resources of the project when they exist,
     // then reads the deck file.
@@ -359,13 +358,14 @@ public:
     // Checks the modification time of the deck, not at every call.
     // Returns true when the deck changed on disk and was parsed again without error.
     bool sourceModified();
+
 private:
     // The first build places every item, so only what follows it is new.
     bool first_build_done = false;
-public:
 
+public:
     // Primitives placed by the deck at the last build.
-    const std::set<PrimitivePtr>& usedPrimitives() const {return used_primitives;}
+    const std::set<PrimitivePtr>& usedPrimitives() const { return used_primitives; }
 
 private:
     path source_path;
@@ -469,7 +469,7 @@ private:
 
     // Creates the screen primitive of a title, latex, text, formula or image item, or takes it from the cache.
     // Returns it with its reference name.
-    std::pair<ScreenPrimitivePtr,std::string> makeScreenPrimitive(const json& item);
+    std::pair<ScreenPrimitivePtr, std::string> makeScreenPrimitive(const json& item);
 
     // Handles "uniforms" and "textures" on an "object:" that names a shader.
     // The declarations are in deck/items/ShaderItem.h, and this function only remembers what it declared.
@@ -508,6 +508,6 @@ private:
                             const std::function<PrimitivePtr()>& create);
 };
 
-}
+} // namespace slope
 
 #endif // DECKLOADER_H

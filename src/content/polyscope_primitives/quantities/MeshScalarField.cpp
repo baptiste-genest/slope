@@ -5,17 +5,15 @@
 
 #include <spdlog/spdlog.h>
 
-slope::MeshScalarField::MeshScalarField(const Mesh::MeshPtr &mesh, const std::string &name,
-                                       const scalars &values, const std::string &colormap)
-    : mesh(mesh), name(name), colormap(colormap), values(values), scratch(values)
-{
+slope::MeshScalarField::MeshScalarField(const Mesh::MeshPtr& mesh, const std::string& name,
+                                        const scalars& values, const std::string& colormap)
+    : mesh(mesh), name(name), colormap(colormap), values(values), scratch(values) {
 }
 
-slope::MeshScalarFieldPtr slope::MeshScalarField::Add(const Mesh::MeshPtr &mesh,
-                                                      const std::string &name,
-                                                      const scalars &values,
-                                                      const std::string &colormap)
-{
+slope::MeshScalarFieldPtr slope::MeshScalarField::Add(const Mesh::MeshPtr& mesh,
+                                                      const std::string& name,
+                                                      const scalars& values,
+                                                      const std::string& colormap) {
     if (mesh == nullptr)
         throw std::runtime_error("MeshScalarField::Add : null mesh");
     if (values.empty())
@@ -28,16 +26,14 @@ slope::MeshScalarFieldPtr slope::MeshScalarField::Add(const Mesh::MeshPtr &mesh,
     return NewPrimitive<MeshScalarField>(mesh, name, values, colormap);
 }
 
-slope::MeshScalarFieldPtr slope::MeshScalarField::Add(const Mesh::MeshPtr &mesh,
-                                                      const std::string &name,
-                                                      const Vec &values,
-                                                      const std::string &colormap)
-{
+slope::MeshScalarFieldPtr slope::MeshScalarField::Add(const Mesh::MeshPtr& mesh,
+                                                      const std::string& name,
+                                                      const Vec& values,
+                                                      const std::string& colormap) {
     return Add(mesh, name, scalars(values.data(), values.data() + values.size()), colormap);
 }
 
-void slope::MeshScalarField::initPolyscope()
-{
+void slope::MeshScalarField::initPolyscope() {
     q = mesh->pc->addVertexScalarQuantity(name, values);
     q->setColorMap(colormap);
 
@@ -52,8 +48,7 @@ void slope::MeshScalarField::initPolyscope()
     resolveColors();
 }
 
-void slope::MeshScalarField::setBaseline(scalar v)
-{
+void slope::MeshScalarField::setBaseline(scalar v) {
     baseline = v;
     baseline_set = true;
     if (q == nullptr)
@@ -67,44 +62,37 @@ void slope::MeshScalarField::setBaseline(scalar v)
     last_p = -1;
 }
 
-void slope::MeshScalarField::resolveColors()
-{
+void slope::MeshScalarField::resolveColors() {
     const double span = range.second - range.first;
     const double t = span > 1e-12 ? (baseline - range.first) / span : 0.;
     field_color = polyscope::render::engine->getColorMap(colormap).getValue(t);
 }
 
-void slope::MeshScalarField::draw(const TimeObject &, const StateInSlide &)
-{
+void slope::MeshScalarField::draw(const TimeObject&, const StateInSlide&) {
     apply(1);
 }
 
-void slope::MeshScalarField::playIntro(const TimeObject &t, const StateInSlide &)
-{
+void slope::MeshScalarField::playIntro(const TimeObject& t, const StateInSlide&) {
     apply(t.transition_parameter);
 }
 
-void slope::MeshScalarField::playOutro(const TimeObject &t, const StateInSlide &)
-{
+void slope::MeshScalarField::playOutro(const TimeObject& t, const StateInSlide&) {
     apply(1 - t.transition_parameter);
 }
 
-void slope::MeshScalarField::forceEnable()
-{
+void slope::MeshScalarField::forceEnable() {
     base_color = mesh->pc->getSurfaceColor();
     last_p = -1;
 }
 
-void slope::MeshScalarField::forceDisable()
-{
+void slope::MeshScalarField::forceDisable() {
     if (q != nullptr)
         q->setEnabled(false);
     mesh->pc->setSurfaceColor(base_color);
     last_p = -1;
 }
 
-void slope::MeshScalarField::apply(scalar u)
-{
+void slope::MeshScalarField::apply(scalar u) {
     if (std::abs(u - last_p) < 1e-6)
         return;
     last_p = u;
@@ -122,8 +110,7 @@ void slope::MeshScalarField::apply(scalar u)
     uploadField(split < 1. ? (u - split) / (1. - split) : 1.);
 }
 
-void slope::MeshScalarField::uploadField(scalar p)
-{
+void slope::MeshScalarField::uploadField(scalar p) {
     for (size_t i = 0; i < values.size(); ++i)
         scratch[i] = std::lerp(baseline, values[i], p);
     q->updateData(scratch);

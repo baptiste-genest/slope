@@ -9,8 +9,7 @@ namespace {
 
 // a name that gives nothing usable is said once, and the field keeps its default
 bool readNamed(const std::string& name, const char* field,
-               std::initializer_list<int> sizes, Snippet::Value& out)
-{
+               std::initializer_list<int> sizes, Snippet::Value& out) {
     out = Snippet::get(name);
     if (std::find(sizes.begin(), sizes.end(), out.n) != sizes.end())
         return true;
@@ -25,23 +24,21 @@ bool readNamed(const std::string& name, const char* field,
     return false;
 }
 
-vec readVec(const LiveVec& l, const char* field, const vec& def)
-{
+vec readVec(const LiveVec& l, const char* field, const vec& def) {
     if (!l.live())
         return l.fixed;
     Snippet::Value v;
     return readNamed(l.snippet, field, {3}, v) ? v.v3() : def;
 }
 
-}
+} // namespace
 
-Transform LiveTransform::value() const
-{
+Transform LiveTransform::value() const {
     vec s = scale.fixed;
     if (scale.live()) {
         Snippet::Value v;
         if (!readNamed(scale.snippet, "scale", {1, 3}, v))
-            s = vec(1,1,1);
+            s = vec(1, 1, 1);
         else
             s = v.n == 1 ? vec(v.v[0], v.v[0], v.v[0]) : v.v3();
     }
@@ -62,8 +59,7 @@ Transform LiveTransform::value() const
     return Transform::ScalePositionRotate(s, readVec(pos, "pos", vec::Zero()), a, th);
 }
 
-Transform LiveTransform::within(const Transform& parent) const
-{
+Transform LiveTransform::within(const Transform& parent) const {
     const Transform T = value();
     // an identity parent, kept exact rather than decomposed
     if (parent.angle == 0 && parent.translation == glm::vec3(0) && parent.scale == glm::vec3(1))
@@ -73,4 +69,4 @@ Transform LiveTransform::within(const Transform& parent) const
     return R;
 }
 
-}
+} // namespace slope

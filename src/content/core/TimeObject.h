@@ -19,8 +19,7 @@ namespace slope {
  * having no moment of appearing, which leaves it without inner_time and
  * relative_frame_number.
  */
-struct TimeObject
-{
+struct TimeObject {
     TimeTypeSec from_begin = 0;
     TimeTypeSec from_action = 0;
     TimeTypeSec inner_time = 0;
@@ -83,11 +82,11 @@ struct TimeObject
 
     TimeObject() {}
     // Time object with the given inner time and transition parameter.
-    TimeObject(TimeTypeSec it,parameter transition)
-        : inner_time(it),transition_parameter(transition),slide_progress(transition) {}
+    TimeObject(TimeTypeSec it, parameter transition)
+        : inner_time(it), transition_parameter(transition), slide_progress(transition) {}
 
     // Copy of this object with the inner time and relative frame number of p.
-    TimeObject operator()(Primitive* p) const ;
+    TimeObject operator()(Primitive* p) const;
 
     // Copy of this object with another transition parameter.
     inline TimeObject operator()(parameter t) const {
@@ -101,8 +100,8 @@ struct TimeObject
 using Updater = std::function<void(TimeObject)>;
 
 // Gives the position of a vertex at a given time.
-using VertexTimeMap = std::function<vec(const Vertex&,const TimeObject&)>;
+using VertexTimeMap = std::function<vec(const Vertex&, const TimeObject&)>;
 
-}
+} // namespace slope
 
 #endif // TIMEOBJECT_H

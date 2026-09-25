@@ -32,7 +32,10 @@ public:
     // What a parameter shows while the slide that reads it is on and the Tuner is closed.
     // Handle is a direct manipulator, a 3D gizmo for a vec3 and a screen handle for a vec2.
     // A type without one shows its widget instead.
-    enum class Visible { None, Panel, Handle, Both };
+    enum class Visible { None,
+                         Panel,
+                         Handle,
+                         Both };
 
     // Storage of one parameter.
     struct Entry {
@@ -57,21 +60,21 @@ public:
         bool open_max = false;
         bool drawUI(const char* label) override;
         void onWritten() override;
-        json toJson() const override {return value;}
-        void fromJson(const json& j) override {value = j;}
+        json toJson() const override { return value; }
+        void fromJson(const json& j) override { value = j; }
     };
     struct IntEntry : Entry {
         int value = 0, min = 0, max = 0;
         bool drawUI(const char* label) override;
         void onWritten() override;
-        json toJson() const override {return value;}
-        void fromJson(const json& j) override {value = j;}
+        json toJson() const override { return value; }
+        void fromJson(const json& j) override { value = j; }
     };
     struct BoolEntry : Entry {
         bool value = false;
         bool drawUI(const char* label) override;
-        json toJson() const override {return value;}
-        void fromJson(const json& j) override {value = j;}
+        json toJson() const override { return value; }
+        void fromJson(const json& j) override { value = j; }
     };
     // One name of a fixed list, drawn as a dropdown.
     // It is saved by name, so reordering the options does not change the file.
@@ -86,7 +89,7 @@ public:
         const std::string& choice() const;
     };
     struct ColorEntry : Entry {
-        RGBA value = RGBA(1.f,1.f,1.f,1.f);
+        RGBA value = RGBA(1.f, 1.f, 1.f, 1.f);
         bool drawUI(const char* label) override;
         json toJson() const override;
         void fromJson(const json& j) override;
@@ -111,7 +114,7 @@ public:
     };
     // A unit vector, edited by aiming on a ball facing the camera.
     struct DirEntry : Entry {
-        vec value = vec(0,0,1);
+        vec value = vec(0, 0, 1);
         bool drawUI(const char* label) override;
         void onWritten() override;
         json toJson() const override;
@@ -120,15 +123,27 @@ public:
 
     // Reads a parameter. Each read is recorded, so the Tuner shows only the parameters
     // used by the current slide.
-    template<class E, class T>
+    template <class E, class T>
     struct Handle {
         std::shared_ptr<E> entry;
-        operator T() const {entry->last_read = frame; return entry->value;}
-        const T& operator*() const {entry->last_read = frame; return entry->value;}
+        operator T() const {
+            entry->last_read = frame;
+            return entry->value;
+        }
+        const T& operator*() const {
+            entry->last_read = frame;
+            return entry->value;
+        }
         // Sets the value from code, like Params::write.
-        void set(const T& v) const {entry->value = v; entry->onWritten();}
+        void set(const T& v) const {
+            entry->value = v;
+            entry->onWritten();
+        }
         // Chosen visibility, meant to be chained after Add.
-        Handle show(Visible v) const {entry->vis = v; return *this;}
+        Handle show(Visible v) const {
+            entry->vis = v;
+            return *this;
+        }
         // For an enum, true when it holds this option.
         bool is(const std::string& option) const {
             entry->last_read = frame;
@@ -148,32 +163,32 @@ public:
         }
     };
     using ScalarParam = Handle<ScalarEntry, scalar>;
-    using IntParam    = Handle<IntEntry, int>;
-    using BoolParam   = Handle<BoolEntry, bool>;
-    using ColorParam  = Handle<ColorEntry, RGBA>;
+    using IntParam = Handle<IntEntry, int>;
+    using BoolParam = Handle<BoolEntry, bool>;
+    using ColorParam = Handle<ColorEntry, RGBA>;
     // Reads as the index of the chosen option.
-    using EnumParam   = Handle<EnumEntry, int>;
-    using Vec2Param   = Handle<Vec2Entry, vec2>;
-    using VecParam    = Handle<VecEntry, vec>;
-    using DirParam    = Handle<DirEntry, vec>;
+    using EnumParam = Handle<EnumEntry, int>;
+    using Vec2Param = Handle<Vec2Entry, vec2>;
+    using VecParam = Handle<VecEntry, vec>;
+    using DirParam = Handle<DirEntry, vec>;
 
     // Declares a scalar. With min equal to max there is no bound and the panel uses a drag box.
     static ScalarParam Add(const std::string& name, scalar def, scalar min = 0, scalar max = 0);
     // Declares a scalar without upper bound that stays at or above `min`.
     static ScalarParam AddAtLeast(const std::string& name, scalar def, scalar min = 0);
     // Declares an integer. With min equal to max there is no bound.
-    static IntParam    AddInt(const std::string& name, int def, int min = 0, int max = 0);
+    static IntParam AddInt(const std::string& name, int def, int min = 0, int max = 0);
     // Declares a boolean.
-    static BoolParam   AddBool(const std::string& name, bool def);
+    static BoolParam AddBool(const std::string& name, bool def);
     // Declares a color.
-    static ColorParam  AddColor(const std::string& name, const RGBA& def);
+    static ColorParam AddColor(const std::string& name, const RGBA& def);
     // Declares a choice among names, with the default given by name.
     //   auto side = Params::AddEnum("fig/yticks", {"left","right","none"}, "left");
     //   if (side.is("none")) ...
     // Declaring it again keeps the current option if the new list still has it.
-    static EnumParam   AddEnum(const std::string& name,
-                               std::vector<std::string> options,
-                               const std::string& def);
+    static EnumParam AddEnum(const std::string& name,
+                             std::vector<std::string> options,
+                             const std::string& def);
     // The chosen option of an enum, for code without a handle. Empty when the name is unknown.
     static std::string choice(const std::string& name);
 
@@ -189,13 +204,13 @@ public:
     // Value in the shape used in the file, or null when the name is unknown.
     static json valueOf(const std::string& name);
     // Declares a 2D vector.
-    static Vec2Param   AddVec2(const std::string& name, const vec2& def,
-                               scalar min = 0, scalar max = 0);
+    static Vec2Param AddVec2(const std::string& name, const vec2& def,
+                             scalar min = 0, scalar max = 0);
     // Declares a 3D vector.
-    static VecParam    AddVec(const std::string& name, const vec& def,
-                              scalar min = 0, scalar max = 0);
+    static VecParam AddVec(const std::string& name, const vec& def,
+                           scalar min = 0, scalar max = 0);
     // Declares a unit 3D vector.
-    static DirParam    AddDir(const std::string& name, const vec& def);
+    static DirParam AddDir(const std::string& name, const vec& def);
 
     // Declares the parameter on the first call, then returns its value.
     static scalar get(const std::string& name, scalar def, scalar min = 0, scalar max = 0);
@@ -212,7 +227,7 @@ public:
     // or fewer values than needed were given.
     // Values are clamped to the declared bounds.
     // A write is not an edit, so it is never saved and it wins over the value held by the Tuner.
-    static int  write(const std::string& name, const scalar* in, int n);
+    static int write(const std::string& name, const scalar* in, int n);
     static bool write(const std::string& name, scalar v);
     static bool write(const std::string& name, const vec2& v);
     static bool write(const std::string& name, const vec& v);
@@ -233,7 +248,7 @@ public:
     static void DrawVisible(bool panel_open);
 
     // Starts a new frame. Called once per frame by the slideshow.
-    static void NewFrame() {frame++;}
+    static void NewFrame() { frame++; }
 
     // True when some parameter was edited and not saved.
     static bool hasDirty();
@@ -268,7 +283,7 @@ private:
     // Loads the file once.
     static void ensureLoaded();
 
-    template<class E>
+    template <class E>
     static std::shared_ptr<E> addEntry(const std::string& name);
 
     // A parameter can be declared again while the show runs, for example when the deck reloads.
@@ -279,6 +294,6 @@ private:
     static void applyFileValue(const EntryPtr& e, const std::string& name);
 };
 
-}
+} // namespace slope
 
 #endif // PARAMS_H

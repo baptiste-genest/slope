@@ -53,42 +53,42 @@ void RegisterDeclaredGrammars();
 // Colors and layout of a code block.
 // Named colors can be tuned in the Tuner. A fixed Color removes a block from the tuning.
 struct CodeStyle {
-    Color text        = Color("code/text",        ColorType(0.10f, 0.10f, 0.12f, 1.f));
-    Color keyword     = Color("code/keyword",     ColorType(0.60f, 0.15f, 0.55f, 1.f));
-    Color type        = Color("code/type",        ColorType(0.15f, 0.35f, 0.70f, 1.f));
-    Color comment     = Color("code/comment",     ColorType(0.45f, 0.50f, 0.45f, 1.f));
-    Color literal     = Color("code/literal",     ColorType(0.65f, 0.30f, 0.10f, 1.f));
-    Color preproc     = Color("code/preproc",     ColorType(0.35f, 0.45f, 0.35f, 1.f));
-    Color function    = Color("code/function",    ColorType(0.20f, 0.35f, 0.60f, 1.f));
-    Color constant    = Color("code/constant",    ColorType(0.55f, 0.35f, 0.10f, 1.f));
-    Color variable    = Color("code/variable",    ColorType(0.10f, 0.10f, 0.12f, 1.f));
-    Color op          = Color("code/operator",    ColorType(0.35f, 0.35f, 0.40f, 1.f));
+    Color text = Color("code/text", ColorType(0.10f, 0.10f, 0.12f, 1.f));
+    Color keyword = Color("code/keyword", ColorType(0.60f, 0.15f, 0.55f, 1.f));
+    Color type = Color("code/type", ColorType(0.15f, 0.35f, 0.70f, 1.f));
+    Color comment = Color("code/comment", ColorType(0.45f, 0.50f, 0.45f, 1.f));
+    Color literal = Color("code/literal", ColorType(0.65f, 0.30f, 0.10f, 1.f));
+    Color preproc = Color("code/preproc", ColorType(0.35f, 0.45f, 0.35f, 1.f));
+    Color function = Color("code/function", ColorType(0.20f, 0.35f, 0.60f, 1.f));
+    Color constant = Color("code/constant", ColorType(0.55f, 0.35f, 0.10f, 1.f));
+    Color variable = Color("code/variable", ColorType(0.10f, 0.10f, 0.12f, 1.f));
+    Color op = Color("code/operator", ColorType(0.35f, 0.35f, 0.40f, 1.f));
     Color line_number = Color("code/line_number", ColorType(0.65f, 0.65f, 0.68f, 1.f));
-    Color highlight   = Color("code/highlight",   ColorType(1.00f, 0.85f, 0.30f, 0.35f));
-    Color background  = Color("code/background",  ColorType(0.00f, 0.00f, 0.00f, 0.00f));
+    Color highlight = Color("code/highlight", ColorType(1.00f, 0.85f, 0.30f, 0.35f));
+    Color background = Color("code/background", ColorType(0.00f, 0.00f, 0.00f, 0.00f));
 
     // When null, Options::CodeFont is used, then the monospace font of polyscope.
-    ImFont* font       = nullptr;
+    ImFont* font = nullptr;
     // Applied on top of the scale of the slide state.
-    float font_scale   = 2.2f;
+    float font_scale = 2.2f;
     // Multiplies the advance of each glyph. 1 keeps the metrics of the font.
-    float tracking     = 1.0f;
+    float tracking = 1.0f;
     float line_spacing = 1.15f;
     // Space around the text, in pixels.
-    float padding      = 12.f;
-    bool  line_numbers = false;
+    float padding = 12.f;
+    bool line_numbers = false;
     // For a block loaded from a file, numbers the lines as in the file instead of from 1.
     // It only changes the display. Reveal and focus still count from the loaded part.
-    bool  absolute_line_numbers = false;
+    bool absolute_line_numbers = false;
     // Opacity of the lines outside the highlighted range. 1 keeps them fully visible and only draws the highlight band.
-    float dim_factor   = 0.35f;
+    float dim_factor = 0.35f;
 };
 
 // Start or end of a code block, used by reveal.
-enum CodeAnchor { START, END };
+enum CodeAnchor { START,
+                  END };
 
-class Code : public TextualPrimitive
-{
+class Code : public TextualPrimitive {
 public:
     Code() {}
 
@@ -165,14 +165,20 @@ public:
     // The runs do not overlap, are sorted and cover only the colored spans.
     // The text between two runs has the default color.
     // The color is a packed ImU32 taken from the current CodeStyle.
-    struct HighlightRun { size_t begin, end; ImU32 color; };
+    struct HighlightRun {
+        size_t begin, end;
+        ImU32 color;
+    };
     static std::vector<HighlightRun> HighlightRuns(const std::string& text,
                                                    const CodeLanguage& lang,
                                                    const CodeStyle& style = CodeStyle());
 
     // Removes the cues of this block. A deck builds the whole show again at every reload,
     // so the cues of the previous build must be removed.
-    void clearCues() { reveal_at.clear(); focus_at.clear(); }
+    void clearCues() {
+        reveal_at.clear();
+        focus_at.clear();
+    }
     // Removes the cues of every block.
     static void ClearAllCues();
 
@@ -191,17 +197,32 @@ public:
 
 private:
     // Kind of a colored token.
-    enum class Tok { Plain, Keyword, Type, Comment, Literal, Preproc,
-                     Function, Constant, Variable, Operator };
+    enum class Tok { Plain,
+                     Keyword,
+                     Type,
+                     Comment,
+                     Literal,
+                     Preproc,
+                     Function,
+                     Constant,
+                     Variable,
+                     Operator };
     // Token kind for a tree-sitter capture name.
     static Tok tokenOfCapture(std::string_view capture);
     // A range of characters in a line with its token kind.
-    struct Span { size_t begin, end; Tok tok; };
-    struct Line { std::string text; std::vector<Span> spans; int file_line; };
+    struct Span {
+        size_t begin, end;
+        Tok tok;
+    };
+    struct Line {
+        std::string text;
+        std::vector<Span> spans;
+        int file_line;
+    };
 
     std::vector<Line> lines;
     // Named regions, each as the first and last line counted from 1.
-    std::map<std::string, std::pair<int,int>> regions;
+    std::map<std::string, std::pair<int, int>> regions;
     CodeLanguage language;
 
     // Target highlight. 0 means no highlight.
@@ -214,7 +235,7 @@ private:
     // Point to reveal on each slide.
     std::map<int, int> reveal_at;
     // Line range to focus on each slide.
-    std::map<int, std::pair<int,int>> focus_at;
+    std::map<int, std::pair<int, int>> focus_at;
 
     // Number of typed characters in lines 1 to p, which turns a point into an amount of typing.
     std::vector<float> unit_prefix;
@@ -273,6 +294,6 @@ private:
     inline static std::vector<Code*> file_backed;
 };
 
-}
+} // namespace slope
 
 #endif // CODE_H

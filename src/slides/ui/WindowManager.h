@@ -24,15 +24,13 @@ enum class WindowType {
 // Keeps track of which window is open.
 class WindowManager {
 public:
-
     // Opens w if no window is open and returns true. Closes w if it is the open one.
     // Does nothing when another window is open.
     bool Toggle(WindowType w) {
-        if (active == WindowType::none){
+        if (active == WindowType::none) {
             active = w;
             return true;
-        }
-        else if (active == w)
+        } else if (active == w)
             active = WindowType::none;
         return false;
     }
@@ -62,7 +60,7 @@ public:
         return active == WindowType::Camera || active == WindowType::QuitWarning;
     }
 
-    WindowManager(){}
+    WindowManager() {}
 
 private:
     WindowType active = WindowType::none;
@@ -72,7 +70,7 @@ private:
 class InputManager {
 
     struct KeyboardInput {
-        std::string description,shortcut;
+        std::string description, shortcut;
         ImGuiKey trigger;
         bool isPopUp;
         std::function<void(void)> callback;
@@ -81,7 +79,6 @@ class InputManager {
     std::set<ImGuiKey> active_triggers;
 
 public:
-
     // Every registered input.
     const std::vector<KeyboardInput>& getInputs() const {
         return inputs;
@@ -89,7 +86,7 @@ public:
 
     // Throws if two inputs use the same trigger.
     void checkConflict() {
-        std::unordered_map<ImGuiKey,std::vector<std::string>> trigger_map;
+        std::unordered_map<ImGuiKey, std::vector<std::string>> trigger_map;
         for (const auto& input : inputs) {
             trigger_map[input.trigger].push_back(input.description);
         }
@@ -106,27 +103,26 @@ public:
 
     // Registers an input with a description, the text of the shortcut and its key.
     // Throws if the key is already used.
-    void addInput(std::string description,std::string shortcut,ImGuiKey trigger,bool isPopUp = false) {
+    void addInput(std::string description, std::string shortcut, ImGuiKey trigger, bool isPopUp = false) {
         if (active_triggers.contains(trigger))
             throw std::runtime_error("Trigger " + std::to_string(trigger) + " already used for another input");
-        inputs.emplace_back(description,shortcut,trigger,isPopUp,[]() {});
+        inputs.emplace_back(description, shortcut, trigger, isPopUp, []() {});
     }
 
     // Same, with a function called when the key is pressed.
-    void addInput(std::string description,std::string shortcut,ImGuiKey trigger,std::function<void(void)> callback,bool isPopUp = false) {
+    void addInput(std::string description, std::string shortcut, ImGuiKey trigger, std::function<void(void)> callback, bool isPopUp = false) {
         if (active_triggers.contains(trigger))
             throw std::runtime_error("Trigger " + std::to_string(trigger) + " already used for another input");
-        inputs.emplace_back(description,shortcut,trigger,isPopUp,callback);
+        inputs.emplace_back(description, shortcut, trigger, isPopUp, callback);
     }
 
     // Registers an entry that only documents a shortcut. The shortcut is handled elsewhere and not by InputManager.
-    void addInput(std::string description,std::string shortcut) {
-        inputs.emplace_back(description,shortcut,ImGuiKey_None,false,[]() {});
+    void addInput(std::string description, std::string shortcut) {
+        inputs.emplace_back(description, shortcut, ImGuiKey_None, false, []() {});
     }
 
     // Prints every input to the log.
     void printInputs();
-
 };
 
 } // namespace slope

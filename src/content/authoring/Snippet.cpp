@@ -11,17 +11,19 @@
 #include <cstdarg>
 #include <set>
 
-#include <lua.hpp>   // already wraps the C headers in extern "C"
+#include <lua.hpp> // already wraps the C headers in extern "C"
 
 namespace slope {
 
-namespace { struct Section; }
+namespace {
+struct Section;
+}
 
 // a stable handle, hot reload swaps the chunk underneath it
 struct Snippet::Call {
     std::string name;
-    int  ref = LUA_NOREF;
-    Section* sec = nullptr;   // bound with ref
+    int ref = LUA_NOREF;
+    Section* sec = nullptr; // bound with ref
     long failed_frame = -1;
     bool reported = false;
 };
@@ -30,21 +32,28 @@ namespace {
 
 // userdata, vec2 / vec3 / complex
 // one payload, three metatables differing only in what * and / mean
-struct SVec { int tag; double v[3]; };
+struct SVec {
+    int tag;
+    double v[3];
+};
 
 constexpr int TAG_V2 = 2, TAG_V3 = 3, TAG_CPX = 4;
 
-const char* MT_V2  = "slope.vec2";
-const char* MT_V3  = "slope.vec3";
+const char* MT_V2 = "slope.vec2";
+const char* MT_V3 = "slope.vec3";
 const char* MT_CPX = "slope.complex";
 
 const char* mtName(int tag) {
-    return tag == TAG_V2 ? MT_V2 : tag == TAG_V3 ? MT_V3 : MT_CPX;
+    return tag == TAG_V2 ? MT_V2 : tag == TAG_V3 ? MT_V3
+                                                 : MT_CPX;
 }
 
 SVec* pushSVec(lua_State* L, int tag, double x, double y, double z = 0) {
     auto* s = (SVec*)lua_newuserdata(L, sizeof(SVec));
-    s->tag = tag; s->v[0] = x; s->v[1] = y; s->v[2] = z;
+    s->tag = tag;
+    s->v[0] = x;
+    s->v[1] = y;
+    s->v[2] = z;
     luaL_getmetatable(L, mtName(tag));
     lua_setmetatable(L, -2);
     return s;
@@ -64,20 +73,20 @@ lua_State* L = nullptr;
 struct Section {
     std::string name;
     std::string file;
-    int  ref      = LUA_NOREF;   // the chunk
-    int  call_ref = LUA_NOREF;   // its return value, when that is a function
+    int ref = LUA_NOREF;      // the chunk
+    int call_ref = LUA_NOREF; // its return value, when that is a function
     std::vector<std::string> keys;
     long last_frame = -1;
-    bool running  = false;
-    bool failed   = false;
+    bool running = false;
+    bool failed = false;
     bool reported = false;
 };
 
 struct Var {
     Snippet::Value value, prev;
     long frame = -1;
-    long gen   = 0;
-    Section* sec = nullptr;      // null for a C++ derivation
+    long gen = 0;
+    Section* sec = nullptr; // null for a C++ derivation
 };
 
 struct SourceFile {
@@ -103,7 +112,7 @@ TimeObject current_time;
 std::string last_error;
 
 int builtins_ref = LUA_NOREF;
-int time_ref     = LUA_NOREF;
+int time_ref = LUA_NOREF;
 
 bool evaluateSection(Section* s);
 bool evaluateVar(const std::string& name);
@@ -123,7 +132,8 @@ void publishProblem(const std::string& file, const std::string& subject, const s
     auto& m = problems[file];
     m[subject] = what;
     std::string joined;
-    for (auto& [k, msg] : m) joined += (joined.empty() ? "" : "\n") + msg;
+    for (auto& [k, msg] : m)
+        joined += (joined.empty() ? "" : "\n") + msg;
     ReloadErrors::report(formatPath(file), "lua", joined);
 }
 
@@ -139,8 +149,10 @@ void reportOnce(Section* s, const std::string& what) {
 // once per reload, in the section's file or else the first snippet file
 void warnOnce(const Section* s, const std::string& key, const std::string& what) {
     if (quiet_reports || !warned.insert(key).second) return;
-    if (s) publishProblem(s->file, key, what);
-    else if (!files.empty()) publishProblem(files.front().given.string(), key, what);
+    if (s)
+        publishProblem(s->file, key, what);
+    else if (!files.empty())
+        publishProblem(files.front().given.string(), key, what);
     spdlog::warn("[snippet] {}", what);
 }
 
@@ -187,11 +199,16 @@ const char* kShapes = " instead of at most 4 numbers, vectors or arrays";
 
 std::string shape(int n) {
     switch (n) {
-    case 0: return "nothing";
-    case 1: return "a number";
-    case 2: return "a vec2";
-    case 3: return "a vec3";
-    default: return std::to_string(n) + " numbers";
+    case 0:
+        return "nothing";
+    case 1:
+        return "a number";
+    case 2:
+        return "a vec2";
+    case 3:
+        return "a vec3";
+    default:
+        return std::to_string(n) + " numbers";
     }
 }
 
@@ -204,18 +221,29 @@ bool fits(int n, int want, bool exact) {
 bool flatten(lua_State* s, int idx, Snippet::Value& out, int& total, std::string& err, int depth) {
     auto put = [&](double x) { if (total < 4) out.v[total] = x; total++; };
     switch (lua_type(s, idx)) {
-    case LUA_TNUMBER:  put(lua_tonumber(s, idx)); return true;
-    case LUA_TBOOLEAN: put(lua_toboolean(s, idx) ? 1 : 0); return true;
+    case LUA_TNUMBER:
+        put(lua_tonumber(s, idx));
+        return true;
+    case LUA_TBOOLEAN:
+        put(lua_toboolean(s, idx) ? 1 : 0);
+        return true;
     case LUA_TUSERDATA: {
         SVec* u = asSVec(s, idx);
         if (u->tag != TAG_V2 && u->tag != TAG_V3 && u->tag != TAG_CPX) break;
-        for (int i = 0; i < comps(u->tag); i++) put(u->v[i]);
+        for (int i = 0; i < comps(u->tag); i++)
+            put(u->v[i]);
         return true;
     }
     case LUA_TTABLE: {
         const int n = int(lua_objlen(s, idx));
-        if (n == 0) { err = "a table with named keys only"; return false; }
-        if (depth > 0) { err = "an array nested in an array"; return false; }
+        if (n == 0) {
+            err = "a table with named keys only";
+            return false;
+        }
+        if (depth > 0) {
+            err = "an array nested in an array";
+            return false;
+        }
         for (int i = 1; i <= n; i++) {
             lua_rawgeti(s, idx, i);
             const bool ok = flatten(s, lua_gettop(s), out, total, err, depth + 1);
@@ -224,7 +252,8 @@ bool flatten(lua_State* s, int idx, Snippet::Value& out, int& total, std::string
         }
         return true;
     }
-    default: break;
+    default:
+        break;
     }
     err = lua_isnil(s, idx) ? "nil" : std::string("a ") + lua_typename(s, lua_type(s, idx));
     return false;
@@ -236,16 +265,25 @@ bool readReturn(lua_State* s, int first, int count, Snippet::Value& out, std::st
     int total = 0;
     for (int i = 0; i < count; i++)
         if (!flatten(s, first + i, out, total, err, 0)) return false;
-    if (total > 4) { err = std::to_string(total) + " numbers"; return false; }
+    if (total > 4) {
+        err = std::to_string(total) + " numbers";
+        return false;
+    }
     out.n = total;
     return true;
 }
 
 void pushValue(lua_State* s, const Snippet::Value& v) {
     switch (v.n) {
-    case 1: lua_pushnumber(s, v.v[0]); break;
-    case 2: pushSVec(s, TAG_V2, v.v[0], v.v[1]); break;
-    case 3: pushSVec(s, TAG_V3, v.v[0], v.v[1], v.v[2]); break;
+    case 1:
+        lua_pushnumber(s, v.v[0]);
+        break;
+    case 2:
+        pushSVec(s, TAG_V2, v.v[0], v.v[1]);
+        break;
+    case 3:
+        pushSVec(s, TAG_V3, v.v[0], v.v[1], v.v[2]);
+        break;
     case 4:
         lua_createtable(s, 4, 0);
         for (int i = 0; i < 4; i++) {
@@ -253,7 +291,9 @@ void pushValue(lua_State* s, const Snippet::Value& v) {
             lua_rawseti(s, -2, i + 1);
         }
         break;
-    default: lua_pushnil(s); break;
+    default:
+        lua_pushnil(s);
+        break;
     }
 }
 
@@ -272,14 +312,13 @@ void storeVar(const std::string& name, Section* sec, const Snippet::Value& val) 
     if (Params::components(name) > 0 && !clash_reported.count(name)) {
         clash_reported.insert(name);
         const std::string msg = "'" + name + "' is both published by a section and registered as "
-                                "a parameter, which share one namespace, so rename one";
+                                             "a parameter, which share one namespace, so rename one";
         if (sec) publishProblem(sec->file, name + "#param", msg);
         spdlog::error("[snippet] {}", msg);
     }
     Var& var = vars[name];
     if (sec && var.sec && var.sec != sec)
-        warnOnce(sec, name + "#twice", "'" + name + "' is published by both section '"
-                 + var.sec->name + "' and section '" + sec->name + "', so the last one run wins");
+        warnOnce(sec, name + "#twice", "'" + name + "' is published by both section '" + var.sec->name + "' and section '" + sec->name + "', so the last one run wins");
     var.sec = sec;
     if (var.frame >= 0) {
         bool moved = var.value.n != val.n;
@@ -300,8 +339,10 @@ int env_index(lua_State* s) {
     if (recording) {
         // t is a builtin and returns just below, so this is the only place it
         // can be seen, and reading it at all makes the caller time dependent
-        if (std::strcmp(key, "t") == 0) record.time = true;
-        else record.names.insert(key);
+        if (std::strcmp(key, "t") == 0)
+            record.time = true;
+        else
+            record.names.insert(key);
     }
 
     lua_pushvalue(s, 2);
@@ -388,12 +429,11 @@ bool evaluateSection(Section* s) {
                 std::string err;
                 if (lua_isfunction(L, -1))
                     reportOnce(s, "section '" + s->name + "', key '" + k + "' holds a function,"
-                                  " which only works as a section of its own");
+                                                                           " which only works as a section of its own");
                 else if (readReturn(L, lua_gettop(L), 1, v, err)) {
                     checkFinite(s, k, v);
                     storeVar(k, s, v);
-                }
-                else
+                } else
                     reportOnce(s, "section '" + s->name + "', key '" + k + "' holds " + err + kShapes);
                 s->keys.push_back(k);
             }
@@ -407,8 +447,7 @@ bool evaluateSection(Section* s) {
         if (readReturn(L, base + 1, nres, v, err)) {
             checkFinite(s, s->name, v);
             storeVar(s->name, s, v);
-        }
-        else {
+        } else {
             // not stored, so readers keep the last value that made sense
             reportOnce(s, "section '" + s->name + "' returns " + err + kShapes);
             s->failed = true;
@@ -425,7 +464,7 @@ bool evaluateVar(const std::string& name) {
     if (d != derivations.end()) {
         Var& var = vars[name];
         if (var.frame == frame_counter) return true;
-        var.frame = frame_counter;   // set first, a derivation reading itself stops here
+        var.frame = frame_counter; // set first, a derivation reading itself stops here
         storeVar(name, nullptr, d->second(current_time));
         return true;
     }
@@ -464,7 +503,8 @@ int l_smoothstep(lua_State* s) {
 
 const char* kindOf(lua_State* s, int i) {
     if (SVec* u = asSVec(s, i))
-        return u->tag == TAG_V2 ? "vec2" : u->tag == TAG_V3 ? "vec3" : "complex";
+        return u->tag == TAG_V2 ? "vec2" : u->tag == TAG_V3 ? "vec3"
+                                                            : "complex";
     return lua_typename(s, lua_type(s, i));
 }
 
@@ -472,12 +512,22 @@ const char* kindOf(lua_State* s, int i) {
 bool operands(lua_State* s, SVec& a, SVec& b, bool& a_num, bool& b_num, const char* op) {
     SVec* pa = asSVec(s, 1);
     SVec* pb = asSVec(s, 2);
-    a_num = !pa; b_num = !pb;
-    if ((!pa && lua_type(s, 1) != LUA_TNUMBER) || (!pb && lua_type(s, 2) != LUA_TNUMBER)
-        || (pa && pb && comps(pa->tag) != comps(pb->tag)))
+    a_num = !pa;
+    b_num = !pb;
+    if ((!pa && lua_type(s, 1) != LUA_TNUMBER) || (!pb && lua_type(s, 2) != LUA_TNUMBER) || (pa && pb && comps(pa->tag) != comps(pb->tag)))
         raise(s, "cannot %s a %s and a %s", op, kindOf(s, 1), kindOf(s, 2));
-    if (pa) a = *pa; else { a.tag = 0; a.v[0] = lua_tonumber(s, 1); }
-    if (pb) b = *pb; else { b.tag = 0; b.v[0] = lua_tonumber(s, 2); }
+    if (pa)
+        a = *pa;
+    else {
+        a.tag = 0;
+        a.v[0] = lua_tonumber(s, 1);
+    }
+    if (pb)
+        b = *pb;
+    else {
+        b.tag = 0;
+        b.v[0] = lua_tonumber(s, 2);
+    }
     return pa || pb;
 }
 
@@ -490,9 +540,11 @@ SVec* sameKind(lua_State* s, SVec* a, const char* method) {
 }
 
 int l_eq(lua_State* s) {
-    SVec* a = asSVec(s, 1); SVec* b = asSVec(s, 2);
+    SVec* a = asSVec(s, 1);
+    SVec* b = asSVec(s, 2);
     bool eq = a && b && comps(a->tag) == comps(b->tag);
-    for (int i = 0; eq && i < comps(a->tag); i++) eq = a->v[i] == b->v[i];
+    for (int i = 0; eq && i < comps(a->tag); i++)
+        eq = a->v[i] == b->v[i];
     lua_pushboolean(s, eq);
     return 1;
 }
@@ -502,20 +554,24 @@ int tagOf(const SVec& a, bool a_num, const SVec& b, bool b_num) {
 }
 
 int l_add(lua_State* s) {
-    SVec a, b; bool an, bn;
+    SVec a, b;
+    bool an, bn;
     if (!operands(s, a, b, an, bn, "add")) return 0;
     int tag = tagOf(a, an, b, bn), c = comps(tag);
-    double r[3] = {0,0,0};
-    for (int i = 0; i < c; i++) r[i] = (an ? a.v[0] : a.v[i]) + (bn ? b.v[0] : b.v[i]);
+    double r[3] = {0, 0, 0};
+    for (int i = 0; i < c; i++)
+        r[i] = (an ? a.v[0] : a.v[i]) + (bn ? b.v[0] : b.v[i]);
     pushSVec(s, tag, r[0], r[1], r[2]);
     return 1;
 }
 int l_sub(lua_State* s) {
-    SVec a, b; bool an, bn;
+    SVec a, b;
+    bool an, bn;
     if (!operands(s, a, b, an, bn, "subtract")) return 0;
     int tag = tagOf(a, an, b, bn), c = comps(tag);
-    double r[3] = {0,0,0};
-    for (int i = 0; i < c; i++) r[i] = (an ? a.v[0] : a.v[i]) - (bn ? b.v[0] : b.v[i]);
+    double r[3] = {0, 0, 0};
+    for (int i = 0; i < c; i++)
+        r[i] = (an ? a.v[0] : a.v[i]) - (bn ? b.v[0] : b.v[i]);
     pushSVec(s, tag, r[0], r[1], r[2]);
     return 1;
 }
@@ -526,35 +582,38 @@ int l_unm(lua_State* s) {
     return 1;
 }
 int l_mul(lua_State* s) {
-    SVec a, b; bool an, bn;
+    SVec a, b;
+    bool an, bn;
     if (!operands(s, a, b, an, bn, "multiply")) return 0;
     int tag = tagOf(a, an, b, bn);
     if (!an && !bn && tag == TAG_CPX) {
-        pushSVec(s, TAG_CPX, a.v[0]*b.v[0] - a.v[1]*b.v[1],
-                             a.v[0]*b.v[1] + a.v[1]*b.v[0]);
+        pushSVec(s, TAG_CPX, a.v[0] * b.v[0] - a.v[1] * b.v[1],
+                 a.v[0] * b.v[1] + a.v[1] * b.v[0]);
         return 1;
     }
     // scalar * vector, or componentwise for two vectors
     int c = comps(tag);
-    double r[3] = {0,0,0};
-    for (int i = 0; i < c; i++) r[i] = (an ? a.v[0] : a.v[i]) * (bn ? b.v[0] : b.v[i]);
+    double r[3] = {0, 0, 0};
+    for (int i = 0; i < c; i++)
+        r[i] = (an ? a.v[0] : a.v[i]) * (bn ? b.v[0] : b.v[i]);
     pushSVec(s, tag, r[0], r[1], r[2]);
     return 1;
 }
 int l_div(lua_State* s) {
-    SVec a, b; bool an, bn;
+    SVec a, b;
+    bool an, bn;
     if (!operands(s, a, b, an, bn, "divide")) return 0;
     int tag = tagOf(a, an, b, bn);
     if (!bn && tag == TAG_CPX) {
-        double d = b.v[0]*b.v[0] + b.v[1]*b.v[1];
+        double d = b.v[0] * b.v[0] + b.v[1] * b.v[1];
         if (d == 0) return raise(s, "division by zero complex");
         double ar = an ? a.v[0] : a.v[0], ai = an ? 0 : a.v[1];
-        pushSVec(s, TAG_CPX, (ar*b.v[0] + ai*b.v[1]) / d,
-                             (ai*b.v[0] - ar*b.v[1]) / d);
+        pushSVec(s, TAG_CPX, (ar * b.v[0] + ai * b.v[1]) / d,
+                 (ai * b.v[0] - ar * b.v[1]) / d);
         return 1;
     }
     int c = comps(tag);
-    double r[3] = {0,0,0};
+    double r[3] = {0, 0, 0};
     for (int i = 0; i < c; i++) {
         double den = bn ? b.v[0] : b.v[i];
         r[i] = den == 0 ? 0 : (an ? a.v[0] : a.v[i]) / den;
@@ -566,9 +625,12 @@ int l_tostring(lua_State* s) {
     SVec* a = asSVec(s, 1);
     if (!a) return 0;
     char buf[96];
-    if (a->tag == TAG_CPX) snprintf(buf, sizeof buf, "%g%+gi", a->v[0], a->v[1]);
-    else if (a->tag == TAG_V3) snprintf(buf, sizeof buf, "(%g, %g, %g)", a->v[0], a->v[1], a->v[2]);
-    else snprintf(buf, sizeof buf, "(%g, %g)", a->v[0], a->v[1]);
+    if (a->tag == TAG_CPX)
+        snprintf(buf, sizeof buf, "%g%+gi", a->v[0], a->v[1]);
+    else if (a->tag == TAG_V3)
+        snprintf(buf, sizeof buf, "(%g, %g, %g)", a->v[0], a->v[1], a->v[2]);
+    else
+        snprintf(buf, sizeof buf, "(%g, %g)", a->v[0], a->v[1]);
     lua_pushstring(s, buf);
     return 1;
 }
@@ -578,7 +640,8 @@ int l_norm(lua_State* s) {
     if (!a) return raise(s, "norm is a method, called as v:norm()");
     int c = comps(a->tag);
     double n = 0;
-    for (int i = 0; i < c; i++) n += a->v[i]*a->v[i];
+    for (int i = 0; i < c; i++)
+        n += a->v[i] * a->v[i];
     lua_pushnumber(s, std::sqrt(n));
     return 1;
 }
@@ -588,7 +651,8 @@ int l_dot(lua_State* s) {
     SVec* b = sameKind(s, a, "dot");
     int c = comps(a->tag);
     double d = 0;
-    for (int i = 0; i < c; i++) d += a->v[i]*b->v[i];
+    for (int i = 0; i < c; i++)
+        d += a->v[i] * b->v[i];
     lua_pushnumber(s, d);
     return 1;
 }
@@ -596,9 +660,9 @@ int l_cross(lua_State* s) {
     SVec* a = asSVec(s, 1);
     if (!a) return raise(s, "cross is a method, called as v:cross(w)");
     SVec* b = sameKind(s, a, "cross");
-    pushSVec(s, TAG_V3, a->v[1]*b->v[2] - a->v[2]*b->v[1],
-                        a->v[2]*b->v[0] - a->v[0]*b->v[2],
-                        a->v[0]*b->v[1] - a->v[1]*b->v[0]);
+    pushSVec(s, TAG_V3, a->v[1] * b->v[2] - a->v[2] * b->v[1],
+             a->v[2] * b->v[0] - a->v[0] * b->v[2],
+             a->v[0] * b->v[1] - a->v[1] * b->v[0]);
     return 1;
 }
 int l_arg(lua_State* s) {
@@ -619,12 +683,27 @@ int l_index(lua_State* s) {
     SVec* a = asSVec(s, 1);
     const char* k = lua_tostring(s, 2);
     if (a && k && k[1] == '\0') {
-        if (*k == 'x') { lua_pushnumber(s, a->v[0]); return 1; }
-        if (*k == 'y') { lua_pushnumber(s, a->v[1]); return 1; }
-        if (*k == 'z') { lua_pushnumber(s, a->v[2]); return 1; }
+        if (*k == 'x') {
+            lua_pushnumber(s, a->v[0]);
+            return 1;
+        }
+        if (*k == 'y') {
+            lua_pushnumber(s, a->v[1]);
+            return 1;
+        }
+        if (*k == 'z') {
+            lua_pushnumber(s, a->v[2]);
+            return 1;
+        }
     }
-    if (a && k && !std::strcmp(k, "re")) { lua_pushnumber(s, a->v[0]); return 1; }
-    if (a && k && !std::strcmp(k, "im")) { lua_pushnumber(s, a->v[1]); return 1; }
+    if (a && k && !std::strcmp(k, "re")) {
+        lua_pushnumber(s, a->v[0]);
+        return 1;
+    }
+    if (a && k && !std::strcmp(k, "im")) {
+        lua_pushnumber(s, a->v[1]);
+        return 1;
+    }
     lua_pushvalue(s, 2);
     lua_rawget(s, lua_upvalueindex(1));
     if (lua_isnil(s, -1))
@@ -678,11 +757,13 @@ int l_secondsSinceKeyframe(lua_State* s) {
 int l_duringKeyframe(lua_State* s) {
     const int top = lua_gettop(s);
     int i = 1;
-    while (i <= top && lua_type(s, i) != LUA_TSTRING) i++;
+    while (i <= top && lua_type(s, i) != LUA_TSTRING)
+        i++;
     if (i > top) return raise(s, "a keyframe name is expected, as in t:sinceKeyframe(\"name\")");
     const char* a = lua_tostring(s, i);
     const char* b = (i + 1 <= top && lua_type(s, i + 1) == LUA_TSTRING)
-                        ? lua_tostring(s, i + 1) : nullptr;
+                        ? lua_tostring(s, i + 1)
+                        : nullptr;
     checkKeyframe(s, a);
     if (b) checkKeyframe(s, b);
     const int flag = b ? i + 2 : i + 1;
@@ -697,7 +778,8 @@ int l_duringKeyframe(lua_State* s) {
 int l_sinceKeyframe(lua_State* s) {
     const int top = lua_gettop(s);
     int i = 1;
-    while (i <= top && lua_type(s, i) != LUA_TSTRING) i++;
+    while (i <= top && lua_type(s, i) != LUA_TSTRING)
+        i++;
     if (i > top) return raise(s, "a keyframe name is expected, as in t:sinceKeyframe(\"name\")");
     const char* a = lua_tostring(s, i);
     checkKeyframe(s, a);
@@ -724,12 +806,11 @@ int l_param(lua_State* s) {
     const char* k = luaL_checkstring(s, 1);
     if (int c = Params::components(k); c > 1)
         return raise(s, "param(\"%s\") is a number, but \"%s\" is already a parameter of "
-                             "%d components", k, k, c);
+                        "%d components",
+                     k, k, c);
     const scalar lo = luaL_optnumber(s, 3, 0), hi = luaL_optnumber(s, 4, 0);
     if (lo > hi)
-        warnHere(s, std::string("param#") + k, "param(\"" + std::string(k) + "\") "
-                 + (lua_gettop(s) < 4 ? "gives a min without a max" : "has its min above its max")
-                 + ", so its slider has no bounds (the order is param(name, default, min, max))");
+        warnHere(s, std::string("param#") + k, "param(\"" + std::string(k) + "\") " + (lua_gettop(s) < 4 ? "gives a min without a max" : "has its min above its max") + ", so its slider has no bounds (the order is param(name, default, min, max))");
     lua_pushnumber(s, Params::get(k, luaL_optnumber(s, 2, 0), lo, hi));
     return 1;
 }
@@ -752,7 +833,7 @@ void buildMetatable(lua_State* s, const char* name, int tag) {
     setField(s, mt, "__eq", l_eq);
     setField(s, mt, "__tostring", l_tostring);
 
-    lua_newtable(s);                       // the methods table
+    lua_newtable(s); // the methods table
     int methods = lua_gettop(s);
     setField(s, methods, "norm", l_norm);
     setField(s, methods, "dot", l_dot);
@@ -766,8 +847,8 @@ void buildMetatable(lua_State* s, const char* name, int tag) {
     lua_pushvalue(s, methods);
     lua_pushcclosure(s, l_index, 1);
     lua_settable(s, mt);
-    lua_pop(s, 1);                         // methods
-    lua_pop(s, 1);                         // metatable
+    lua_pop(s, 1); // methods
+    lua_pop(s, 1); // metatable
 }
 
 void copyGlobal(lua_State* s, int dst, const char* name) {
@@ -818,7 +899,9 @@ void refreshTime() {
     lua_rawgeti(L, LUA_REGISTRYINDEX, time_ref);
     int t = lua_gettop(L);
     auto num = [&](const char* k, double v) {
-        lua_pushstring(L, k); lua_pushnumber(L, v); lua_settable(L, t);
+        lua_pushstring(L, k);
+        lua_pushnumber(L, v);
+        lua_settable(L, t);
     };
     // Only the fields the slideshow actually fills. inner_time counts from a
     // primitive appearing and a snippet is not one, and relative_frame_number
@@ -841,8 +924,8 @@ bool sectionHeader(const std::string& line, std::string& name) {
     i = line.find_first_not_of(" \t", i + 3);
     if (i == std::string::npos) return false;
     size_t j = i;
-    while (j < line.size() && (std::isalnum((unsigned char)line[j])
-                               || line[j] == '_' || line[j] == '/')) j++;
+    while (j < line.size() && (std::isalnum((unsigned char)line[j]) || line[j] == '_' || line[j] == '/'))
+        j++;
     if (j == i) return false;
     if (line.find_first_not_of(" \t\r", j) != std::string::npos) return false;
     name = line.substr(i, j - i);
@@ -880,8 +963,7 @@ void addSection(const std::string& name, const std::string& body,
 
     // the second of two same-named sections wins, say so and free the first
     if (auto it = sections.find(name); it != sections.end()) {
-        const std::string msg = "section '" + name + "' is declared twice ("
-                                + it->second->file + " then " + file + "), so the last one wins";
+        const std::string msg = "section '" + name + "' is declared twice (" + it->second->file + " then " + file + "), so the last one wins";
         publishProblem(file, name + "#twice", msg);
         spdlog::warn("[snippet] {}", msg);
         if (it->second->ref != LUA_NOREF) luaL_unref(L, LUA_REGISTRYINDEX, it->second->ref);
@@ -891,7 +973,7 @@ void addSection(const std::string& name, const std::string& body,
     auto s = std::make_unique<Section>();
     s->name = name;
     s->file = file;
-    s->ref  = luaL_ref(L, LUA_REGISTRYINDEX);
+    s->ref = luaL_ref(L, LUA_REGISTRYINDEX);
     sections[name] = std::move(s);
 }
 
@@ -918,7 +1000,9 @@ bool loadFile(SourceFile& f) {
         line_no++;
         if (sectionHeader(line, name)) {
             if (!cur.empty()) addSection(cur, body, f.given.string(), start);
-            cur = name; body.clear(); start = line_no + 1;
+            cur = name;
+            body.clear();
+            start = line_no + 1;
             continue;
         }
         // "--- my-name" is no header and would glue its body onto the section above
@@ -926,10 +1010,9 @@ bool loadFile(SourceFile& f) {
         if (i != std::string::npos && line.compare(i, 3, "---") == 0) {
             const size_t a = line.find_first_not_of(" \t-", i);
             const size_t b = a == std::string::npos ? a : line.find_first_of(" \t\r", a);
-            if (a != std::string::npos && (b == std::string::npos
-                                           || line.find_first_not_of(" \t\r", b) == std::string::npos))
+            if (a != std::string::npos && (b == std::string::npos || line.find_first_not_of(" \t\r", b) == std::string::npos))
                 warnLine("'" + line.substr(i) + "' is not a section header, because a name only "
-                         "has letters, digits, _ and /");
+                                                "has letters, digits, _ and /");
         }
         if (!cur.empty()) {
             body += line;
@@ -972,7 +1055,7 @@ void discover() {
         s->last_frame = -1;
     }
     for (auto& [name, c] : calls) {
-        c->ref = LUA_NOREF;   // re-bound lazily against the new chunks
+        c->ref = LUA_NOREF; // re-bound lazily against the new chunks
         c->sec = nullptr;
     }
     reload_counter++;
@@ -1007,7 +1090,7 @@ void rebuild() {
         if (s->call_ref != LUA_NOREF) luaL_unref(L, LUA_REGISTRYINDEX, s->call_ref);
     }
 
-    for (auto it = vars.begin(); it != vars.end(); )
+    for (auto it = vars.begin(); it != vars.end();)
         it = it->second.sec ? vars.erase(it) : std::next(it);
     needs_discovery = true;
 }
@@ -1064,7 +1147,11 @@ std::vector<path> Snippet::WatchedFiles() {
         auto v = std::filesystem::weakly_canonical(p, ec);
         if (ec) v = p;
         bool seen = false;
-        for (auto& o : out) if (o == v) { seen = true; break; }
+        for (auto& o : out)
+            if (o == v) {
+                seen = true;
+                break;
+            }
         if (!seen) out.push_back(v);
     }
     return out;
@@ -1099,7 +1186,8 @@ std::string Snippet::lastError() { return last_error; }
 std::vector<std::string> Snippet::names() {
     std::vector<std::string> out;
     out.reserve(vars.size());
-    for (auto& [n, v] : vars) out.push_back(n);
+    for (auto& [n, v] : vars)
+        out.push_back(n);
     return out;
 }
 
@@ -1129,14 +1217,12 @@ Snippet::Value Snippet::get(const std::string& name, int want) {
         if (it == vars.end())
             warnOnce(nullptr, key, "no section, value or parameter called '" + name + "'");
         else if (s && !s->failed)
-            warnOnce(s, key, "section '" + s->name + "' gives '" + name + "' no value where "
-                             + shape(want) + " is read");
+            warnOnce(s, key, "section '" + s->name + "' gives '" + name + "' no value where " + shape(want) + " is read");
         return v;
     }
     const std::string who = s ? "'" + name + "' (section '" + s->name + "')"
                               : "'" + name + "'";
-    warnOnce(s, key, who + " holds " + shape(v.n) + " where " + shape(want) + " is read, "
-                     + (v.n < want ? "so the missing numbers are zeros" : "so the extra ones are dropped"));
+    warnOnce(s, key, who + " holds " + shape(v.n) + " where " + shape(want) + " is read, " + (v.n < want ? "so the missing numbers are zeros" : "so the extra ones are dropped"));
     return v;
 }
 
@@ -1150,18 +1236,18 @@ Snippet::Deps Snippet::endRecord() {
     return record;
 }
 
-long Snippet::reloads() {return reload_counter;}
+long Snippet::reloads() { return reload_counter; }
 
 long Snippet::stateOf(const Deps& d) {
-    long h = reload_counter*1000003L;
+    long h = reload_counter * 1000003L;
     for (const auto& n : d.names) {
-        h = h*31 + changed(n);
+        h = h * 31 + changed(n);
         // a parameter is not a section, so its generation never moves. Fold in
         // what it currently reads instead
         scalar v[4];
         if (int n_comp = Params::read(n, v); n_comp > 0)
             for (int i = 0; i < n_comp; i++)
-                h = h*31 + (long)std::llround(v[i]*1e6);
+                h = h * 31 + (long)std::llround(v[i] * 1e6);
     }
     return h;
 }
@@ -1196,7 +1282,7 @@ bool watch(std::vector<long>& seen, const char* const* names, std::size_t n) {
     return moved;
 }
 
-}
+} // namespace
 
 bool Snippet::dirty(std::initializer_list<const char*> names, const char* tag,
                     std::source_location where) {
@@ -1217,27 +1303,28 @@ void Snippet::derive(const std::string& name, std::initializer_list<const char*>
     // the initializer_list does not outlive this call, and the cache has to
     // outlive every frame, so both move into the closure
     auto owned = std::make_shared<std::vector<std::string>>(deps.begin(), deps.end());
-    auto seen  = std::make_shared<std::vector<long>>();
+    auto seen = std::make_shared<std::vector<long>>();
     auto cache = std::make_shared<Value>();
 
     derive(name, Derivation([owned, seen, cache, f](const TimeObject& t) {
-        std::vector<const char*> ptrs;
-        ptrs.reserve(owned->size());
-        for (const auto& d : *owned) ptrs.push_back(d.c_str());
-        if (watch(*seen, ptrs.data(), ptrs.size()))
-            *cache = f(t);
-        return *cache;
-    }));
+               std::vector<const char*> ptrs;
+               ptrs.reserve(owned->size());
+               for (const auto& d : *owned)
+                   ptrs.push_back(d.c_str());
+               if (watch(*seen, ptrs.data(), ptrs.size()))
+                   *cache = f(t);
+               return *cache;
+           }));
 }
 
 void Snippet::derive(const std::string& name, std::initializer_list<const char*> deps,
                      const std::function<scalar(const TimeObject&)>& f) {
     derive(name, deps, Derivation([f](const TimeObject& t) {
-        Value v;
-        v.v[0] = f(t);
-        v.n = 1;
-        return v;
-    }));
+               Value v;
+               v.v[0] = f(t);
+               v.n = 1;
+               return v;
+           }));
 }
 
 void Snippet::derive(const std::string& name, const Derivation& f) {
@@ -1247,18 +1334,32 @@ void Snippet::derive(const std::string& name, const Derivation& f) {
 }
 void Snippet::derive(const std::string& name, const std::function<scalar(const TimeObject&)>& f) {
     derive(name, Derivation([f](const TimeObject& t) {
-        Value v; v.v[0] = f(t); v.n = 1; return v;
-    }));
+               Value v;
+               v.v[0] = f(t);
+               v.n = 1;
+               return v;
+           }));
 }
 void Snippet::derive(const std::string& name, const std::function<vec2(const TimeObject&)>& f) {
     derive(name, Derivation([f](const TimeObject& t) {
-        vec2 r = f(t); Value v; v.v[0] = r(0); v.v[1] = r(1); v.n = 2; return v;
-    }));
+               vec2 r = f(t);
+               Value v;
+               v.v[0] = r(0);
+               v.v[1] = r(1);
+               v.n = 2;
+               return v;
+           }));
 }
 void Snippet::derive(const std::string& name, const std::function<vec(const TimeObject&)>& f) {
     derive(name, Derivation([f](const TimeObject& t) {
-        vec r = f(t); Value v; v.v[0] = r(0); v.v[1] = r(1); v.v[2] = r(2); v.n = 3; return v;
-    }));
+               vec r = f(t);
+               Value v;
+               v.v[0] = r(0);
+               v.v[1] = r(1);
+               v.v[2] = r(2);
+               v.n = 3;
+               return v;
+           }));
 }
 
 Snippet::CallPtr Snippet::resolve(const std::string& name) {
@@ -1283,18 +1384,20 @@ void reportCall(Snippet::Call& c, const std::string& what) {
     if (c.reported) return;
     c.reported = true;
     last_error = what;
-    if (Section* s = sectionOf(c.name)) publishProblem(s->file, c.name + "#call", what);
-    else if (!files.empty()) publishProblem(files.front().given.string(), c.name + "#call", what);
+    if (Section* s = sectionOf(c.name))
+        publishProblem(s->file, c.name + "#call", what);
+    else if (!files.empty())
+        publishProblem(files.front().given.string(), c.name + "#call", what);
     spdlog::error("[snippet] {}", what);
 }
 
-}
+} // namespace
 
 bool Snippet::invoke(const CallPtr& c, const scalar* in, const int* sizes,
                      int nargs, scalar* out, int nout, bool exact) {
     if (!L || !c) return false;
     ensureDiscovered();
-    if (c->failed_frame == frame_counter) return false;   // latched, broken is fast
+    if (c->failed_frame == frame_counter) return false; // latched, broken is fast
 
     if (c->ref == LUA_NOREF) {
         Section* s = sectionOf(c->name);
@@ -1304,7 +1407,7 @@ bool Snippet::invoke(const CallPtr& c, const scalar* in, const int* sizes,
                 reportCall(*c, "no section called '" + c->name + "'");
             else if (!s->failed)
                 reportCall(*c, "section '" + c->name + "' returns a value but is called as a "
-                               "function, which needs \"return function(...) ... end\"");
+                                                       "function, which needs \"return function(...) ... end\"");
             return false;
         }
         c->ref = s->call_ref;
@@ -1316,9 +1419,12 @@ bool Snippet::invoke(const CallPtr& c, const scalar* in, const int* sizes,
     lua_rawgeti(L, LUA_REGISTRYINDEX, c->ref);
     int k = 0;
     for (int i = 0; i < nargs; i++) {
-        if (sizes[i] == 1)      lua_pushnumber(L, in[k]);
-        else if (sizes[i] == 2) pushSVec(L, TAG_V2, in[k], in[k+1]);
-        else                    pushSVec(L, TAG_V3, in[k], in[k+1], in[k+2]);
+        if (sizes[i] == 1)
+            lua_pushnumber(L, in[k]);
+        else if (sizes[i] == 2)
+            pushSVec(L, TAG_V2, in[k], in[k + 1]);
+        else
+            pushSVec(L, TAG_V3, in[k], in[k + 1], in[k + 2]);
         k += sizes[i];
     }
 
@@ -1339,63 +1445,52 @@ bool Snippet::invoke(const CallPtr& c, const scalar* in, const int* sizes,
     const bool ok = readReturn(L, base + 1, lua_gettop(L) - base, v, err);
     lua_settop(L, base);
     if (!ok || !v.valid()) {
-        reportCall(*c, "the function of section '" + c->name + "' returns "
-                       + (ok ? std::string("nothing") : err) + kShapes);
+        reportCall(*c, "the function of section '" + c->name + "' returns " + (ok ? std::string("nothing") : err) + kShapes);
         c->failed_frame = frame_counter;
         return false;
     }
     if (!finite(v))
-        warnOnce(c->sec, c->name + "#finite", "the function of section '" + c->name
-                 + "' returns nan or inf, maybe from a division by zero");
+        warnOnce(c->sec, c->name + "#finite", "the function of section '" + c->name + "' returns nan or inf, maybe from a division by zero");
     if (!fits(v.n, nout, exact))
         warnOnce(c->sec, c->name + "#" + std::to_string(nout),
-                 "the function of section '" + c->name + "' returns " + shape(v.n)
-                 + " where " + shape(nout) + " is read, "
-                 + (v.n < nout ? "so the missing numbers are zeros" : "so the extra ones are dropped"));
-    for (int i = 0; i < nout; i++) out[i] = i < v.n ? v.v[i] : 0;
+                 "the function of section '" + c->name + "' returns " + shape(v.n) + " where " + shape(nout) + " is read, " + (v.n < nout ? "so the missing numbers are zeros" : "so the extra ones are dropped"));
+    for (int i = 0; i < nout; i++)
+        out[i] = i < v.n ? v.v[i] : 0;
     return true;
 }
 
-}
+} // namespace slope
 
 namespace slope {
 
-vec LiveVec::value() const
-{
+vec LiveVec::value() const {
     return live() ? Snippet::get(snippet, 3).v3() : fixed;
 }
 
-scalar LiveScalar::value() const
-{
+scalar LiveScalar::value() const {
     return live() ? Snippet::get(snippet, 1).num() : fixed;
 }
 
-std::string LiveVec::key() const
-{
+std::string LiveVec::key() const {
     if (live())
         return snippet;
-    return std::to_string(fixed(0)) + "," + std::to_string(fixed(1))
-         + "," + std::to_string(fixed(2));
+    return std::to_string(fixed(0)) + "," + std::to_string(fixed(1)) + "," + std::to_string(fixed(2));
 }
 
-void SnippetTexture::configure(const Spec &spec)
-{
-    const bool same = sp.fn == spec.fn && sp.res_u == spec.res_u && sp.res_v == spec.res_v
-        && sp.u == spec.u && sp.v == spec.v && sp.components == spec.components
-        && sp.when == spec.when;
+void SnippetTexture::configure(const Spec& spec) {
+    const bool same = sp.fn == spec.fn && sp.res_u == spec.res_u && sp.res_v == spec.res_v && sp.u == spec.u && sp.v == spec.v && sp.components == spec.components && sp.when == spec.when;
     sp = spec;
-    sp.components = std::clamp(sp.components,1,4);
-    sp.res_u = std::max(1,sp.res_u);
-    sp.res_v = std::max(1,sp.res_v);
+    sp.components = std::clamp(sp.components, 1, 4);
+    sp.res_u = std::max(1, sp.res_u);
+    sp.res_v = std::max(1, sp.res_v);
     if (!same)
         sampled = false;
 }
 
-void SnippetTexture::sample()
-{
-    const int w = sp.res_u, h = std::max(1,sp.res_v), c = std::clamp(sp.components,1,4);
+void SnippetTexture::sample() {
+    const int w = sp.res_u, h = std::max(1, sp.res_v), c = std::clamp(sp.components, 1, 4);
     const bool flat = h == 1;
-    samples.assign(std::size_t(w)*h*c,0.f);
+    samples.assign(std::size_t(w) * h * c, 0.f);
 
     auto call = Snippet::resolve(sp.fn);
     const int sizes[1] = {flat ? 1 : 2};
@@ -1403,16 +1498,16 @@ void SnippetTexture::sample()
 
     // the read set of this pass decides whether it is ever run again
     Snippet::beginRecord();
-    for (int j = 0; j < h; j++){
+    for (int j = 0; j < h; j++) {
         // texel centres, so the domain ends sit half a texel inside the edges
-        const scalar y = h > 1 ? sp.v(0) + (sp.v(1)-sp.v(0))*(j+0.5)/h : 0;
-        for (int i = 0; i < w; i++){
-            const scalar x = sp.u(0) + (sp.u(1)-sp.u(0))*(i+0.5)/w;
-            const scalar in[2] = {x,y};
+        const scalar y = h > 1 ? sp.v(0) + (sp.v(1) - sp.v(0)) * (j + 0.5) / h : 0;
+        for (int i = 0; i < w; i++) {
+            const scalar x = sp.u(0) + (sp.u(1) - sp.u(0)) * (i + 0.5) / w;
+            const scalar in[2] = {x, y};
             // keeping fewer numbers than returned is what `components` is for
-            if (!Snippet::invoke(call,in,sizes,1,out,c,false))
-                continue;   // a failing section leaves zeros rather than nothing
-            float* q = samples.data() + (std::size_t(j)*w + i)*c;
+            if (!Snippet::invoke(call, in, sizes, 1, out, c, false))
+                continue; // a failing section leaves zeros rather than nothing
+            float* q = samples.data() + (std::size_t(j) * w + i) * c;
             for (int k = 0; k < c; k++)
                 q[k] = float(out[k]);
         }
@@ -1422,17 +1517,16 @@ void SnippetTexture::sample()
     sampled = true;
 }
 
-bool SnippetTexture::update()
-{
+bool SnippetTexture::update() {
     if (!Snippet::ready())
         return false;
-    if (!sampled){
+    if (!sampled) {
         sample();
         return true;
     }
     if (sp.when == Spec::When::Once)
         return false;
-    if (sp.when == Spec::When::Always || deps.time){
+    if (sp.when == Spec::When::Always || deps.time) {
         sample();
         return true;
     }
@@ -1443,4 +1537,4 @@ bool SnippetTexture::update()
     return true;
 }
 
-}
+} // namespace slope

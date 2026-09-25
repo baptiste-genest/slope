@@ -27,7 +27,7 @@ void slope::Primitive::addPrimitive(PrimitivePtr ptr) {
     primitives.push_back(ptr);
 }
 
-slope::PrimitivePtr slope::Primitive::get(PrimitiveID id){
+slope::PrimitivePtr slope::Primitive::get(PrimitiveID id) {
     return primitives[id];
 }
 
@@ -39,38 +39,38 @@ void slope::Primitive::handleInnerTime() {
     inner_time = Time::now();
 }
 
-void slope::Primitive::play(const TimeObject &t, const StateInSlide &sis) {
+void slope::Primitive::play(const TimeObject& t, const StateInSlide& sis) {
     enable();
     auto it = t(this);
-    draw(it,sis);
+    draw(it, sis);
     if (sis.updaterOverrided)
         sis.updaterOverride(it);
     else
         updater(it);
 }
 
-void slope::Primitive::intro(const TimeObject &t, const StateInSlide &sis) {
+void slope::Primitive::intro(const TimeObject& t, const StateInSlide& sis) {
     enable();
     auto it = t(this);
     it.transition_parameter = transition.shapeIn(it.transition_parameter);
-    playIntro(it,transition.intro(it,sis));
+    playIntro(it, transition.intro(it, sis));
     if (sis.updaterOverrided)
         sis.updaterOverride(it);
     else
         updater(it);
 }
 
-void slope::Primitive::outro(const TimeObject &t, const StateInSlide &sis) {
+void slope::Primitive::outro(const TimeObject& t, const StateInSlide& sis) {
     auto it = t(this);
     it.transition_parameter = transition.shapeOut(it.transition_parameter);
-    playOutro(it,transition.outro(it,sis));
+    playOutro(it, transition.outro(it, sis));
     if (sis.updaterOverrided)
         sis.updaterOverride(it);
     else
         updater(it);
 }
 
-bool slope::Primitive::isEnabled() const {return enabled;}
+bool slope::Primitive::isEnabled() const { return enabled; }
 
 void slope::Primitive::disable() {
     if (!enabled)
@@ -87,7 +87,7 @@ void slope::Primitive::enable() {
     handleInnerTime();
 }
 
-slope::TimeTypeSec slope::Primitive::getInnerTime(){
+slope::TimeTypeSec slope::Primitive::getInnerTime() {
     return TimeFrom(inner_time);
 }
 
@@ -97,17 +97,16 @@ bool slope::Primitive::isExclusive() const {
 
 void slope::Primitive::initPolyscope() {}
 
-void slope::Primitive::setDepth(int d) {depth = d;}
+void slope::Primitive::setDepth(int d) { depth = d; }
 
-int slope::Primitive::getDepth() const {return depth;}
+int slope::Primitive::getDepth() const { return depth; }
 
 void slope::Primitive::upFirstSlideNumber(int f) {
-    first_slide_to_appear = std::min(first_slide_to_appear,f);
+    first_slide_to_appear = std::min(first_slide_to_appear, f);
 }
 
-slope::OverrideUpdater slope::Primitive::setUpdater(const Updater &up)
-{
-    return {pid,up};
+slope::OverrideUpdater slope::Primitive::setUpdater(const Updater& up) {
+    return {pid, up};
 }
 
 void slope::Primitive::forceDisable() {}

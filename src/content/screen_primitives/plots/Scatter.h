@@ -48,14 +48,14 @@ public:
     Settings settings;
 
     // True, because it goes on its board and not where a slide would put it.
-    bool placesItself() const override {return true;}
+    bool placesItself() const override { return true; }
     // Size in pixels.
     vec2 getSize() const override;
 
     // Legend entry, see Legendable.
-    std::string legendCaption() const override {return caption.empty() ? name : caption;}
-    bool legendDrawnAt(int frame) const override {return last_frame >= frame - 1;}
-    scalar legendAlpha() const override {return appeared;}
+    std::string legendCaption() const override { return caption.empty() ? name : caption; }
+    bool legendDrawnAt(int frame) const override { return last_frame >= frame - 1; }
+    scalar legendAlpha() const override { return appeared; }
     void legendSwatch(ImDrawList* dl, const ImVec2& a, const ImVec2& b,
                       scalar scale, scalar alpha) const override;
 
@@ -87,6 +87,6 @@ private:
     int last_frame = -1000;
 };
 
-}
+} // namespace slope
 
 #endif // SCATTER_H

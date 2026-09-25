@@ -23,8 +23,7 @@ namespace slope {
 class Algorithm;
 using AlgorithmPtr = std::shared_ptr<Algorithm>;
 
-class Algorithm : public Latex
-{
+class Algorithm : public Latex {
 public:
     // Builds an algorithm from LaTeX source.
     // The width in pt limits the algorithm. The rules of algorithm2e and the \tcp* comments use all of it.
@@ -50,7 +49,11 @@ public:
     SlideCue unfocus();
 
     // Removes the cues of this algorithm.
-    void clearCues() { reveal_at.clear(); focus_at.clear(); parsed_for.clear(); }
+    void clearCues() {
+        reveal_at.clear();
+        focus_at.clear();
+        parsed_for.clear();
+    }
     // Removes the cues of every algorithm.
     static void ClearAllCues();
 
@@ -116,6 +119,6 @@ private:
     inline static std::vector<Algorithm*> all;
 };
 
-}
+} // namespace slope
 
 #endif // ALGORITHM_H

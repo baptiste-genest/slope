@@ -11,8 +11,7 @@ namespace slope {
 
 // anchor labels double as .pos filenames, so a title is named after its text,
 // otherwise every title shares one anchor, one position and one scale
-static std::string titleLabel(const std::string& txt)
-{
+static std::string titleLabel(const std::string& txt) {
     std::string slug;
     for (char c : txt) {
         if (std::isalnum(static_cast<unsigned char>(c)))
@@ -28,16 +27,12 @@ static std::string titleLabel(const std::string& txt)
 }
 
 // scale and width shape the compiled latex, so both belong in the cache key
-static std::string latexKey(const char* type, const json& item)
-{
-    return std::string(type) + ":" + item[type].get<std::string>() + ":"
-         + std::to_string(item.value("scale", Options::DefaultLatexScale)) + ":"
-         + std::to_string(item.value("width", -1));
+static std::string latexKey(const char* type, const json& item) {
+    return std::string(type) + ":" + item[type].get<std::string>() + ":" + std::to_string(item.value("scale", Options::DefaultLatexScale)) + ":" + std::to_string(item.value("width", -1));
 }
 
 // the file and the slice make the listing, everything else is restyling
-static std::string codeKey(const json& i)
-{
+static std::string codeKey(const json& i) {
     std::string k = "code:" + i["code"].get<std::string>();
     if (i.contains("lines"))
         k += ":" + i["lines"].dump();
@@ -47,16 +42,14 @@ static std::string codeKey(const json& i)
 }
 
 // without the dot, as CodeLanguage::ForExtension wants it
-static std::string codeExtension(const json& i)
-{
+static std::string codeExtension(const json& i) {
     auto e = std::filesystem::path(i["code"].get<std::string>()).extension().string();
     if (!e.empty() && e.front() == '.')
         e.erase(0, 1);
     return e;
 }
 
-static CodePtr makeCode(const json& i)
-{
+static CodePtr makeCode(const json& i) {
     const std::string file = i["code"].get<std::string>();
     if (i.contains("region")) {
         if (i.contains("lines"))
@@ -73,26 +66,27 @@ static CodePtr makeCode(const json& i)
     return Code::FromFile(file);
 }
 
-std::vector<ItemSpec> textItemSpecs()
-{
+std::vector<ItemSpec> textItemSpecs() {
     std::vector<ItemSpec> specs;
 
     specs.push_back({
-        "code", ItemSpec::Kind::Screen,
-        {"lines","region","language","font","line_numbers","font_scale","tracking",
-         "line_spacing","padding","dim","reveal","focus"},
+        "code",
+        ItemSpec::Kind::Screen,
+        {"lines", "region", "language", "font", "line_numbers", "font_scale", "tracking",
+         "line_spacing", "padding", "dim", "reveal", "focus"},
         codeKey,
         [](const json& i) -> PrimitivePtr { return makeCode(i); },
         [](const PrimitivePtr& p, const json& i, const std::string&) {
             auto c = std::static_pointer_cast<Code>(p);
-            const CodeStyle d;   // cached primitive, so a dropped field reverts
-            c->style.font         = i.contains("font")
-                                  ? Code::LoadFont(i["font"].get<std::string>()) : d.font;
+            const CodeStyle d; // cached primitive, so a dropped field reverts
+            c->style.font = i.contains("font")
+                                ? Code::LoadFont(i["font"].get<std::string>())
+                                : d.font;
             c->setLanguage(i.contains("language")
-                           ? CodeLanguage::ForName(i["language"].get<std::string>())
-                           : CodeLanguage::ForExtension(codeExtension(i)));
+                               ? CodeLanguage::ForName(i["language"].get<std::string>())
+                               : CodeLanguage::ForExtension(codeExtension(i)));
             // line_numbers is true, false or absolute. The last one numbers a slice with the line numbers of its file.
-            c->style.line_numbers          = d.line_numbers;
+            c->style.line_numbers = d.line_numbers;
             c->style.absolute_line_numbers = d.absolute_line_numbers;
             if (i.contains("line_numbers")) {
                 const json& n = i["line_numbers"];
@@ -106,11 +100,11 @@ std::vector<ItemSpec> textItemSpecs()
                     throw std::runtime_error("\"line_numbers\" takes true, false, "
                                              "absolute or relative");
             }
-            c->style.font_scale   = i.value("font_scale", d.font_scale);
-            c->style.tracking     = i.value("tracking", d.tracking);
+            c->style.font_scale = i.value("font_scale", d.font_scale);
+            c->style.tracking = i.value("tracking", d.tracking);
             c->style.line_spacing = i.value("line_spacing", d.line_spacing);
-            c->style.padding      = i.value("padding", d.padding);
-            c->style.dim_factor   = i.value("dim", d.dim_factor);
+            c->style.padding = i.value("padding", d.padding);
+            c->style.dim_factor = i.value("dim", d.dim_factor);
         },
         [](const json& i) {
             return std::filesystem::path(i["code"].get<std::string>()).stem().string();
@@ -119,15 +113,14 @@ std::vector<ItemSpec> textItemSpecs()
 
     // the file's content is in the key, so an edited .tex recompiles on reload
     specs.push_back({
-        "algo", ItemSpec::Kind::Screen, {"scale","width","dim","reveal","focus"},
+        "algo",
+        ItemSpec::Kind::Screen,
+        {"scale", "width", "dim", "reveal", "focus"},
         [](const json& i) {
             std::ifstream f(formatPath(i["algo"].get<std::string>()));
             std::stringstream ss;
             ss << f.rdbuf();
-            return "algo:" + i["algo"].get<std::string>() + ":"
-                 + std::to_string(std::hash<std::string>{}(ss.str())) + ":"
-                 + std::to_string(i.value("scale", Options::DefaultLatexScale)) + ":"
-                 + std::to_string(i.value("width", -1));
+            return "algo:" + i["algo"].get<std::string>() + ":" + std::to_string(std::hash<std::string>{}(ss.str())) + ":" + std::to_string(i.value("scale", Options::DefaultLatexScale)) + ":" + std::to_string(i.value("width", -1));
         },
         [](const json& i) -> PrimitivePtr {
             return Algorithm::FromFile(i["algo"].get<std::string>(),
@@ -147,10 +140,11 @@ std::vector<ItemSpec> textItemSpecs()
         return i.value("scale", Options::TitleScale);
     };
     specs.push_back({
-        "title", ItemSpec::Kind::Screen, {"scale"},
+        "title",
+        ItemSpec::Kind::Screen,
+        {"scale"},
         [titleScale](const json& i) {
-            return "title:" + i["title"].get<std::string>() + ":"
-                 + std::to_string(titleScale(i));
+            return "title:" + i["title"].get<std::string>() + ":" + std::to_string(titleScale(i));
         },
         [titleScale](const json& i) -> PrimitivePtr {
             return Title(i["title"].get<std::string>(), true, titleScale(i));
@@ -161,7 +155,9 @@ std::vector<ItemSpec> textItemSpecs()
 
     // content (and text/formula mode) from latex.json, anchored at its key
     specs.push_back({
-        "load", ItemSpec::Kind::Screen, {},
+        "load",
+        ItemSpec::Kind::Screen,
+        {},
         [](const json& i) { return "load:" + i["load"].get<std::string>(); },
         [](const json& i) -> PrimitivePtr { return LatexLoader::Load(i["load"].get<std::string>()); },
         nullptr,
@@ -169,7 +165,9 @@ std::vector<ItemSpec> textItemSpecs()
     });
 
     specs.push_back({
-        "latex", ItemSpec::Kind::Screen, {"scale","width"},
+        "latex",
+        ItemSpec::Kind::Screen,
+        {"scale", "width"},
         [](const json& i) { return latexKey("latex", i); },
         [](const json& i) -> PrimitivePtr {
             return Latex::Add(i["latex"].get<std::string>(),
@@ -181,7 +179,9 @@ std::vector<ItemSpec> textItemSpecs()
     });
 
     specs.push_back({
-        "formula", ItemSpec::Kind::Screen, {"scale","width"},
+        "formula",
+        ItemSpec::Kind::Screen,
+        {"scale", "width"},
         [](const json& i) { return latexKey("formula", i); },
         [](const json& i) -> PrimitivePtr {
             return Formula::Add(i["formula"].get<std::string>(),
@@ -195,4 +195,4 @@ std::vector<ItemSpec> textItemSpecs()
     return specs;
 }
 
-}
+} // namespace slope

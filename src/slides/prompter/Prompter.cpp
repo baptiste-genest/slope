@@ -2,7 +2,7 @@
 #ifdef __APPLE__
 #include <OpenGL/gl3.h>
 #else
-#include "glad/glad.h"      // must come before any GLFW or GL headers
+#include "glad/glad.h" // must come before any GLFW or GL headers
 #endif
 #include "GLFW/glfw3.h"
 #include "imgui.h"
@@ -17,11 +17,10 @@
 
 slope::Prompter::Prompter(std::string script_file) : script_file(script_file) {}
 
-slope::Prompter::~Prompter()
-{
+slope::Prompter::~Prompter() {
     if (!window) return;
 
-    GLFWwindow*   main_win = glfwGetCurrentContext();
+    GLFWwindow* main_win = glfwGetCurrentContext();
     ImGuiContext* main_ctx = ImGui::GetCurrentContext();
 
     glfwMakeContextCurrent(window);
@@ -36,9 +35,8 @@ slope::Prompter::~Prompter()
     ImGui::SetCurrentContext(main_ctx);
 }
 
-void slope::Prompter::initWindow()
-{
-    GLFWwindow*   main_win = glfwGetCurrentContext();
+void slope::Prompter::initWindow() {
+    GLFWwindow* main_win = glfwGetCurrentContext();
     ImGuiContext* main_ctx = ImGui::GetCurrentContext();
 
     window = glfwCreateWindow(900, 600, "slope \xe2\x80\x94 prompter", NULL, main_win);
@@ -61,20 +59,19 @@ void slope::Prompter::initWindow()
 
     ImGui::StyleColorsDark();
     ImGui::GetStyle().WindowPadding = ImVec2(20, 20);
-    ImGui::GetStyle().ItemSpacing   = ImVec2(8, 12);
+    ImGui::GetStyle().ItemSpacing = ImVec2(8, 12);
 
     glfwMakeContextCurrent(main_win);
     ImGui::SetCurrentContext(main_ctx);
 }
 
-void slope::Prompter::render(const std::string& text, TimeStamp fromBegin)
-{
+void slope::Prompter::render(const std::string& text, TimeStamp fromBegin) {
     if (!window)
         initWindow();
 
     if (!window || glfwWindowShouldClose(window)) return;
 
-    GLFWwindow*   main_win = glfwGetCurrentContext();
+    GLFWwindow* main_win = glfwGetCurrentContext();
     ImGuiContext* main_ctx = ImGui::GetCurrentContext();
 
     glfwMakeContextCurrent(window);
@@ -89,12 +86,12 @@ void slope::Prompter::render(const std::string& text, TimeStamp fromBegin)
     ImGui::SetNextWindowSize(io.DisplaySize);
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.08f, 0.08f, 0.08f, 1.f));
     ImGui::Begin("##prompter", nullptr,
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav |
-        ImGuiWindowFlags_NoMove       | ImGuiWindowFlags_NoBringToFrontOnFocus);
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
     auto total_sec = (int)TimeFrom(fromBegin);
     ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.f),
-        "%02d:%02d", total_sec / 60, total_sec % 60);
+                       "%02d:%02d", total_sec / 60, total_sec % 60);
     ImGui::Separator();
     ImGui::Spacing();
 
@@ -117,8 +114,7 @@ void slope::Prompter::render(const std::string& text, TimeStamp fromBegin)
     ImGui::SetCurrentContext(main_ctx);
 }
 
-void slope::Prompter::write(promptTag tag, TimeStamp fromBegin)
-{
+void slope::Prompter::write(promptTag tag, TimeStamp fromBegin) {
     if (!scripts.contains(tag)) {
         erase(fromBegin);
         return;
@@ -126,19 +122,16 @@ void slope::Prompter::write(promptTag tag, TimeStamp fromBegin)
     render(scripts.at(tag), fromBegin);
 }
 
-void slope::Prompter::erase(TimeStamp fromBegin)
-{
+void slope::Prompter::erase(TimeStamp fromBegin) {
     render("", fromBegin);
 }
 
-void slope::Prompter::loadScript()
-{
+void slope::Prompter::loadScript() {
     std::ifstream script(script_file);
     if (!script.is_open())
         throw std::runtime_error("[prompter] cannot open script file \"" + script_file + "\"");
     std::string line;
-    while (std::getline(script, line))
-    {
+    while (std::getline(script, line)) {
         if (current_tag.empty() && line.empty())
             continue;
         if (!line.empty() && line[0] == '[') {

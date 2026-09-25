@@ -13,11 +13,11 @@ namespace slope {
 
 /// Size, rate and length of a video stream, as reported by ffprobe.
 struct VideoInfo {
-    int     width     = 0;
-    int     height    = 0;
-    double  fps       = 0;
+    int width = 0;
+    int height = 0;
+    double fps = 0;
     // Duration in seconds, 0 when the container does not give it.
-    double  duration  = 0;
+    double duration = 0;
     // Number of frames, 0 when unknown.
     int64_t nb_frames = 0;
     // Frame rate as a fraction written like ffprobe does, for example "30000/1001". It is given to ffmpeg unchanged.
@@ -54,7 +54,7 @@ public:
     ~Video();
 
     // Copying is not allowed because a video owns a texture and a running decoder.
-    Video(const Video&)            = delete;
+    Video(const Video&) = delete;
     Video& operator=(const Video&) = delete;
 
     // True when the file was probed and the texture exists.
@@ -71,8 +71,8 @@ public:
     std::function<scalar()> speed = [] { return scalar(1); };
 
     // Playback controls.
-    void play()       { playing_ = true; }
-    void pause()      { playing_ = false; }
+    void play() { playing_ = true; }
+    void pause() { playing_ = false; }
     void togglePlay() { playing_ = !playing_; }
     bool isPlaying() const { return playing_; }
 
@@ -91,7 +91,7 @@ public:
     bool saveFrame(const std::string& file) const;
 
     /// Size in pixels of the decoded frame. It is not the size at which the frame is drawn.
-    int decodedWidth()  const { return w_; }
+    int decodedWidth() const { return w_; }
     int decodedHeight() const { return h_; }
 
     /// Number of bytes that the queue of one video can hold.
@@ -104,7 +104,7 @@ public:
     void playOutro(const TimeObject& t, const StateInSlide& sis) override;
     // Size in pixels.
     Size getSize() const override;
-    bool canRotate() const override {return true;}
+    bool canRotate() const override { return true; }
 
 protected:
     // Stops the decoder, which runs only while the primitive is on screen.
@@ -118,13 +118,13 @@ protected:
     // Index of the frame that the clock asks for. A live source always wants the newest one.
     virtual int64_t wantedFrame(const TimeObject& t);
     // False for a live source, which has no timeline, so no seeking, no speed and no pause.
-    virtual bool    hasTimeline() const { return true; }
+    virtual bool hasTimeline() const { return true; }
     // Maximum number of queued frames. A queued frame is a buffer for a file and a delay for a camera.
-    virtual size_t  queueLimit(size_t frame_bytes) const;
+    virtual size_t queueLimit(size_t frame_bytes) const;
 
     std::string path_;
-    VideoInfo   info_;
-    int         w_ = 0, h_ = 0;
+    VideoInfo info_;
+    int w_ = 0, h_ = 0;
 
 private:
     struct Frame;
@@ -174,42 +174,42 @@ private:
     // Function run by the decoding thread.
     static void decodeLoop(std::shared_ptr<Stream> s, int64_t base);
 
-    bool        loop_ = true;
-    int64_t     total_frames_ = 0;
+    bool loop_ = true;
+    int64_t total_frames_ = 0;
 
-    ImageData   tex_;
+    ImageData tex_;
     std::shared_ptr<Stream> stream_;
     // The stream started by a seek. It takes over once it has a frame,
     // so the 250 ms that ffmpeg needs to start is not seen as a freeze.
     std::shared_ptr<Stream> warm_;
-    int64_t                 warm_base_ = 0;
+    int64_t warm_base_ = 0;
 
-    bool        autoplay_ = true;
-    bool        playing_  = true;
+    bool autoplay_ = true;
+    bool playing_ = true;
     // Time in the clip, accumulated over the frames. Computing speed * inner_time would jump when the speed changes.
-    double      media_time_ = 0;
-    double      last_inner_ = -1;
-    bool        press_inside_ = false;
+    double media_time_ = 0;
+    double last_inner_ = -1;
+    bool press_inside_ = false;
 
     // Index of the frame in the texture.
-    int64_t shown_      = -1;
+    int64_t shown_ = -1;
     // Next index the decoder will produce.
     int64_t next_index_ = 0;
     // First index the current stream can produce.
     int64_t stream_base_ = 0;
-    int     queue_depth_  = 0;
-    bool    seek_pending_ = false;
+    int queue_depth_ = 0;
+    bool seek_pending_ = false;
     // Set when a working stream ended, to skip the cooldown.
-    bool    restart_now_  = false;
-    bool    warned_no_duration_ = false;
-    bool    finished_     = false;
-    double  last_log_     = 0;
-    int64_t steps_        = 0;
+    bool restart_now_ = false;
+    bool warned_no_duration_ = false;
+    bool finished_ = false;
+    double last_log_ = 0;
+    int64_t steps_ = 0;
     std::chrono::steady_clock::time_point last_seek_{};
     // Counters. dropped_ counts frames skipped by the render thread and discarded_ those skipped by the decoder.
     int64_t uploaded_ = 0, dropped_ = 0, discarded_ = 0, starves_ = 0, seeks_ = 0;
 };
 
-}
+} // namespace slope
 
 #endif // VIDEO_H

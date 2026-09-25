@@ -34,8 +34,7 @@ class Shape2D;
 using Shape2DPtr = std::shared_ptr<Shape2D>;
 
 // A polyline, curve or polygon.
-class Shape2D : public ScreenPrimitive
-{
+class Shape2D : public ScreenPrimitive {
 public:
     ShapeStyle style;
 
@@ -74,8 +73,7 @@ using Box2DPtr = std::shared_ptr<Box2D>;
 
 // A rectangle around its targets, made of the union of their bounding boxes plus a padding.
 // It is computed every frame, so it follows dragged targets.
-class Box2D : public ScreenPrimitive
-{
+class Box2D : public ScreenPrimitive {
 public:
     ShapeStyle style;
     // Gap around the targets in relative units, one value per axis.
@@ -102,8 +100,8 @@ public:
     static Box2DPtr Add(const std::vector<ScreenPrimitivePtr>& targets = {});
 
     // Same, with the targets given as separate arguments.
-    template<typename First, typename... Rest,
-             typename = std::enable_if_t<std::is_convertible_v<First, ScreenPrimitivePtr>>>
+    template <typename First, typename... Rest,
+              typename = std::enable_if_t<std::is_convertible_v<First, ScreenPrimitivePtr>>>
     static Box2DPtr Add(const First& first, const Rest&... rest) {
         return Add(std::vector<ScreenPrimitivePtr>{first, rest...});
     }
@@ -132,8 +130,7 @@ class Arrow2D;
 using Arrow2DPtr = std::shared_ptr<Arrow2D>;
 
 // An arrow or a line between two endpoints.
-class Arrow2D : public ScreenPrimitive
-{
+class Arrow2D : public ScreenPrimitive {
 public:
     ShapeStyle style;
     // Curvature, given as the offset of the control point relative to the distance between the endpoints.
@@ -190,6 +187,6 @@ protected:
     vec2 controlPoint(const vec2& a, const vec2& b) const;
 };
 
-}
+} // namespace slope
 
 #endif // SHAPE2D_H

@@ -22,13 +22,14 @@ namespace slope {
 
 // the manifest is authored in YAML (lighter to edit, no backslash escaping)
 // but converted to json internally
-static json yamlToJson(const YAML::Node& node)
-{
+static json yamlToJson(const YAML::Node& node) {
     switch (node.Type()) {
     case YAML::NodeType::Null:
         return nullptr;
     case YAML::NodeType::Scalar: {
-        bool b; long long i; double d;
+        bool b;
+        long long i;
+        double d;
         if (YAML::convert<bool>::decode(node, b) && node.Tag() != "!")
             return b;
         if (YAML::convert<long long>::decode(node, i) && node.Tag() != "!")
@@ -55,8 +56,7 @@ static json yamlToJson(const YAML::Node& node)
 }
 
 // the line of every node, keyed by the address of its json twin
-static void indexLines(const YAML::Node& n, const json& j, std::unordered_map<const json*, int>& out)
-{
+static void indexLines(const YAML::Node& n, const json& j, std::unordered_map<const json*, int>& out) {
     out[&j] = n.Mark().line + 1;
     if (n.IsSequence() && j.is_array()) {
         size_t i = 0;
@@ -75,14 +75,16 @@ static void indexLines(const YAML::Node& n, const json& j, std::unordered_map<co
 DeckLoader::DeckLoader() {}
 DeckLoader::~DeckLoader() {}
 
-void DeckLoader::init(path deck_file)
-{
+void DeckLoader::init(path deck_file) {
     source_path = formatPath(deck_file);
     FileEditor::registerExtra(source_path);
     Latex::default_origin = source_path;
     parse();
     // This is done early so C++ formulas made before the first build get the macros. A failure is reported by the build.
-    try { loadLatexResources(); } catch (const std::exception&) {}
+    try {
+        loadLatexResources();
+    } catch (const std::exception&) {
+    }
     source_last_modified = std::filesystem::last_write_time(source_path);
     latex_generation = LatexLoader::generation;
     initialized = true;
@@ -91,8 +93,7 @@ void DeckLoader::init(path deck_file)
 // latex resources are chosen by the top-level "commands" (tex prefix) and
 // "latex" (definitions file) keys, defaulting to the project conventions
 // commands.tex / latex.json when present
-void DeckLoader::loadLatexResources()
-{
+void DeckLoader::loadLatexResources() {
     // A file that is named must exist, and the editor then offers to create it. A default file is optional.
     auto pick = [&](const char* key, const char* fallback) -> std::string {
         if (source.is_object() && source.contains(key)) {
@@ -100,8 +101,7 @@ void DeckLoader::loadLatexResources()
                 throw std::runtime_error("\"" + std::string(key) + "\" takes a file name");
             std::string f = source[key];
             if (!io::file_exists(formatPath(f)))
-                ReloadErrors::missingFile(formatPath(f), "deck file references missing \""
-                                          + std::string(key) + "\" file " + f);
+                ReloadErrors::missingFile(formatPath(f), "deck file references missing \"" + std::string(key) + "\" file " + f);
             return f;
         }
         return io::file_exists(formatPath(fallback)) ? fallback : "";
@@ -121,11 +121,9 @@ void DeckLoader::loadLatexResources()
     if (auto f = pick("latex", "latex.json"); f != "")
         if (!LatexLoader::initialized || LatexLoader::source_path != path(formatPath(f)))
             LatexLoader::Init(f);
-
 }
 
-void DeckLoader::init(const std::string& project_name, path deck_file, int argc, char** argv)
-{
+void DeckLoader::init(const std::string& project_name, path deck_file, int argc, char** argv) {
     owned_show = std::make_unique<Slideshow>();
     owned_show->init(project_name, argc, argv);
     if (owned_show->helpWanted())
@@ -133,16 +131,14 @@ void DeckLoader::init(const std::string& project_name, path deck_file, int argc,
     init(deck_file);
 }
 
-Slideshow& DeckLoader::slideshow()
-{
+Slideshow& DeckLoader::slideshow() {
     if (!owned_show)
         throw std::runtime_error("DeckLoader does not own a slideshow "
                                  "(use init(project, deck, argc, argv))");
     return *owned_show;
 }
 
-void DeckLoader::run()
-{
+void DeckLoader::run() {
     auto& show = slideshow();
     if (!show.helpWanted()) {
         // an export has to fail, a live show opens anyway so the deck can be fixed in it
@@ -156,51 +152,44 @@ void DeckLoader::run()
                     ReloadErrors::report(source_path, "deck", e.what());
                     throw;
                 }
-            }, {}, {});
+            },
+                           {}, {});
         show.onFrame = [this, &show] { hotReload(show); };
     }
     show.run();
 }
 
-void DeckLoader::registerObject(const std::string& name, const ObjectFactory& factory)
-{
+void DeckLoader::registerObject(const std::string& name, const ObjectFactory& factory) {
     object_registry[name] = factory;
 }
 
-void DeckLoader::registerPlacer(const std::string& name, const std::function<vec2()>& placer)
-{
+void DeckLoader::registerPlacer(const std::string& name, const std::function<vec2()>& placer) {
     placer_registry[name] = placer;
 }
 
-void DeckLoader::registerObject(const std::string& name, const PrimitiveInSlide& pis)
-{
+void DeckLoader::registerObject(const std::string& name, const PrimitiveInSlide& pis) {
     instantiated_objects[name] = pis;
 }
 
-void DeckLoader::registerObject(const std::string& name, const PrimitiveFactory& factory)
-{
+void DeckLoader::registerObject(const std::string& name, const PrimitiveFactory& factory) {
     object_registry[name] = [factory]() -> PrimitiveInSlide {
         return {factory(), StateInSlide()};
     };
 }
 
-void DeckLoader::registerObject(const std::string& name, PrimitivePtr ptr)
-{
+void DeckLoader::registerObject(const std::string& name, PrimitivePtr ptr) {
     instantiated_objects[name] = {ptr, StateInSlide()};
 }
 
-void DeckLoader::registerObject(const std::string& name, const GroupFactory& factory)
-{
+void DeckLoader::registerObject(const std::string& name, const GroupFactory& factory) {
     group_registry[name] = factory;
 }
 
-void DeckLoader::registerObject(const std::string& name, const PrimitiveGroup& group)
-{
+void DeckLoader::registerObject(const std::string& name, const PrimitiveGroup& group) {
     instantiated_groups[name] = group;
 }
 
-void DeckLoader::parse()
-{
+void DeckLoader::parse() {
     if (!io::file_exists(source_path))
         throw std::runtime_error("did not find deck file " + source_path.string());
     try {
@@ -209,13 +198,11 @@ void DeckLoader::parse()
         line_of.clear();
         indexLines(root, source, line_of);
     } catch (const YAML::Exception& e) {
-        throw std::runtime_error("invalid yaml in deck file " + source_path.string()
-                                 + " : " + e.what());
+        throw std::runtime_error("invalid yaml in deck file " + source_path.string() + " : " + e.what());
     }
 }
 
-bool DeckLoader::sourceModified()
-{
+bool DeckLoader::sourceModified() {
     // checked often, the deck being what the author saves to see a change
     static auto last_refresh = Time::now();
     if (TimeFrom(last_refresh) < 0.05)
@@ -237,8 +224,7 @@ bool DeckLoader::sourceModified()
     return false;
 }
 
-bool DeckLoader::camerasModified()
-{
+bool DeckLoader::camerasModified() {
     static auto last_refresh = Time::now();
     if (TimeFrom(last_refresh) < 0.2)
         return false;
@@ -249,7 +235,8 @@ bool DeckLoader::camerasModified()
         try {
             if (entry.last_modified < std::filesystem::last_write_time(entry.file))
                 changed.push_back(key);
-        } catch (const std::exception&) {}
+        } catch (const std::exception&) {
+        }
     }
     // dropped entries are recreated (re-reading the file) at next build
     for (const auto& key : changed)
@@ -257,8 +244,7 @@ bool DeckLoader::camerasModified()
     return !changed.empty();
 }
 
-void DeckLoader::hotReload(Slideshow& show)
-{
+void DeckLoader::hotReload(Slideshow& show) {
     if (!initialized)
         return;
     // a file the last build missed was just created, so the deck is read and built again
@@ -300,7 +286,7 @@ void DeckLoader::hotReload(Slideshow& show)
                 return;
             spdlog::warn("deck: keeping the last version that built");
             source = last_good_source;
-            line_of.clear();   // its items are copies, at other addresses
+            line_of.clear(); // its items are copies, at other addresses
             build(sm);
         });
     if (ok) {
@@ -329,8 +315,7 @@ void DeckLoader::hotReload(Slideshow& show)
     LabelAnchor::takeFreshLabels();
 }
 
-PrimitivePtr DeckLoader::cached(const std::string& key, const std::function<PrimitivePtr()>& create)
-{
+PrimitivePtr DeckLoader::cached(const std::string& key, const std::function<PrimitivePtr()>& create) {
     auto it = primitive_cache.find(key);
     if (it != primitive_cache.end())
         return it->second;
@@ -341,15 +326,14 @@ PrimitivePtr DeckLoader::cached(const std::string& key, const std::function<Prim
 
 // every cache that outlives a build has to let go, or the next one hands back a
 // primitive whose polyscope structure was taken off
-void DeckLoader::forgetPrimitives(const std::set<PrimitivePtr>& gone)
-{
+void DeckLoader::forgetPrimitives(const std::set<PrimitivePtr>& gone) {
     if (gone.empty())
         return;
-    for (auto it = primitive_cache.begin(); it != primitive_cache.end(); )
+    for (auto it = primitive_cache.begin(); it != primitive_cache.end();)
         it = gone.count(it->second) ? primitive_cache.erase(it) : std::next(it);
-    for (auto it = instantiated_objects.begin(); it != instantiated_objects.end(); )
+    for (auto it = instantiated_objects.begin(); it != instantiated_objects.end();)
         it = gone.count(it->second.first) ? instantiated_objects.erase(it) : std::next(it);
-    for (auto it = instantiated_groups.begin(); it != instantiated_groups.end(); ) {
+    for (auto it = instantiated_groups.begin(); it != instantiated_groups.end();) {
         bool holds_one = false;
         for (const auto& [ptr, sis] : it->second.buffer)
             holds_one = holds_one || gone.count(ptr);
@@ -359,28 +343,24 @@ void DeckLoader::forgetPrimitives(const std::set<PrimitivePtr>& gone)
 
 // an "id:" names a primitive like a C++ variable, so the rank identifies the rest
 PrimitivePtr DeckLoader::cachedItem(const json& item, const std::string& key,
-                                    const std::function<PrimitivePtr()>& create)
-{
+                                    const std::function<PrimitivePtr()>& create) {
     std::string cache_key = "id=" + item.value("id", std::string()) + ":" + key;
     if (!item.contains("id"))
         cache_key += "#" + std::to_string(occurrences[key]++);
     return cached(cache_key, create);
 }
 
-PrimitivePtr DeckLoader::resolve(const std::string& name) const
-{
+PrimitivePtr DeckLoader::resolve(const std::string& name) const {
     auto it = named.find(name);
     if (it == named.end())
-        throw std::runtime_error("deck references unknown item \"" + name
-                                 + "\" (declared later, or missing an id?)");
+        throw std::runtime_error("deck references unknown item \"" + name + "\" (declared later, or missing an id?)");
     return it->second;
 }
 
 // A 3 component value is a world position in the scene. A 2 component one is a
 // screen position, unless an "<item>." prefix names a shader, and then it is a
 // point of that shader's world space. Nothing is ever inferred.
-std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec)
-{
+std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec) {
     // a registered placer is already a screen position
     auto reg = placer_registry.find(spec);
     if (reg != placer_registry.end())
@@ -389,9 +369,8 @@ std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec)
     // "<item>.<name>" only when the prefix really names an item, so a
     // parameter with a dot in its name is still read whole
     std::string id, var = spec;
-    if (auto dot = spec.rfind('.'); dot != std::string::npos
-        && named.count(spec.substr(0, dot))) {
-        id  = spec.substr(0, dot);
+    if (auto dot = spec.rfind('.'); dot != std::string::npos && named.count(spec.substr(0, dot))) {
+        id = spec.substr(0, dot);
         var = spec.substr(dot + 1);
     }
 
@@ -400,26 +379,24 @@ std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec)
         sh = std::dynamic_pointer_cast<Shader>(resolve(id));
         if (!sh)
             throw std::runtime_error("\"follow: " + spec + "\" : item \"" + id + "\" is not a "
-                                     "shader, so it has no world space to read \"" + var
-                                     + "\" in");
+                                                                                 "shader, so it has no world space to read \"" +
+                                     var + "\" in");
         if (!sh->hasView())
-            throw std::runtime_error("\"follow: " + spec + "\" : shader \"" + id
-                                     + "\" has no \"view:\", so it has no world points");
+            throw std::runtime_error("\"follow: " + spec + "\" : shader \"" + id + "\" has no \"view:\", so it has no world points");
     }
 
     // A parameter has a known width, so everything wrong can be said right now.
     // A snippet variable only reveals its width when it is read.
     if (int n = Params::components(var); n > 0) {
         if (n != 2 && n != 3)
-            throw std::runtime_error("\"follow: " + spec + "\" : parameter \"" + var + "\" has "
-                                     + std::to_string(n) + " components, and a point to follow "
-                                     "needs 2 (screen, or a shader's world space) or 3 (the "
-                                     "3D scene)");
+            throw std::runtime_error("\"follow: " + spec + "\" : parameter \"" + var + "\" has " + std::to_string(n) + " components, and a point to follow "
+                                                                                                                       "needs 2 (screen, or a shader's world space) or 3 (the "
+                                                                                                                       "3D scene)");
         if (n == 3) {
             if (sh)
                 throw std::runtime_error("\"follow: " + spec + "\" : \"" + var + "\" is a 3D "
-                                         "point, always in the scene's world space; drop the \""
-                                         + id + ".\"");
+                                                                                 "point, always in the scene's world space; drop the \"" +
+                                         id + ".\"");
             return [var] {
                 scalar p[4] = {0, 0, 0, 0};
                 Params::read(var, p);
@@ -436,7 +413,8 @@ std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec)
 
     if (!Snippet::provides(var))
         throw std::runtime_error("\"follow: " + spec + "\" : no snippet variable, parameter or "
-                                 "registered placer called \"" + var + "\"");
+                                                       "registered placer called \"" +
+                                 var + "\"");
     auto said = std::make_shared<bool>(false);
     return [var, spec, sh, said]() -> vec2 {
         // before the first frame nothing has been evaluated, so say nothing
@@ -447,7 +425,8 @@ std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec)
             if (sh && !*said) {
                 *said = true;
                 spdlog::error("\"follow: {}\" : \"{}\" is a 3D point, always in the scene's "
-                              "world space, not a shader's", spec, var);
+                              "world space, not a shader's",
+                              spec, var);
             }
             return WorldToScreen(v.v3());
         }
@@ -456,20 +435,18 @@ std::function<vec2()> DeckLoader::resolveFollow(const std::string& spec)
         if (!*said) {
             *said = true;
             spdlog::error("\"follow: {}\" : no snippet variable, parameter or registered "
-                          "placer called \"{}\"", spec, var);
+                          "placer called \"{}\"",
+                          spec, var);
         }
         return vec2(0.5, 0.5);
     };
 }
 
-bool DeckLoader::knowsObject(const std::string& name) const
-{
-    return named.count(name) || instantiated_objects.count(name) || object_registry.count(name)
-        || instantiated_groups.count(name) || group_registry.count(name);
+bool DeckLoader::knowsObject(const std::string& name) const {
+    return named.count(name) || instantiated_objects.count(name) || object_registry.count(name) || instantiated_groups.count(name) || group_registry.count(name);
 }
 
-PolyscopePrimitivePtr DeckLoader::findSceneObject(const std::string& name) const
-{
+PolyscopePrimitivePtr DeckLoader::findSceneObject(const std::string& name) const {
     auto scene = [](const PrimitivePtr& p) -> PolyscopePrimitivePtr {
         auto pp = std::dynamic_pointer_cast<PolyscopePrimitive>(p);
         return pp && pp->vertexCount() > 0 ? pp : nullptr;
@@ -488,29 +465,23 @@ PolyscopePrimitivePtr DeckLoader::findSceneObject(const std::string& name) const
     return nullptr;
 }
 
-std::function<vec2()> DeckLoader::resolveFollow(const json& spec)
-{
+std::function<vec2()> DeckLoader::resolveFollow(const json& spec) {
     if (spec.is_string())
         return resolveFollow(spec.get<std::string>());
     if (!spec.is_object() || !spec.contains("object") || !spec.contains("vertex"))
-        throw std::runtime_error("\"follow:\" is a name, or {object: <name>, vertex: <index>}, got "
-                                 + spec.dump());
+        throw std::runtime_error("\"follow:\" is a name, or {object: <name>, vertex: <index>}, got " + spec.dump());
     for (const auto& [key, val] : spec.items())
         if (key != "object" && key != "vertex")
-            throw std::runtime_error("\"follow:\" : unknown key \"" + key
-                                     + "\", a vertex is {object: <name>, vertex: <index>}");
+            throw std::runtime_error("\"follow:\" : unknown key \"" + key + "\", a vertex is {object: <name>, vertex: <index>}");
     if (!spec["object"].is_string())
-        throw std::runtime_error("\"follow:\" : \"object\" is the name of a scene item, got "
-                                 + spec["object"].dump());
+        throw std::runtime_error("\"follow:\" : \"object\" is the name of a scene item, got " + spec["object"].dump());
     if (!spec["vertex"].is_number_integer() || spec["vertex"].get<long long>() < 0)
-        throw std::runtime_error("\"follow:\" : \"vertex\" is an index from 0, got "
-                                 + spec["vertex"].dump());
+        throw std::runtime_error("\"follow:\" : \"vertex\" is an index from 0, got " + spec["vertex"].dump());
 
     const std::string object = spec["object"];
     const size_t vertex = spec["vertex"].get<size_t>();
     if (!knowsObject(object))
-        throw std::runtime_error("\"follow:\" : no item or registered object called \""
-                                 + object + "\"");
+        throw std::runtime_error("\"follow:\" : no item or registered object called \"" + object + "\"");
 
     // looked up every frame, the object being rebuilt on a reload
     auto said = std::make_shared<bool>(false);
@@ -520,7 +491,8 @@ std::function<vec2()> DeckLoader::resolveFollow(const json& spec)
             if (!*said) {
                 *said = true;
                 spdlog::error("\"follow: {{object: {}}}\" : \"{}\" is not a mesh, point cloud "
-                              "or curve", object, object);
+                              "or curve",
+                              object, object);
             }
             return vec2(0.5, 0.5);
         }
@@ -536,25 +508,24 @@ std::function<vec2()> DeckLoader::resolveFollow(const json& spec)
     };
 }
 
-ScreenPrimitivePtr DeckLoader::resolveScreen(const std::string& name) const
-{
+ScreenPrimitivePtr DeckLoader::resolveScreen(const std::string& name) const {
     auto sp = std::dynamic_pointer_cast<ScreenPrimitive>(resolve(name));
     if (!sp)
         throw std::runtime_error("deck item \"" + name + "\" is not a screen primitive");
     return sp;
 }
 
-void DeckLoader::applyDeckConfig()
-{
+void DeckLoader::applyDeckConfig() {
     // an absent block, or a dropped key, resets that knob to its compiled default
     const json empty = json::object();
     const json& cfg = (source.is_object() && source.contains("config"))
-                     ? source["config"] : empty;
+                          ? source["config"]
+                          : empty;
     if (!cfg.is_object())
         throw std::runtime_error("\"config\" must be a map of settings");
 
-    Options::TitleScale         = cfg.value("title_scale",  Options::DefaultTitleScale);
-    Options::DefaultLatexScale  = cfg.value("latex_scale",  Options::DefaultLatexScaleValue);
+    Options::TitleScale = cfg.value("title_scale", Options::DefaultTitleScale);
+    Options::DefaultLatexScale = cfg.value("latex_scale", Options::DefaultLatexScaleValue);
     Options::DefaultBoxRoundness = cfg.value("box_roundness",
                                              (double)Options::DefaultBoxRoundnessValue);
 
@@ -565,14 +536,13 @@ void DeckLoader::applyDeckConfig()
     else if (cfg["margin"].is_number()) {
         scalar m = cfg["margin"].get<scalar>();
         Options::ScreenMargin = vec2(m, m);
-    }
-    else
+    } else
         Options::ScreenMargin = readVec2(cfg["margin"], "margin");
 
     auto point = [&](const char* key, const vec2& def) {
         return cfg.contains(key) ? readVec2(cfg[key], key) : def;
     };
-    TOP    = point("top",    placement_default::TOP);
+    TOP = point("top", placement_default::TOP);
     CENTER = point("center", placement_default::CENTER);
     BOTTOM = point("bottom", placement_default::BOTTOM);
 
@@ -588,15 +558,13 @@ void DeckLoader::applyDeckConfig()
                     throw std::runtime_error("\"preamble\" list entries must be strings");
                 preamble += line.get<std::string>() + "\n";
             }
-        }
-        else
+        } else
             throw std::runtime_error("\"preamble\" must be a string or a list of strings");
     }
     Latex::SetDeckPrefix(preamble);
 }
 
-void DeckLoader::build(SlideManager& show)
-{
+void DeckLoader::build(SlideManager& show) {
     deckErrorLine() = 0;
     try {
         buildImpl(show);
@@ -614,8 +582,7 @@ void DeckLoader::build(SlideManager& show)
     }
 }
 
-void DeckLoader::buildImpl(SlideManager& show)
-{
+void DeckLoader::buildImpl(SlideManager& show) {
     if (!source.contains("slides") || !source["slides"].is_array())
         throw std::runtime_error("deck file must contain a top-level \"slides\" array");
     auto reserved = [](const std::string& key) {
@@ -648,7 +615,8 @@ void DeckLoader::buildImpl(SlideManager& show)
         for (const auto& [param, def] : g.params.items())
             if (deck_groups.count(param))
                 throw std::runtime_error("group \"" + name + "\" has a param named like the "
-                                         "group \"" + param + "\", rename one");
+                                                             "group \"" +
+                                         param + "\", rename one");
 
     used_primitives.clear();
     occurrences.clear();
@@ -693,8 +661,7 @@ void DeckLoader::buildImpl(SlideManager& show)
             items = &frame["frame"];
             same_title = frame.value("same_title", false);
             no_template = frame.value("no_template", false);
-        }
-        else
+        } else
             throw std::runtime_error("each element of \"slides\" must be \"- frame:\" "
                                      "followed by a list of items");
         if (!first)
@@ -704,7 +671,7 @@ void DeckLoader::buildImpl(SlideManager& show)
         step_primitives.clear();
         if (tmpl && !no_template) {
             if (!template_built) {
-                show.getLastSlide();  // the first frame has no slide until an item makes one
+                show.getLastSlide(); // the first frame has no slide until an item makes one
                 const int slides_before = show.getNumberSlides();
                 buildFrame(show, *tmpl);
                 if (show.getNumberSlides() != slides_before)
@@ -738,8 +705,7 @@ static bool isParamName(const std::string& s);
 
 // Any other top level key is a group, which is a list of items or a map with "items"
 // and optionally "params".
-void DeckLoader::declareGroup(const std::string& name, const json& val)
-{
+void DeckLoader::declareGroup(const std::string& name, const json& val) {
     DeckGroup g;
     if (val.is_array())
         g.items = val;
@@ -751,13 +717,13 @@ void DeckLoader::declareGroup(const std::string& name, const json& val)
         if (val.contains("params")) {
             if (!val["params"].is_object())
                 throw std::runtime_error("\"params\" of group \"" + name + "\" must be a map "
-                                         "of name: default");
+                                                                           "of name: default");
             g.params = val["params"];
         }
-    }
-    else {
+    } else {
         deckWarn("ignored top-level key \"{}\", a group is a list of items or a map "
-                     "with \"items:\"", name);
+                 "with \"items:\"",
+                 name);
         return;
     }
     // "- name: value" is told apart from an item by its type key, so neither the group nor an argument can have one.
@@ -774,20 +740,18 @@ void DeckLoader::declareGroup(const std::string& name, const json& val)
     for (const auto& [param, def] : g.params.items()) {
         if (!isParamName(param))
             throw std::runtime_error("param \"" + param + "\" of group \"" + name + "\" must be "
-                                     "letters, digits and _, not starting with a digit");
+                                                                                    "letters, digits and _, not starting with a digit");
         if (isType(param))
             throw std::runtime_error("param \"" + param + "\" of group \"" + name + "\" has the "
-                                     "name of an item type, the call would read as that item");
+                                                                                    "name of an item type, the call would read as that item");
     }
     for (const auto& reserved : {"id", "group"})
         if (g.params.contains(reserved))
-            throw std::runtime_error("group \"" + name + "\" cannot take a param named \""
-                                     + reserved + "\"");
+            throw std::runtime_error("group \"" + name + "\" cannot take a param named \"" + reserved + "\"");
     deck_groups[name] = std::move(g);
 }
 
-const std::string* DeckLoader::groupCallOf(const json& item) const
-{
+const std::string* DeckLoader::groupCallOf(const json& item) const {
     // an item type wins, so a group may share its name with an item's other keys
     if (findItemSpec(item) || item.contains("background"))
         return nullptr;
@@ -797,15 +761,13 @@ const std::string* DeckLoader::groupCallOf(const json& item) const
         if (it == deck_groups.end())
             continue;
         if (found)
-            throw std::runtime_error("an item calls two groups, \"" + *found + "\" and \""
-                                     + key + "\"");
+            throw std::runtime_error("an item calls two groups, \"" + *found + "\" and \"" + key + "\"");
         found = &it->first;
     }
     return found;
 }
 
-static bool isParamName(const std::string& s)
-{
+static bool isParamName(const std::string& s) {
     if (s.empty() || !(std::isalpha((unsigned char)s[0]) || s[0] == '_'))
         return false;
     for (char c : s)
@@ -816,8 +778,7 @@ static bool isParamName(const std::string& s)
 
 // "$name" as a whole value keeps the arg's type, "${name}" goes inside a string.
 // Names args does not hold are left as written, which is what keeps latex intact.
-static json substituteArgs(const json& v, const json& args, const std::string& group)
-{
+static json substituteArgs(const json& v, const json& args, const std::string& group) {
     if (v.is_object()) {
         json out = json::object();
         for (const auto& [key, x] : v.items())
@@ -860,15 +821,15 @@ static json substituteArgs(const json& v, const json& args, const std::string& g
             out += a.dump();
         else
             throw std::runtime_error("group \"" + group + "\" puts \"" + name + "\" inside a "
-                                     "string, which takes a text or a number, not " + a.dump());
+                                                                                "string, which takes a text or a number, not " +
+                                     a.dump());
         pos = close + 1;
     }
     out += s.substr(pos);
     return out;
 }
 
-static bool isIdName(const std::string& s)
-{
+static bool isIdName(const std::string& s) {
     if (s.empty())
         return false;
     for (char c : s)
@@ -877,13 +838,13 @@ static bool isIdName(const std::string& s)
     return true;
 }
 
-void DeckLoader::nameItem(const std::string& name, const PrimitivePtr& prim, bool explicit_id)
-{
+void DeckLoader::nameItem(const std::string& name, const PrimitivePtr& prim, bool explicit_id) {
     if (explicit_id && !name.empty()) {
         auto warnOnce = [&](const std::string& why) {
             if (warned_names.insert(name).second)
                 deckWarn("the id \"{}\" {}, and a reference to it reads the last one. "
-                             "Give them different ids", name, why);
+                         "Give them different ids",
+                         name, why);
         };
         auto it = named.find(name);
         if (it != named.end() && it->second != prim)
@@ -898,15 +859,13 @@ void DeckLoader::nameItem(const std::string& name, const PrimitivePtr& prim, boo
     named[name] = prim;
 }
 
-void DeckLoader::markUsed(const PrimitivePtr& ptr)
-{
+void DeckLoader::markUsed(const PrimitivePtr& ptr) {
     used_primitives.insert(ptr);
     for (auto* c : collectors)
         c->insert(ptr);
 }
 
-std::set<PrimitivePtr> DeckLoader::collect(const std::function<void()>& run)
-{
+std::set<PrimitivePtr> DeckLoader::collect(const std::function<void()>& run) {
     std::set<PrimitivePtr> placed;
     collectors.push_back(&placed);
     try {
@@ -923,12 +882,11 @@ std::set<PrimitivePtr> DeckLoader::collect(const std::function<void()>& run)
 // content cache hands back the same primitives, so a reuse moves them instead
 // of cross-fading copies, and remove/set/keyframe inside it run every time.
 std::set<PrimitivePtr> DeckLoader::expandGroup(SlideManager& show, const std::string& name,
-                                               const json& call)
-{
+                                               const json& call) {
     auto it = deck_groups.find(name);
     if (it == deck_groups.end())
         throw std::runtime_error("deck references unknown group \"" + name + "\", declare it "
-                                 "as a top level list beside \"slides\"");
+                                                                             "as a top level list beside \"slides\"");
     const DeckGroup& g = it->second;
     if (std::find(expanding.begin(), expanding.end(), name) != expanding.end())
         throw std::runtime_error("group \"" + name + "\" uses itself");
@@ -941,16 +899,15 @@ std::set<PrimitivePtr> DeckLoader::expandGroup(SlideManager& show, const std::st
             id = value.get<std::string>();
         else if (!value.is_null())
             throw std::runtime_error("\"" + name + ": " + value.dump() + "\" : the value "
-                                     "after a group name is its id, a name");
+                                                                         "after a group name is its id, a name");
         for (const auto& [key, val] : call.items()) {
             if (key == name || key == "group")
                 continue;
             if (key == "id")
-                throw std::runtime_error("a group call takes its id after the name, write \"- "
-                                         + name + ": some_id\" instead of \"id:\"");
+                throw std::runtime_error("a group call takes its id after the name, write \"- " + name + ": some_id\" instead of \"id:\"");
             else if (!g.params.contains(key))
                 deckWarn("ignored key \"{}\" on group \"{}\"", key, name);
-            else if (!val.is_null())  // "key:" left empty keeps the default
+            else if (!val.is_null()) // "key:" left empty keeps the default
                 args[key] = val;
         }
     }
@@ -961,13 +918,11 @@ std::set<PrimitivePtr> DeckLoader::expandGroup(SlideManager& show, const std::st
         // it ends up in ids and label files through ${id}
         if (!isIdName(id))
             throw std::runtime_error("the id \"" + id + "\" of group \"" + name + "\" may only "
-                                     "hold letters, digits, _ and -");
+                                                                                  "hold letters, digits, _ and -");
         args["id"] = id;
-    }
-    else if (const std::string body = g.items.dump();
-             body.find("\"$id\"") != std::string::npos || body.find("${id}") != std::string::npos)
-        throw std::runtime_error("group \"" + name + "\" uses $id, give it one with \"- "
-                                 + name + ": some_id\"");
+    } else if (const std::string body = g.items.dump();
+               body.find("\"$id\"") != std::string::npos || body.find("${id}") != std::string::npos)
+        throw std::runtime_error("group \"" + name + "\" uses $id, give it one with \"- " + name + ": some_id\"");
 
     std::set<PrimitivePtr> placed;
     expanding.push_back(name);
@@ -987,8 +942,7 @@ std::set<PrimitivePtr> DeckLoader::expandGroup(SlideManager& show, const std::st
     return placed;
 }
 
-void DeckLoader::buildFrame(SlideManager& show, const json& items)
-{
+void DeckLoader::buildFrame(SlideManager& show, const json& items) {
     for (const auto& item : items) {
         DeckLineScope line_scope(lineOf(item));
         if (item.is_string() && item == "step") {
@@ -1002,7 +956,8 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
             if (deck_groups.count(s)) {
                 if (named.count(s))
                     deckWarn("\"{}\" is both a group and an item id, \"- {}\" puts "
-                                 "the group here", s, s);
+                             "the group here",
+                             s, s);
                 expandGroup(show, s, json());
                 continue;
             }
@@ -1056,14 +1011,14 @@ void DeckLoader::buildFrame(SlideManager& show, const json& items)
 // Its C++ owner binds uniforms of its own, so a reload drops only what the deck
 // declared last time (in build()). retainTextures() is already that careful.
 void DeckLoader::declareObjectShaderInputs(const ShaderPtr& shader, const std::string& object,
-                                           const json& item)
-{
+                                           const json& item) {
     if (!item.contains("uniforms") && !item.contains("textures"))
         return;
     // one shader however many slides show it, so two declarations would fight
     if (object_uniforms.count(object)) {
         deckWarn("object \"{}\" declares \"uniforms\" or \"textures\" on more than "
-                     "one item ; only the first declaration is used", object);
+                 "one item ; only the first declaration is used",
+                 object);
         return;
     }
     object_uniforms[object] = {shader, declareShaderUniforms(shader, item, object, false)};
@@ -1071,12 +1026,10 @@ void DeckLoader::declareObjectShaderInputs(const ShaderPtr& shader, const std::s
         declareShaderTextures(shader, item);
 }
 
-std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const json& item)
-{
+std::pair<ScreenPrimitivePtr, std::string> DeckLoader::makeScreenPrimitive(const json& item) {
     const ItemSpec* spec = findItemSpec(item);
     if (!spec || spec->kind != ItemSpec::Kind::Screen)
-        throw std::runtime_error("expected a screen item (" + screenItemTypes()
-                                 + "), got: " + item.dump());
+        throw std::runtime_error("expected a screen item (" + screenItemTypes() + "), got: " + item.dump());
 
     PrimitivePtr prim = cachedItem(item, spec->key(item), [&] { return spec->make(item); });
     std::string name = item.value("id", spec->name(item));
@@ -1095,8 +1048,7 @@ std::pair<ScreenPrimitivePtr,std::string> DeckLoader::makeScreenPrimitive(const 
 // so they are screen items without placement; "- step" works as usual, and
 // "offset: [x, y]" shifts an item from wherever it is placed, so two items
 // can share a label without overlapping
-static void applyShift(StateInSlide& sis, const json& item)
-{
+static void applyShift(StateInSlide& sis, const json& item) {
     if (!item.contains("offset"))
         return;
     sis.shift = readVec2(item["offset"], "offset");
@@ -1104,8 +1056,7 @@ static void applyShift(StateInSlide& sis, const json& item)
 
 // an item with an explicit "at" escapes the layout
 void DeckLoader::buildStackChildren(SlideManager& show, const Stack2DPtr& stack,
-                                    const json& items)
-{
+                                    const json& items) {
     for (const auto& item : items) {
         DeckLineScope line_scope(lineOf(item));
         if (item.is_string() && item == "step") {
@@ -1136,8 +1087,7 @@ void DeckLoader::buildStackChildren(SlideManager& show, const Stack2DPtr& stack,
 
 // handle anchor of a stack item. "at" as [x,y] is a fixed handle, as a string
 // a drag-editable label, falling back to the id
-AnchorPtr DeckLoader::makeHandleAnchor(const json& item)
-{
+AnchorPtr DeckLoader::makeHandleAnchor(const json& item) {
     if (item.contains("at") && item["at"].is_array())
         return AbsoluteAnchor::Add(readVec2(item["at"], "at"));
     if (item.contains("at"))
@@ -1147,8 +1097,7 @@ AnchorPtr DeckLoader::makeHandleAnchor(const json& item)
 
 // the fields carried by the slide state rather than by the primitive, so a
 // later "set" of any of them is animated by the transition
-static void applyStateOptions(StateInSlide& sis, const json& item)
-{
+static void applyStateOptions(StateInSlide& sis, const json& item) {
     if (item.contains("alpha"))
         sis.alpha = item["alpha"].get<scalar>();
     if (item.contains("rot"))
@@ -1161,8 +1110,7 @@ static void applyStateOptions(StateInSlide& sis, const json& item)
 
 // "on: <id>" names a plane the T gizmo owns, a map is one the deck owns.
 // In the map form each vector is [x,y,z] or a snippet name, so a plane can move
-static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& on, scalar alpha)
-{
+static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& on, scalar alpha) {
     if (on.is_boolean())
         throw std::runtime_error("\"on:\" read as a boolean. Quote plane ids like \"on\", "
                                  "\"off\", \"yes\" or \"no\"");
@@ -1176,7 +1124,7 @@ static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& 
 
     LivePlane l;
     l.origin = readLiveVec(on["origin"], "on.origin");
-    l.u      = readLiveVec(on["u"], "on.u");
+    l.u = readLiveVec(on["u"], "on.u");
     l.normal = readLiveVec(on["normal"], "on.normal");
     // three constants make a plane that never moves, so resolve it once
     if (!l.origin.live() && !l.u.live() && !l.normal.live())
@@ -1190,19 +1138,20 @@ static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& 
 // being composed rather than set on the primitive
 template <class Listing>
 static void streamCues(SlideManager& show, const std::shared_ptr<Listing>& code,
-                       const json& item)
-{
+                       const json& item) {
     if (item.contains("reveal")) {
         const json& r = item["reveal"];
         if (r.is_number_integer())
             show << code->reveal(r.get<int>());
         else if (r.is_string()) {
             const std::string v = r.get<std::string>();
-            if (v == "START")      show << code->reveal(START);
-            else if (v == "END")   show << code->reveal(END);
-            else                   show << code->reveal(v);
-        }
-        else
+            if (v == "START")
+                show << code->reveal(START);
+            else if (v == "END")
+                show << code->reveal(END);
+            else
+                show << code->reveal(v);
+        } else
             throw std::runtime_error("\"reveal\" takes START, END, a label or a line");
     }
     if (item.contains("focus")) {
@@ -1222,8 +1171,7 @@ static void streamCues(SlideManager& show, const std::shared_ptr<Listing>& code,
 }
 
 static void applyCodeCues(SlideManager& show, const ScreenPrimitivePtr& prim,
-                          const json& item)
-{
+                          const json& item) {
     if (!item.contains("reveal") && !item.contains("focus"))
         return;
     if (auto code = std::dynamic_pointer_cast<Code>(prim))
@@ -1235,8 +1183,7 @@ static void applyCodeCues(SlideManager& show, const ScreenPrimitivePtr& prim,
 
 void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                                  const json& item, const std::string& default_label,
-                                 bool keep_placement, const StateInSlide* own)
-{
+                                 bool keep_placement, const StateInSlide* own) {
     scalar alpha = item.value("alpha", 1.);
     // recorded against the slide being composed, so it happens before any of
     // the placement branches return
@@ -1245,22 +1192,27 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
     // items sharing an "id:" are one primitive, which a slide can hold only once
     if (!keep_placement && !step_primitives.insert(prim).second)
         deckWarn("\"{}\" is placed twice on the same step. Both carry the same "
-                     "\"id:\", so they are one primitive and the second placement moves the "
-                     "first rather than adding a copy. Give them different ids, or drop the "
-                     "ids to show both",
-                     default_label.empty() ? item.dump() : default_label);
+                 "\"id:\", so they are one primitive and the second placement moves the "
+                 "first rather than adding a copy. Give them different ids, or drop the "
+                 "ids to show both",
+                 default_label.empty() ? item.dump() : default_label);
 
     if (item.contains("on"))
         for (const char* k : {"at", "follow", "below", "above", "right_of", "left_of"})
             if (item.contains(k))
                 throw std::runtime_error(std::string("\"on:\" pastes an item onto a world "
-                    "plane, which leaves no screen position to set with \"") + k + ":\"");
+                                                     "plane, which leaves no screen position to set with \"") +
+                                         k + ":\"");
 
-    struct { const char* key; placeX X; placeY Y; } relatives[] = {
-        {"below",    placeX::SAME_X,    placeY::REL_BOTTOM},
-        {"above",    placeX::SAME_X,    placeY::REL_TOP},
+    struct {
+        const char* key;
+        placeX X;
+        placeY Y;
+    } relatives[] = {
+        {"below", placeX::SAME_X, placeY::REL_BOTTOM},
+        {"above", placeX::SAME_X, placeY::REL_TOP},
         {"right_of", placeX::REL_RIGHT, placeY::SAME_Y},
-        {"left_of",  placeX::REL_LEFT,  placeY::SAME_Y},
+        {"left_of", placeX::REL_LEFT, placeY::SAME_Y},
     };
     for (const auto& rel : relatives) {
         if (!item.contains(rel.key))
@@ -1290,8 +1242,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                                      "point");
         pis = prim->at(resolveFollow(item["follow"]));
         pis.second.alpha = alpha;
-    }
-    else if (item.contains("at") && item["at"].is_array())
+    } else if (item.contains("at") && item["at"].is_array())
         pis = prim->at(readVec2(item["at"], "at"), alpha);
     else if (item.contains("at")) {
         std::string at = item["at"];
@@ -1307,19 +1258,28 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
             });
             pis.second.alpha = alpha;
         };
-        if (at == "TOP") pis = prim->at(TOP, alpha);
-        else if (at == "CENTER") pis = prim->at(CENTER, alpha);
-        else if (at == "BOTTOM") pis = prim->at(BOTTOM, alpha);
-        else if (at == "TOP_LEFT")      edge(-1, -1);
-        else if (at == "TOP_RIGHT")     edge(+1, -1);
-        else if (at == "BOTTOM_LEFT")   edge(-1, +1);
-        else if (at == "BOTTOM_RIGHT")  edge(+1, +1);
-        else if (at == "LEFT")          edge(-1,  0);
-        else if (at == "RIGHT")         edge(+1,  0);
-        else pis = prim->at(at, alpha);
-    }
-    else if (own)
-        pis = {prim, *own};   // the place the C++ gave, the deck only restyles it
+        if (at == "TOP")
+            pis = prim->at(TOP, alpha);
+        else if (at == "CENTER")
+            pis = prim->at(CENTER, alpha);
+        else if (at == "BOTTOM")
+            pis = prim->at(BOTTOM, alpha);
+        else if (at == "TOP_LEFT")
+            edge(-1, -1);
+        else if (at == "TOP_RIGHT")
+            edge(+1, -1);
+        else if (at == "BOTTOM_LEFT")
+            edge(-1, +1);
+        else if (at == "BOTTOM_RIGHT")
+            edge(+1, +1);
+        else if (at == "LEFT")
+            edge(-1, 0);
+        else if (at == "RIGHT")
+            edge(+1, 0);
+        else
+            pis = prim->at(at, alpha);
+    } else if (own)
+        pis = {prim, *own}; // the place the C++ gave, the deck only restyles it
     else if (default_label != "" && !prim->placesItself())
         pis = prim->at(default_label, alpha);
     else if (keep_placement) {
@@ -1329,8 +1289,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         if (placed == slide.end())
             throw std::runtime_error("\"set\" of an item that is not on this slide");
         pis = {prim, placed->second};
-    }
-    else {
+    } else {
         // no placement given, center like `show << primitive`
         show << std::static_pointer_cast<Primitive>(prim);
         markUsed(prim);
@@ -1339,7 +1298,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
     applyStateOptions(pis.second, item);
     applyShift(pis.second, item);
     if (own && item.contains("offset"))
-        pis.second.shift += own->shift;   // added to the C++ offset, never replacing it
+        pis.second.shift += own->shift; // added to the C++ offset, never replacing it
     show.addToLastSlide(pis);
     // a "set" re-places an item it does not own, so no group or box claims it
     if (keep_placement)
@@ -1350,15 +1309,13 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
 
 // mesh, surface and curve are built from the manifest alone, so one branch
 // serves all three
-static const ItemSpec* sceneSpecOf(const json& item)
-{
+static const ItemSpec* sceneSpecOf(const json& item) {
     const ItemSpec* spec = findItemSpec(item);
     return spec && spec->kind == ItemSpec::Kind::Scene ? spec : nullptr;
 }
 
 // "at:" is the gizmo label, "transform:" what snippets drive inside its frame
-static PrimitiveInSlide placeSceneItem(const PolyscopePrimitivePtr& poly, const json& item)
-{
+static PrimitiveInSlide placeSceneItem(const PolyscopePrimitivePtr& poly, const json& item) {
     scalar alpha = item.value("alpha", 1.);
     if (item.contains("at") && !item["at"].is_string())
         throw std::runtime_error("\"at:\" of a scene item names a transform label. A position "
@@ -1372,49 +1329,41 @@ static PrimitiveInSlide placeSceneItem(const PolyscopePrimitivePtr& poly, const 
 
 // The deck may give a C++ object a place only if the C++ left it none. What counts as
 // The place of the object itself is a label, a transform, a plane, an offset, or an anchor other than the default.
-static bool definesPlacement(const StateInSlide& s)
-{
-    return s.persistentTransform.isActive() || s.liveTransform || s.hasPlane()
-        || s.anchor != GlobalAnchor || s.offseted || s.shift != vec2::Zero()
-        || s.LocalToWorld.getMatrix() != glm::mat4(1.f);
+static bool definesPlacement(const StateInSlide& s) {
+    return s.persistentTransform.isActive() || s.liveTransform || s.hasPlane() || s.anchor != GlobalAnchor || s.offseted || s.shift != vec2::Zero() || s.LocalToWorld.getMatrix() != glm::mat4(1.f);
 }
 
 // the keys that give an item a place on the slide
-static const char* deckPlacement(const json& item)
-{
+static const char* deckPlacement(const json& item) {
     for (const char* k : {"at", "transform", "follow", "below", "above", "right_of", "left_of", "on"})
         if (item.contains(k))
             return k;
     return nullptr;
 }
 
-static void refuseOverride(const std::string& object, const StateInSlide& cpp, const json& item)
-{
+static void refuseOverride(const std::string& object, const StateInSlide& cpp, const json& item) {
     const char* key = deckPlacement(item);
     if (!key || !definesPlacement(cpp))
         return;
     std::string where = cpp.persistentTransform.isActive()
-        ? " at \"" + cpp.persistentTransform.getLabel() + "\"" : "";
-    throw std::runtime_error("\"" + object + "\" already places itself in C++" + where
-                             + ", so the deck cannot give it \"" + key + ":\" : drop the key, "
-                             "or take the placement out of the C++");
+                            ? " at \"" + cpp.persistentTransform.getLabel() + "\""
+                            : "";
+    throw std::runtime_error("\"" + object + "\" already places itself in C++" + where + ", so the deck cannot give it \"" + key + ":\" : drop the key, "
+                                                                                                                                   "or take the placement out of the C++");
 }
 
 // a 3D gizmo label, not a 2D position that only has a .pos file
-static void requireGizmo(const std::string& object, const json& item)
-{
+static void requireGizmo(const std::string& object, const json& item) {
     if (!item.contains("at") || !item["at"].is_string())
         return;
     const std::string label = item["at"].get<std::string>();
-    if (io::file_exists(Options::ProjectViewsPath + label + ".pos")
-        && !io::file_exists(Options::ProjectViewsPath + label + ".transform"))
+    if (io::file_exists(Options::ProjectViewsPath + label + ".pos") && !io::file_exists(Options::ProjectViewsPath + label + ".transform"))
         throw std::runtime_error("\"" + object + "\" at \"" + label + "\" : it is a 2D label, "
-                                 "and a scene item is placed at 3D gizmos");
+                                                                      "and a scene item is placed at 3D gizmos");
 }
 
 // "at:", "transform:" and "alpha:" of a scene item, over the state it already has
-static void placeScene(StateInSlide& sis, const json& item)
-{
+static void placeScene(StateInSlide& sis, const json& item) {
     if (item.contains("at") && !item["at"].is_string())
         throw std::runtime_error("\"at:\" of a scene item names a transform label. A position "
                                  "goes in \"transform: {pos: [x, y, z]}\"");
@@ -1429,8 +1378,7 @@ static void placeScene(StateInSlide& sis, const json& item)
 // the state a C++ registration gave this primitive, null when it is not a registered object
 static const StateInSlide* registeredState(const std::map<std::string, PrimitiveInSlide>& objects,
                                            const std::map<std::string, PrimitiveGroup>& groups,
-                                           const PrimitivePtr& prim)
-{
+                                           const PrimitivePtr& prim) {
     for (const auto& [n, pis] : objects)
         if (pis.first == prim)
             return &pis.second;
@@ -1445,8 +1393,7 @@ static const StateInSlide* registeredState(const std::map<std::string, Primitive
 // Handles "at:" and "transform:" on a registered group, at its definition or in a "set".
 // It is refused when a member already places itself, and otherwise given to the scene members that have no place.
 static bool placeGroup(SlideManager& show, const std::string& name, const PrimitiveGroup& G,
-                       const json& item)
-{
+                       const json& item) {
     if (!deckPlacement(item))
         return false;
     for (const auto& [ptr, sis] : G.buffer)
@@ -1454,7 +1401,8 @@ static bool placeGroup(SlideManager& show, const std::string& name, const Primit
     for (const char* k : {"follow", "below", "above", "right_of", "left_of", "on"})
         if (item.contains(k))
             throw std::runtime_error("\"" + name + "\" is a group, placed at a gizmo label with "
-                                     "\"at:\" or with \"transform:\", not \"" + k + ":\"");
+                                                   "\"at:\" or with \"transform:\", not \"" +
+                                     k + ":\"");
     requireGizmo(name, item);
     auto& slide = show.getLastSlide();
     bool any = false;
@@ -1476,8 +1424,7 @@ static bool placeGroup(SlideManager& show, const std::string& name, const Primit
     return true;
 }
 
-void DeckLoader::addItem(SlideManager& show, const json& item)
-{
+void DeckLoader::addItem(SlideManager& show, const json& item) {
     warnUnknownKeys(item);
     if (item.contains("keyframe")) {
         show.markKeyframe(item["keyframe"].get<std::string>());
@@ -1492,7 +1439,8 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             if (show.hasGroup(name)) {
                 if (named.count(name))
                     deckWarn("\"{}\" is both a group and an item id, \"remove\" takes "
-                                 "off the group", name);
+                             "off the group",
+                             name);
                 show.removeGroup(name);
                 return;
             }
@@ -1503,8 +1451,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
                 removeOne(name);
         else
             removeOne(item["remove"]);
-    }
-    else if (item.contains("set")) {
+    } else if (item.contains("set")) {
         // re-places or restyles an already defined item, without redefining it
         if (!item["set"].is_string())
             throw std::runtime_error("\"set\" takes the id of an item defined earlier");
@@ -1512,12 +1459,10 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         // For a group, the placement goes to its scene members that the C++ left without a place.
         if (!named.count(set_name) && instantiated_groups.count(set_name)) {
             if (!deckPlacement(item))
-                throw std::runtime_error("\"set\" of the group \"" + set_name
-                                         + "\" needs an \"at:\" label or a \"transform:\"");
+                throw std::runtime_error("\"set\" of the group \"" + set_name + "\" needs an \"at:\" label or a \"transform:\"");
             for (const auto& [ptr, sis] : instantiated_groups[set_name].buffer)
                 if (!show.getLastSlide().contains(ptr))
-                    throw std::runtime_error("\"set\" of the group \"" + set_name
-                                             + "\", which is not on this slide");
+                    throw std::runtime_error("\"set\" of the group \"" + set_name + "\", which is not on this slide");
             placeGroup(show, set_name, instantiated_groups[set_name], item);
             for (const auto& [ptr, sis] : instantiated_groups[set_name].buffer)
                 used_primitives.insert(ptr);
@@ -1547,8 +1492,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         if (item.contains("depth"))
             prim->setDepth(item["depth"].get<int>());
         placeScreenItem(show, prim, item, "", true);
-    }
-    else if (item.contains("replace")) {
+    } else if (item.contains("replace")) {
         if (!item.contains("with"))
             throw std::runtime_error("\"replace\" item needs a \"with\" sub-item");
         std::string replaced = item["replace"];
@@ -1566,16 +1510,15 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         // resolve to the primitive just taken off the slide
         named[replaced] = prim;
         markUsed(prim);
-    }
-    else if (item.contains("object")) {
+    } else if (item.contains("object")) {
         std::string name = item["object"];
         if (group_registry.count(name) && !instantiated_groups.count(name))
             instantiated_groups[name] = group_registry[name]();
         if (instantiated_groups.count(name)) {
             if (item.contains("uniforms") || item.contains("textures") || item.contains("view"))
                 throw std::runtime_error("\"object: " + name + "\" is a group of primitives, so "
-                                         "it has no \"uniforms\", \"textures\" or \"view\" of "
-                                         "its own : those belong to a single shader");
+                                                               "it has no \"uniforms\", \"textures\" or \"view\" of "
+                                                               "its own : those belong to a single shader");
             const auto& G = instantiated_groups[name];
             if (!placeGroup(show, name, G, item))
                 show << G;
@@ -1598,10 +1541,9 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         // a shader registered from C++ still takes its world space, its
         // uniforms and its textures from here
         auto sh = std::dynamic_pointer_cast<Shader>(pis.first);
-        if (!sh && (item.contains("uniforms") || item.contains("textures")
-                    || item.contains("view")))
+        if (!sh && (item.contains("uniforms") || item.contains("textures") || item.contains("view")))
             throw std::runtime_error("\"object: " + name + "\" is not a shader, so it takes no "
-                                     "\"uniforms\", \"textures\" or \"view\"");
+                                                           "\"uniforms\", \"textures\" or \"view\"");
         if (sh) {
             declareShaderView(sh, item);
             declareObjectShaderInputs(sh, name, item);
@@ -1612,13 +1554,11 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
                             false, own ? &pis.second : nullptr);
             return;
         }
-        if (pis.first->isPolyscopePrimitive()
-            && (item.contains("at") || item.contains("transform")))
+        if (pis.first->isPolyscopePrimitive() && (item.contains("at") || item.contains("transform")))
             pis = placeSceneItem(std::static_pointer_cast<PolyscopePrimitive>(pis.first), item);
         show.addToLastSlide(pis);
         markUsed(pis.first);
-    }
-    else if (const ItemSpec* spec = sceneSpecOf(item)) {
+    } else if (const ItemSpec* spec = sceneSpecOf(item)) {
         auto prim = cachedItem(item, spec->key(item), [&] { return spec->make(item); });
         std::string name = item.value("id", spec->name(item));
         if (spec->configure)
@@ -1626,14 +1566,14 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         nameItem(name, prim, item.contains("id"));
         show.addToLastSlide(placeSceneItem(std::static_pointer_cast<PolyscopePrimitive>(prim), item));
         markUsed(prim);
-    }
-    else if (item.contains("arrow")) {
+    } else if (item.contains("arrow")) {
         const json& raw = item["arrow"];
         // "arrow: id" needs no from/to, registering "id/tail" and "id/tip" as params instead
         const bool shorthand = raw.is_string() || raw.is_null();
-        const std::string id = raw.is_string() ? raw.get<std::string>()
-            : item.contains("id") ? item.value("id", std::string())
-            : raw.is_object() ? raw.value("id", std::string()) : std::string();
+        const std::string id = raw.is_string()       ? raw.get<std::string>()
+                               : item.contains("id") ? item.value("id", std::string())
+                               : raw.is_object()     ? raw.value("id", std::string())
+                                                     : std::string();
         const json& spec = shorthand ? item : raw;
         if (!shorthand) {
             if (!spec.is_object() || !spec.contains("from") || !spec.contains("to"))
@@ -1687,14 +1627,12 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             if (named.count(s)) {
                 auto sp = std::dynamic_pointer_cast<ScreenPrimitive>(named[s]);
                 if (!sp)
-                    throw std::runtime_error("arrow endpoint \"" + s
-                                             + "\" is not a screen primitive");
+                    throw std::runtime_error("arrow endpoint \"" + s + "\" is not a screen primitive");
                 return Arrow2D::Attach(sp);
             }
             // "follow:" reads a parameter, a snippet variable or a placer that was declared earlier.
             const auto snippets = Snippet::names();
-            if (Params::components(s) > 0 || placer_registry.count(s)
-                || std::find(snippets.begin(), snippets.end(), s) != snippets.end()) {
+            if (Params::components(s) > 0 || placer_registry.count(s) || std::find(snippets.begin(), snippets.end(), s) != snippets.end()) {
                 Arrow2D::Endpoint e;
                 e.follow = resolveFollow(s);
                 return e;
@@ -1740,8 +1678,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         sis.alpha = item.value("alpha", 1.);
         show.addToLastSlide({prim, sis});
         markUsed(prim);
-    }
-    else if (item.contains("box")) {
+    } else if (item.contains("box")) {
         if (!item["box"].is_array())
             throw std::runtime_error("\"box\" item needs a list of items to englobe");
 
@@ -1771,13 +1708,17 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         if (item.contains("pady"))
             prim->padding(1) = item["pady"].get<scalar>();
         prim->pad_left = item.contains("pad_left")
-            ? std::optional<scalar>(item["pad_left"].get<scalar>()) : std::nullopt;
+                             ? std::optional<scalar>(item["pad_left"].get<scalar>())
+                             : std::nullopt;
         prim->pad_right = item.contains("pad_right")
-            ? std::optional<scalar>(item["pad_right"].get<scalar>()) : std::nullopt;
+                              ? std::optional<scalar>(item["pad_right"].get<scalar>())
+                              : std::nullopt;
         prim->pad_top = item.contains("pad_top")
-            ? std::optional<scalar>(item["pad_top"].get<scalar>()) : std::nullopt;
+                            ? std::optional<scalar>(item["pad_top"].get<scalar>())
+                            : std::nullopt;
         prim->pad_bot = item.contains("pad_bot")
-            ? std::optional<scalar>(item["pad_bot"].get<scalar>()) : std::nullopt;
+                            ? std::optional<scalar>(item["pad_bot"].get<scalar>())
+                            : std::nullopt;
         prim->style.thickness = item.value("thickness", 3.);
         prim->style.filled = item.value("filled", false);
         if (item.contains("color"))
@@ -1789,8 +1730,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
 
         if (item.contains("id"))
             nameItem(item["id"].get<std::string>(), prim, true);
-    }
-    else if (item.contains("stack")) {
+    } else if (item.contains("stack")) {
         if (!item["stack"].is_array())
             throw std::runtime_error("\"stack\" item needs a list of items to lay out");
 
@@ -1799,10 +1739,14 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
         prim->handle = makeHandleAnchor(item);
         prim->spacing = item.value("spacing", 0.015);
         std::string align = item.value("align", "left");
-        if (align == "left")        prim->align = Stack2D::Align::LEFT;
-        else if (align == "center") prim->align = Stack2D::Align::CENTER;
-        else if (align == "right")  prim->align = Stack2D::Align::RIGHT;
-        else throw std::runtime_error("stack align must be left, center or right");
+        if (align == "left")
+            prim->align = Stack2D::Align::LEFT;
+        else if (align == "center")
+            prim->align = Stack2D::Align::CENTER;
+        else if (align == "right")
+            prim->align = Stack2D::Align::RIGHT;
+        else
+            throw std::runtime_error("stack align must be left, center or right");
 
         prim->clearChildren();
         show.addToLastSlide({prim, StateInSlide(prim->handle)});
@@ -1811,8 +1755,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             nameItem(item["id"].get<std::string>(), prim, true);
 
         buildStackChildren(show, prim, item["stack"]);
-    }
-    else if (item.contains("camera")) {
+    } else if (item.contains("camera")) {
         std::string name = item["camera"];
         bool fly = item.value("fly", false); // a camera cuts unless asked to fly
         std::string key = name + (fly ? ":fly" : "");
@@ -1822,29 +1765,26 @@ void DeckLoader::addItem(SlideManager& show, const json& item)
             entry.file = formatCameraFilename(name);
             try {
                 entry.last_modified = std::filesystem::last_write_time(entry.file);
-            } catch (const std::exception&) {}
+            } catch (const std::exception&) {
+            }
             camera_cache[key] = entry;
         }
         show << camera_cache[key].cam;
-    }
-    else if (item.contains("background")) {
+    } else if (item.contains("background")) {
         const auto& b = item["background"];
         if (b.is_string() && !b.get<std::string>().starts_with('#'))
             show << Background(b.get<std::string>());
         else if (b.is_string() || b.is_array()) {
             const RGBA c = parseColor(b);
             show << Background(c.Value.x, c.Value.y, c.Value.z, c.Value.w);
-        }
-        else
+        } else
             throw std::runtime_error("\"background\" takes a colour name, \"#rrggbb\" or [r,g,b(,a)]");
-    }
-    else if (item.contains("pause")) {
+    } else if (item.contains("pause")) {
         show << Pause::Add(item["pause"].get<TimeTypeSec>());
-    }
-    else {
+    } else {
         auto [prim, name] = makeScreenPrimitive(item);
         placeScreenItem(show, prim, item, name);
     }
 }
 
-}
+} // namespace slope

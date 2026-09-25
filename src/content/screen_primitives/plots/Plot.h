@@ -50,12 +50,12 @@ public:
     // The source is a function, points, values on a grid covering `span`, a csv file, or a Lua section for FromSnippet.
     static PlotPtr Add(const std::string& name, BoardRef board, const Fn& f);
     static PlotPtr Add(const std::string& name, BoardRef board,
-                        const std::vector<vec2>& points);
+                       const std::vector<vec2>& points);
     static PlotPtr Add(const std::string& name, BoardRef board,
-                        const std::vector<scalar>& values, const vec2& span);
+                       const std::vector<scalar>& values, const vec2& span);
     static PlotPtr Add(const std::string& name, BoardRef board, const path& csv);
     static PlotPtr FromSnippet(const std::string& name, BoardRef board,
-                                const std::string& section);
+                               const std::string& section);
 
     std::string name;
     // Text shown in the legend, used instead of the name when set.
@@ -67,12 +67,12 @@ public:
     Settings settings;
 
     // True, because it goes on its board and not where a slide would put it.
-    bool placesItself() const override {return true;}
+    bool placesItself() const override { return true; }
 
     // Legend entry, see Legendable.
-    std::string legendCaption() const override {return caption.empty() ? name : caption;}
-    bool legendDrawnAt(int frame) const override {return last_frame >= frame - 1;}
-    scalar legendAlpha() const override {return appeared;}
+    std::string legendCaption() const override { return caption.empty() ? name : caption; }
+    bool legendDrawnAt(int frame) const override { return last_frame >= frame - 1; }
+    scalar legendAlpha() const override { return appeared; }
     void legendSwatch(ImDrawList* dl, const ImVec2& a, const ImVec2& b,
                       scalar scale, scalar alpha) const override;
 
@@ -128,6 +128,6 @@ private:
     bool sampled = false;
 };
 
-}
+} // namespace slope
 
 #endif // PLOT_H

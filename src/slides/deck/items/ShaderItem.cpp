@@ -10,8 +10,7 @@
 namespace slope {
 
 // a uniform name has to survive being pasted into GLSL as-is
-static bool validGLSLName(const std::string& n)
-{
+static bool validGLSLName(const std::string& n) {
     if (n.empty() || (!std::isalpha((unsigned char)n[0]) && n[0] != '_'))
         return false;
     for (char c : n)
@@ -26,8 +25,7 @@ static const char* uniform_types = "float/int/bool/vec2/vec3/dir/color";
 // The two differ only for an array element, "controls[3]".
 static void declareUniform(const ShaderPtr& shader, const std::string& glsl,
                            const std::string& pname, const std::string& type,
-                           const json& def, scalar mn, scalar mx, Params::Visible vis)
-{
+                           const json& def, scalar mn, scalar mx, Params::Visible vis) {
     if (type == "float") {
         auto p = Params::Add(pname, def.is_null() ? 0. : def.get<scalar>(), mn, mx);
         shader->bind(glsl, [p] { return scalar(p); });
@@ -45,23 +43,21 @@ static void declareUniform(const ShaderPtr& shader, const std::string& glsl,
         auto p = Params::AddVec(pname, def.is_null() ? vec::Zero() : parseVec3(def), mn, mx);
         shader->bind(glsl, [p] { return vec(p); });
     } else if (type == "dir") {
-        auto p = Params::AddDir(pname, def.is_null() ? vec(0,0,1) : parseVec3(def));
+        auto p = Params::AddDir(pname, def.is_null() ? vec(0, 0, 1) : parseVec3(def));
         shader->bind(glsl, [p] { return vec(p); });
     } else if (type == "color") {
-        auto p = Params::AddColor(pname, def.is_null() ? RGBA(1.f,1.f,1.f,1.f)
+        auto p = Params::AddColor(pname, def.is_null() ? RGBA(1.f, 1.f, 1.f, 1.f)
                                                        : parseColor(def));
         shader->bind(glsl, [p] { return RGBA(p); });
     } else {
-        throw std::runtime_error("uniform \"" + glsl + "\" : unknown type \"" + type
-                                 + "\" (" + uniform_types + ")");
+        throw std::runtime_error("uniform \"" + glsl + "\" : unknown type \"" + type + "\" (" + uniform_types + ")");
     }
     if (vis != Params::Visible::None)
         Params::setVisible(pname, vis);
 }
 
 // "visible: handle", or true for both the widget and the manipulator
-static Params::Visible readVisible(const std::string& name, const json& spec)
-{
+static Params::Visible readVisible(const std::string& name, const json& spec) {
     if (!spec.contains("visible"))
         return Params::Visible::None;
     const json& v = spec["visible"];
@@ -69,7 +65,7 @@ static Params::Visible readVisible(const std::string& name, const json& spec)
         return v.get<bool>() ? Params::Visible::Both : Params::Visible::None;
     if (!v.is_string())
         throw std::runtime_error("uniform \"" + name + "\" : \"visible\" is none, panel, "
-                                 "handle or both");
+                                                       "handle or both");
     try {
         return Params::parseVisible(v.get<std::string>());
     } catch (const std::exception& e) {
@@ -78,14 +74,12 @@ static Params::Visible readVisible(const std::string& name, const json& spec)
 }
 
 // the N of a "vec3[8]", or 0 when the type carries no array suffix
-static int arrayCount(const std::string& name, const std::string& type)
-{
+static int arrayCount(const std::string& name, const std::string& type) {
     auto open = type.find('[');
     if (open == std::string::npos)
         return 0;
     if (type.back() != ']')
-        throw std::runtime_error("uniform \"" + name + "\" : malformed array type \""
-                                 + type + "\", write \"<type>[N]\"");
+        throw std::runtime_error("uniform \"" + name + "\" : malformed array type \"" + type + "\", write \"<type>[N]\"");
     int n = 0;
     try {
         size_t used = 0;
@@ -97,7 +91,8 @@ static int arrayCount(const std::string& name, const std::string& type)
     }
     if (n < 1 || n > 64)
         throw std::runtime_error("uniform \"" + name + "\" : an array uniform needs a "
-                                 "size between 1 and 64, got \"" + type + "\"");
+                                                       "size between 1 and 64, got \"" +
+                                 type + "\"");
     return n;
 }
 
@@ -130,9 +125,8 @@ static int arrayCount(const std::string& name, const std::string& type)
 // Returns the names it declared. `clear` drops the shader's whole user set
 // first, which only suits a shader the deck created and owns.
 std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
-                                                           const json& item,
-                                                           const std::string& ref, bool clear)
-{
+                                               const json& item,
+                                               const std::string& ref, bool clear) {
     std::vector<std::string> declared;
     // the shader is cached across rebuilds, so a dropped uniform needs this
     if (clear)
@@ -154,19 +148,16 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
             else if (e.is_boolean() || e.is_number())
                 // yaml reads y, n, on, off, yes and no as booleans, and "1e5"
                 // and friends as numbers, so such a name arrives already coerced
-                throw std::runtime_error("a \"uniforms\" name was read as " + e.dump()
-                                         + " : yaml treats y, n, on, off, yes and no as "
-                                         "booleans, so quote it, - \"y\"");
+                throw std::runtime_error("a \"uniforms\" name was read as " + e.dump() + " : yaml treats y, n, on, off, yes and no as "
+                                                                                         "booleans, so quote it, - \"y\"");
             else
                 throw std::runtime_error("a \"uniforms\" entry is a bare name, or "
                                          "\"name: <type>\"");
         }
-    }
-    else if (us.is_object()) {
+    } else if (us.is_object()) {
         for (const auto& [k, v] : us.items())
             entries.emplace_back(k, v);
-    }
-    else
+    } else
         throw std::runtime_error("\"uniforms\" must be a list of names, or a map of "
                                  "name: type (or name: {type, default, min, max})");
 
@@ -197,12 +188,12 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
             mn = spec.value("min", scalar(0));
             mx = spec.value("max", scalar(0));
             if (type.empty())
-                throw std::runtime_error("uniform \"" + name + "\" needs a \"type\" ("
-                                         + uniform_types + ")");
+                throw std::runtime_error("uniform \"" + name + "\" needs a \"type\" (" + uniform_types + ")");
         } else {
             throw std::runtime_error("uniform \"" + name + "\" : write its type, "
-                                     "\"" + name + ": <" + uniform_types + ">\", or the "
-                                     "long form {type: ..., default: ...}");
+                                                           "\"" +
+                                     name + ": <" + uniform_types + ">\", or the "
+                                                                    "long form {type: ..., default: ...}");
         }
 
         int count = arrayCount(name, type);
@@ -213,8 +204,9 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
         }
         if (!def.is_null() && (!def.is_array() || int(def.size()) != count))
             throw std::runtime_error("uniform \"" + name + "\" : its \"default\" must be "
-                                     "a list of " + std::to_string(count) + " values, one "
-                                     "per element");
+                                                           "a list of " +
+                                     std::to_string(count) + " values, one "
+                                                             "per element");
         std::string base = type.substr(0, type.find('['));
         for (int i = 0; i < count; i++) {
             std::string idx = "[" + std::to_string(i) + "]";
@@ -241,8 +233,7 @@ std::vector<std::string> declareShaderUniforms(const ShaderPtr& shader,
 // streaming order the deck cannot express, and stays on the C++ side.
 // {snippet: fn, resolution: N or [w,h], domain: [a,b] or [[a,b],[c,d]],
 //  components: 1..4, resample: auto|once|always}
-static SnippetTexture::Spec snippetTextureSpec(const std::string& name, const json& spec)
-{
+static SnippetTexture::Spec snippetTextureSpec(const std::string& name, const json& spec) {
     SnippetTexture::Spec sp;
     sp.fn = requireSection(spec["snippet"], "snippet");
 
@@ -259,11 +250,11 @@ static SnippetTexture::Spec snippetTextureSpec(const std::string& name, const js
         const json& d = spec["domain"];
         if (!d.is_array() || d.empty())
             throw std::runtime_error("texture \"" + name + "\" : \"domain\" must be "
-                                     "[a, b], or [[a, b], [c, d]] for a 2D one");
+                                                           "[a, b], or [[a, b], [c, d]] for a 2D one");
         if (d[0].is_array()) {
             if (d.size() != 2)
                 throw std::runtime_error("texture \"" + name + "\" : a 2D \"domain\" is "
-                                         "[[a, b], [c, d]]");
+                                                               "[[a, b], [c, d]]");
             sp.u = readVec2(d[0], "domain");
             sp.v = readVec2(d[1], "domain");
         } else
@@ -274,16 +265,17 @@ static SnippetTexture::Spec snippetTextureSpec(const std::string& name, const js
         throw std::runtime_error("texture \"" + name + "\" : \"components\" is 1 to 4");
 
     const std::string w = spec.value("resample", "auto");
-    if      (w == "once")   sp.when = SnippetTexture::Spec::When::Once;
-    else if (w == "always") sp.when = SnippetTexture::Spec::When::Always;
+    if (w == "once")
+        sp.when = SnippetTexture::Spec::When::Once;
+    else if (w == "always")
+        sp.when = SnippetTexture::Spec::When::Always;
     else if (w != "auto")
         throw std::runtime_error("texture \"" + name + "\" : \"resample\" must be "
-                                 "\"auto\", \"once\" or \"always\"");
+                                                       "\"auto\", \"once\" or \"always\"");
     return sp;
 }
 
-void declareShaderTextures(const ShaderPtr& shader, const json& item)
-{
+void declareShaderTextures(const ShaderPtr& shader, const json& item) {
     std::vector<std::string> declared;
     if (item.contains("textures")) {
         const json& ts = item["textures"];
@@ -297,31 +289,33 @@ void declareShaderTextures(const ShaderPtr& shader, const json& item)
             }
             std::string file;
             auto filter = Shader::Filter::Linear;
-            auto wrap   = Shader::Wrap::Clamp;
+            auto wrap = Shader::Wrap::Clamp;
             if (spec.is_object()) {
                 if (!spec.contains("file") && !spec.contains("snippet"))
                     throw std::runtime_error("texture \"" + name + "\" needs a \"file\" "
-                                             "or a \"snippet\"");
+                                                                   "or a \"snippet\"");
                 if (spec.contains("file") && spec.contains("snippet"))
                     throw std::runtime_error("texture \"" + name + "\" is either a "
-                                             "\"file\" or a \"snippet\", not both");
+                                                                   "\"file\" or a \"snippet\", not both");
                 if (spec.contains("file"))
                     file = spec["file"];
                 const std::string fs = spec.value("filter", "linear");
                 const std::string ws = spec.value("wrap", "clamp");
-                if      (fs == "nearest") filter = Shader::Filter::Nearest;
+                if (fs == "nearest")
+                    filter = Shader::Filter::Nearest;
                 else if (fs != "linear")
                     throw std::runtime_error("texture \"" + name + "\" : filter must be "
-                                             "\"nearest\" or \"linear\"");
-                if      (ws == "repeat") wrap = Shader::Wrap::Repeat;
+                                                                   "\"nearest\" or \"linear\"");
+                if (ws == "repeat")
+                    wrap = Shader::Wrap::Repeat;
                 else if (ws != "clamp")
                     throw std::runtime_error("texture \"" + name + "\" : wrap must be "
-                                             "\"clamp\" or \"repeat\"");
+                                                                   "\"clamp\" or \"repeat\"");
             } else if (spec.is_string()) {
                 file = spec;
             } else {
                 throw std::runtime_error("texture \"" + name + "\" must be a file name "
-                                         "or {file: ..., filter: ..., wrap: ...}");
+                                                               "or {file: ..., filter: ..., wrap: ...}");
             }
             if (file.empty()) {
                 shader->setTexture(name, snippetTextureSpec(name, spec), filter, wrap);
@@ -341,8 +335,7 @@ void declareShaderTextures(const ShaderPtr& shader, const json& item)
 
 // "view" is the half-height, a number or a snippet name. Without one a shader
 // has no world space and nothing can follow a point of it.
-void declareShaderView(const ShaderPtr& shader, const json& item)
-{
+void declareShaderView(const ShaderPtr& shader, const json& item) {
     if (!item.contains("view"))
         return;
     const json& v = item["view"];
@@ -354,7 +347,10 @@ void declareShaderView(const ShaderPtr& shader, const json& item)
                 throw std::runtime_error("\"view\" half-height must be greater than zero");
             return [x] { return x; };
         }
-        if (h.is_string()) { std::string n = h; return [n] { return Snippet::get(n, 1).num(); }; }
+        if (h.is_string()) {
+            std::string n = h;
+            return [n] { return Snippet::get(n, 1).num(); };
+        }
         throw std::runtime_error("\"view\" half-height must be a number or a snippet name");
     };
     auto centerOf = [](const json& c) -> std::function<vec2()> {
@@ -362,7 +358,10 @@ void declareShaderView(const ShaderPtr& shader, const json& item)
             vec2 p(c[0].get<scalar>(), c[1].get<scalar>());
             return [p] { return p; };
         }
-        if (c.is_string()) { std::string n = c; return [n] { return Snippet::get(n, 2).v2(); }; }
+        if (c.is_string()) {
+            std::string n = c;
+            return [n] { return Snippet::get(n, 2).v2(); };
+        }
         throw std::runtime_error("\"view\" center must be [x, y] or a snippet name");
     };
     std::function<vec2()> origin = [] { return vec2::Zero(); };
@@ -370,12 +369,10 @@ void declareShaderView(const ShaderPtr& shader, const json& item)
     // an interval per axis, so neither scale follows the aspect ratio
     auto spanOf = [](const json& s, const char* axis) {
         if (!s.is_array() || s.size() != 2)
-            throw std::runtime_error(std::string("\"view\" ") + axis
-                                     + " must be [min, max]");
+            throw std::runtime_error(std::string("\"view\" ") + axis + " must be [min, max]");
         scalar a = s[0].get<scalar>(), b = s[1].get<scalar>();
         if (!(b > a))
-            throw std::runtime_error(std::string("\"view\" ") + axis
-                                     + " must be increasing");
+            throw std::runtime_error(std::string("\"view\" ") + axis + " must be increasing");
         return vec2(a, b);
     };
 
@@ -397,28 +394,28 @@ void declareShaderView(const ShaderPtr& shader, const json& item)
     shader->bindView(origin, halfOf(v));
 }
 
-std::vector<ItemSpec> shaderItemSpecs()
-{
+std::vector<ItemSpec> shaderItemSpecs() {
     // a single-pass fragment shader. Multi-pass, channels and SSBOs stay on
     // the C++ side
     auto resolution = [](const json& item) {
-        std::pair<int,int> wh{0, 0};
+        std::pair<int, int> wh{0, 0};
         if (!item.contains("resolution"))
             return wh;
         const json& r = item["resolution"];
         if (!r.is_array() || r.size() != 2)
             throw std::runtime_error("\"resolution\" must be [width, height]");
-        return std::pair<int,int>{r[0].get<int>(), r[1].get<int>()};
+        return std::pair<int, int>{r[0].get<int>(), r[1].get<int>()};
     };
 
     return {{
-        "shader", ItemSpec::Kind::Screen, {"resolution","uniforms","textures","view"},
+        "shader",
+        ItemSpec::Kind::Screen,
+        {"resolution", "uniforms", "textures", "view"},
         // the resolution is part of the key, one .frag at two sizes is two
         // primitives and a hot reload reuses the GL resources of each
         [resolution](const json& i) {
             auto [w, h] = resolution(i);
-            return "shader:" + i["shader"].get<std::string>() + ":"
-                 + std::to_string(w) + "x" + std::to_string(h);
+            return "shader:" + i["shader"].get<std::string>() + ":" + std::to_string(w) + "x" + std::to_string(h);
         },
         [resolution](const json& i) -> PrimitivePtr {
             auto [w, h] = resolution(i);
@@ -438,4 +435,4 @@ std::vector<ItemSpec> shaderItemSpecs()
     }};
 }
 
-}
+} // namespace slope

@@ -9,35 +9,31 @@
 #include <spdlog/spdlog.h>
 #include "extern/json.hpp"
 
-std::string slope::TimeTracker::formatTime(float totalSeconds)
-{
+std::string slope::TimeTracker::formatTime(float totalSeconds) {
     int seconds = std::round(totalSeconds);
-    int hours   = seconds / 3600;
+    int hours = seconds / 3600;
     int minutes = (seconds % 3600) / 60;
-    int secs    = seconds % 60;
+    int secs = seconds % 60;
 
     std::ostringstream out;
-    out << std::setw(2) << std::setfill('0') << hours   << "h:"
+    out << std::setw(2) << std::setfill('0') << hours << "h:"
         << std::setw(2) << minutes << "m:"
-        << std::setw(2) << secs    << "s";
+        << std::setw(2) << secs << "s";
     return out.str();
 }
 
-std::string slope::TimeTracker::formatDelta(float seconds)
-{
+std::string slope::TimeTracker::formatDelta(float seconds) {
     int s = std::round(std::abs(seconds));
     std::ostringstream out;
-    out << (seconds < 0 ? '-' : '+') << s/60 << "m" << std::setw(2) << std::setfill('0') << s%60 << "s";
+    out << (seconds < 0 ? '-' : '+') << s / 60 << "m" << std::setw(2) << std::setfill('0') << s % 60 << "s";
     return out.str();
 }
 
-slope::path slope::TimeTracker::file()
-{
+slope::path slope::TimeTracker::file() {
     return path(Options::ProjectViewsPath) / "timings.json";
 }
 
-void slope::TimeTracker::load()
-{
+void slope::TimeTracker::load() {
     // opt-in, and without it the previous run is never surfaced
     if (!Options::Rehearse)
         return;
@@ -61,8 +57,7 @@ void slope::TimeTracker::load()
     }
 }
 
-void slope::TimeTracker::save() const
-{
+void slope::TimeTracker::save() const {
     // a run that never left the first slide is not a rehearsal worth recording
     if (!started || time_from_start < 1)
         return;
@@ -84,16 +79,14 @@ void slope::TimeTracker::save() const
     spdlog::info("timings saved ({})", formatTime(time_from_start));
 }
 
-void slope::TimeTracker::start()
-{
+void slope::TimeTracker::start() {
     if (!Options::Rehearse)
         return;
     last_recorded_time = Time::now();
     started = true;
 }
 
-void slope::TimeTracker::record(const std::string& slide_title)
-{
+void slope::TimeTracker::record(const std::string& slide_title) {
     if (!Options::Rehearse)
         return;
     if (!started) {
@@ -107,14 +100,13 @@ void slope::TimeTracker::record(const std::string& slide_title)
         return;
     }
     auto now = Time::now();
-    auto dt  = TimeFrom(last_recorded_time);
+    auto dt = TimeFrom(last_recorded_time);
     time_per_slide_group[slide_title] += dt;
     time_from_start += dt;
     last_recorded_time = now;
 }
 
-void slope::TimeTracker::togglePause()
-{
+void slope::TimeTracker::togglePause() {
     if (!Options::Rehearse)
         return;
     paused = !paused;
@@ -125,8 +117,7 @@ void slope::TimeTracker::togglePause()
         spdlog::info("rehearsal timer resumed at {}", formatTime(time_from_start));
 }
 
-void slope::TimeTracker::reset()
-{
+void slope::TimeTracker::reset() {
     if (!Options::Rehearse)
         return;
     time_from_start = 0;
@@ -136,9 +127,8 @@ void slope::TimeTracker::reset()
 }
 
 void slope::TimeTracker::drawMenu(int n_slides,
-                                   const std::function<std::string(int)>& get_title,
-                                   const std::function<void(int)>& go_to_slide)
-{
+                                  const std::function<std::string(int)>& get_title,
+                                  const std::function<void(int)>& go_to_slide) {
     ImGui::Begin("Slides");
     // without --rehearse nothing is timed, so only the slide list is shown
     const bool timed = Options::Rehearse;
@@ -157,7 +147,8 @@ void slope::TimeTracker::drawMenu(int n_slides,
         ImGui::Separator();
     }
 
-    const int n_cols = !timed ? 1 : has_previous ? 3 : 2;
+    const int n_cols = !timed ? 1 : has_previous ? 3
+                                                 : 2;
     std::set<std::string> done;
     if (ImGui::BeginTable("SlideTable", n_cols, ImGuiTableFlags_SizingStretchProp)) {
         for (int i = 0; i < n_slides; i++) {

@@ -6,8 +6,7 @@ namespace slope {
 // build a primitive from the deck alone, so DeckLoader::addItem keeps
 // their branch. Only their field list lives here, next to every other one, so
 // it cannot drift from what the branch reads
-std::vector<ItemSpec> customItemSpecs()
-{
+std::vector<ItemSpec> customItemSpecs() {
     auto custom = [](const char* type, std::set<std::string> fields) {
         ItemSpec spec;
         spec.type = type;
@@ -19,30 +18,29 @@ std::vector<ItemSpec> customItemSpecs()
     // in the order DeckLoader::addItem tests them
     return {
         custom("keyframe", {}),
-        custom("remove",   {}),
-        custom("set",      {"at","transform","offset","on","two_sided","alpha","rot","zoom","depth",
-                            "below","above","right_of","left_of","padding",
-                            "reveal","focus"}),
-        custom("replace",  {"with"}),
-        custom("object",   {"id","at","transform","follow","offset","alpha","rot","zoom","view",
-                            "on","two_sided","below","above","right_of","left_of","padding",
-                            "group","uniforms","textures"}),
-        custom("arrow",    {"id","alpha","depth","group"}),
-        custom("box",      {"id","alpha","padding","padx","pady",
-                            "pad_left","pad_right","pad_top","pad_bot","thickness","color",
-                            "fill_color","filled","group"}),
-        custom("stack",    {"id","at","spacing","align","group"}),
-        custom("camera",   {"fly"}),
-        custom("pause",    {}),
+        custom("remove", {}),
+        custom("set", {"at", "transform", "offset", "on", "two_sided", "alpha", "rot", "zoom", "depth",
+                       "below", "above", "right_of", "left_of", "padding",
+                       "reveal", "focus"}),
+        custom("replace", {"with"}),
+        custom("object", {"id", "at", "transform", "follow", "offset", "alpha", "rot", "zoom", "view",
+                          "on", "two_sided", "below", "above", "right_of", "left_of", "padding",
+                          "group", "uniforms", "textures"}),
+        custom("arrow", {"id", "alpha", "depth", "group"}),
+        custom("box", {"id", "alpha", "padding", "padx", "pady",
+                       "pad_left", "pad_right", "pad_top", "pad_bot", "thickness", "color",
+                       "fill_color", "filled", "group"}),
+        custom("stack", {"id", "at", "spacing", "align", "group"}),
+        custom("camera", {"fly"}),
+        custom("pause", {}),
     };
 }
 
 // the "arrow" item carries its own fields inside its value, one level down
-const std::set<std::string>& arrowFields()
-{
+const std::set<std::string>& arrowFields() {
     static const std::set<std::string> f =
-        {"id","from","to","from_offset","to_offset","bend","thickness","color","head","margin"};
+        {"id", "from", "to", "from_offset", "to_offset", "bend", "thickness", "color", "head", "margin"};
     return f;
 }
 
-}
+} // namespace slope

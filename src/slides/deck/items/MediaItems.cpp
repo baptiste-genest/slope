@@ -7,20 +7,19 @@
 namespace slope {
 
 // a media item is referred to by its filename, the deck rarely needs an id
-static std::string fileStem(const json& item, const char* type)
-{
+static std::string fileStem(const json& item, const char* type) {
     return std::filesystem::path(item[type].get<std::string>()).stem().string();
 }
 
-std::vector<ItemSpec> mediaItemSpecs()
-{
+std::vector<ItemSpec> mediaItemSpecs() {
     std::vector<ItemSpec> specs;
 
     specs.push_back({
-        "image", ItemSpec::Kind::Screen, {"scale"},
+        "image",
+        ItemSpec::Kind::Screen,
+        {"scale"},
         [](const json& i) {
-            return "image:" + i["image"].get<std::string>() + ":"
-                 + std::to_string(i.value("scale", 1.));
+            return "image:" + i["image"].get<std::string>() + ":" + std::to_string(i.value("scale", 1.));
         },
         [](const json& i) -> PrimitivePtr {
             return Image::Add(i["image"].get<std::string>(), i.value("scale", 1.));
@@ -31,12 +30,11 @@ std::vector<ItemSpec> mediaItemSpecs()
 
     // every frame is held as a texture, so the fps and the loop flag shape it
     specs.push_back({
-        "gif", ItemSpec::Kind::Screen, {"scale","fps","loop"},
+        "gif",
+        ItemSpec::Kind::Screen,
+        {"scale", "fps", "loop"},
         [](const json& i) {
-            return "gif:" + i["gif"].get<std::string>() + ":"
-                 + std::to_string(i.value("fps", 10)) + ":"
-                 + std::to_string(i.value("scale", 1.))
-                 + (i.value("loop", true) ? ":loop" : "");
+            return "gif:" + i["gif"].get<std::string>() + ":" + std::to_string(i.value("fps", 10)) + ":" + std::to_string(i.value("scale", 1.)) + (i.value("loop", true) ? ":loop" : "");
         },
         [](const json& i) -> PrimitivePtr {
             return Gif::Add(i["gif"].get<std::string>(), i.value("fps", 10),
@@ -47,15 +45,13 @@ std::vector<ItemSpec> mediaItemSpecs()
     });
 
     specs.push_back({
-        "video", ItemSpec::Kind::Screen,
-        {"scale","decode_width","loop","autoplay","speed","stats"},
+        "video",
+        ItemSpec::Kind::Screen,
+        {"scale", "decode_width", "loop", "autoplay", "speed", "stats"},
         // those three shape the decoder and belong in the key, the fields
         // below are re-applied to the cached primitive on every build
         [](const json& i) {
-            return "video:" + i["video"].get<std::string>() + ":"
-                 + std::to_string(i.value("decode_width", 0))
-                 + (i.value("loop", true) ? ":loop" : "")
-                 + (i.value("autoplay", true) ? ":auto" : "");
+            return "video:" + i["video"].get<std::string>() + ":" + std::to_string(i.value("decode_width", 0)) + (i.value("loop", true) ? ":loop" : "") + (i.value("autoplay", true) ? ":auto" : "");
         },
         [](const json& i) -> PrimitivePtr {
             return Video::Add(i["video"].get<std::string>(), i.value("decode_width", 0),
@@ -72,15 +68,12 @@ std::vector<ItemSpec> mediaItemSpecs()
     });
 
     specs.push_back({
-        "webcam", ItemSpec::Kind::Screen,
-        {"scale","width","height","fps","input_format","stats"},
+        "webcam",
+        ItemSpec::Kind::Screen,
+        {"scale", "width", "height", "fps", "input_format", "stats"},
         // the device is in the key, a camera only opens once
         [](const json& i) {
-            return "webcam:" + i["webcam"].get<std::string>() + ":"
-                 + std::to_string(i.value("width", 1280)) + "x"
-                 + std::to_string(i.value("height", 720)) + "@"
-                 + std::to_string(i.value("fps", 30)) + ":"
-                 + i.value("input_format", std::string("mjpeg"));
+            return "webcam:" + i["webcam"].get<std::string>() + ":" + std::to_string(i.value("width", 1280)) + "x" + std::to_string(i.value("height", 720)) + "@" + std::to_string(i.value("fps", 30)) + ":" + i.value("input_format", std::string("mjpeg"));
         },
         [](const json& i) -> PrimitivePtr {
             return Webcam::Add(i["webcam"].get<std::string>(), i.value("width", 1280),
@@ -98,4 +91,4 @@ std::vector<ItemSpec> mediaItemSpecs()
     return specs;
 }
 
-}
+} // namespace slope

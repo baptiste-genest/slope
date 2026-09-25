@@ -8,18 +8,19 @@
 
 namespace slope {
 
-static std::string fnv(const std::string& s)
-{
+static std::string fnv(const std::string& s) {
     std::uint64_t h = 1469598103934665603ull;
-    for (unsigned char c : s) { h ^= c; h *= 1099511628211ull; }
+    for (unsigned char c : s) {
+        h ^= c;
+        h *= 1099511628211ull;
+    }
     return fmt::format("{:016x}", h);
 }
 
 static path linesPath(const std::string& key) { return Options::CachePath + key + ".lines"; }
 
 // records each line's baseline with \pdfsavepos, through the line hooks of algorithmicx and algorithm2e
-static std::string hooks(const std::string& key)
-{
+static std::string hooks(const std::string& key) {
     return R"(\newwrite\slopeAlgOut\immediate\openout\slopeAlgOut=)" + key + R"(.lines
 \csname newcount\endcsname\slopeAlgN\global\slopeAlgN=0
 \csname newcount\endcsname\slopeAlgLast\global\slopeAlgLast=0
@@ -37,8 +38,7 @@ static std::string hooks(const std::string& key)
 )";
 }
 
-AlgorithmPtr Algorithm::Add(const TexObject& tex, scalar scale, int width)
-{
+AlgorithmPtr Algorithm::Add(const TexObject& tex, scalar scale, int width) {
     auto r = NewPrimitive<Algorithm>();
     all.push_back(r.get());
     r->isFormula = false;
@@ -63,18 +63,15 @@ AlgorithmPtr Algorithm::Add(const TexObject& tex, scalar scale, int width)
 }
 
 // width and preamble move the lines, so both are in the key
-void Algorithm::setSource(const TexObject& tex)
-{
+void Algorithm::setSource(const TexObject& tex) {
     const std::string w = listing_width > 0 ? std::to_string(listing_width) : "493.69707";
     key = "alg_" + fnv(Latex::context + "|" + w + "|" + tex);
     content = tex;
     // algorithm2e draws its numbers left of the box, the pad keeps them in; -trim drops it otherwise
-    tex_source = hooks(key) + "\\hspace*{2em}\\begin{varwidth}[t]{" + w + "pt}\n"
-               + tex + "\n\\end{varwidth}";
+    tex_source = hooks(key) + "\\hspace*{2em}\\begin{varwidth}[t]{" + w + "pt}\n" + tex + "\n\\end{varwidth}";
 }
 
-static std::string readAll(const path& p)
-{
+static std::string readAll(const path& p) {
     std::ifstream f(p);
     if (!f)
         ReloadErrors::missingFile(p, "[algo] cannot read " + p.string());
@@ -83,8 +80,7 @@ static std::string readAll(const path& p)
     return ss.str();
 }
 
-AlgorithmPtr Algorithm::FromFile(const path& file, scalar scale, int width)
-{
+AlgorithmPtr Algorithm::FromFile(const path& file, scalar scale, int width) {
     const path p = formatPath(file);
     auto r = Add(readAll(p), scale, width);
     std::error_code ec;
@@ -95,24 +91,20 @@ AlgorithmPtr Algorithm::FromFile(const path& file, scalar scale, int width)
     return r;
 }
 
-void Algorithm::ClearAllCues()
-{
+void Algorithm::ClearAllCues() {
     for (auto* a : all)
         a->clearCues();
 }
 
-std::vector<path> Algorithm::WatchedFiles()
-{
+std::vector<path> Algorithm::WatchedFiles() {
     std::vector<path> out;
     for (auto* a : all)
-        if (!a->source_file.empty()
-            && std::find(out.begin(), out.end(), a->source_file) == out.end())
+        if (!a->source_file.empty() && std::find(out.begin(), out.end(), a->source_file) == out.end())
             out.push_back(a->source_file);
     return out;
 }
 
-void Algorithm::HotReloadIfModified()
-{
+void Algorithm::HotReloadIfModified() {
     bool changed = false;
     for (auto* a : all) {
         if (a->source_file.empty())
@@ -137,8 +129,7 @@ void Algorithm::HotReloadIfModified()
 }
 
 // "L n ypos pageheight boxheight" in sp, "M name n"
-void Algorithm::parseLines()
-{
+void Algorithm::parseLines() {
     baseline_px.clear();
     edge_px.clear();
     marks.clear();
@@ -153,45 +144,47 @@ void Algorithm::parseLines()
     std::string tag;
     while (f >> tag) {
         if (tag == "L") {
-            int n; double y, page, ht;
+            int n;
+            double y, page, ht;
             f >> n >> y >> page >> ht;
             // the preview page is the box plus a 5pt border on each side
             const double first = page - 5 * 65536. - ht;
             ys[n] = baseline + (first - y) * px_per_sp;
         } else if (tag == "M") {
-            std::string name; int n;
+            std::string name;
+            int n;
             f >> name >> n;
             marks[name] = n;
         }
     }
     if (ys.empty()) {
         spdlog::warn("[algo] no line recorded for {}, focus and reveal need pdflatex "
-                     "and algorithmicx or algorithm2e", key);
+                     "and algorithmicx or algorithm2e",
+                     key);
         return;
     }
     baseline_px.assign(ys.rbegin()->first, 0.);
     for (auto [n, y] : ys)
-        if (n >= 1) baseline_px[n-1] = y;
+        if (n >= 1) baseline_px[n - 1] = y;
 
     std::vector<double> gaps;
     for (int i = 1; i < count(); ++i)
-        gaps.push_back(baseline_px[i] - baseline_px[i-1]);
+        gaps.push_back(baseline_px[i] - baseline_px[i - 1]);
     std::sort(gaps.begin(), gaps.end());
-    pitch_px = gaps.empty() ? 12 * 65536. * px_per_sp : gaps[gaps.size()/2];
+    pitch_px = gaps.empty() ? 12 * 65536. * px_per_sp : gaps[gaps.size() / 2];
 
     cutLines(GetLatexPath(full_content));
     warnUnknownMarks();
 }
 
 // cut in the blank rows above each line's ink, so wrapped rows and tall math stay with their line
-void Algorithm::cutLines(const path& png)
-{
+void Algorithm::cutLines(const path& png) {
     const int n = count();
     const double asc = 0.72 * pitch_px;
     edge_px.assign(n + 1, double(data.height));
     edge_px[0] = std::max(0., baseline_px[0] - asc);
     for (int k = 1; k < n; ++k)
-        edge_px[k] = std::clamp(baseline_px[k] - asc, baseline_px[k-1], baseline_px[k]);
+        edge_px[k] = std::clamp(baseline_px[k] - asc, baseline_px[k - 1], baseline_px[k]);
 
     int w, h;
     unsigned char* px = stbi_load(png.string().c_str(), &w, &h, nullptr, 4);
@@ -207,11 +200,13 @@ void Algorithm::cutLines(const path& png)
     auto blankAbove = [&](double base, double stop_y, int& top, int& bottom) {
         const int stop = std::clamp(int(std::ceil(stop_y)), 0, h - 1);
         int y = std::clamp(int(base - 0.25 * pitch_px), stop, h - 1);
-        while (y > stop && ink[y]) --y;
+        while (y > stop && ink[y])
+            --y;
         if (ink[y])
             return false;
         bottom = y;
-        while (y > stop && !ink[y-1]) --y;
+        while (y > stop && !ink[y - 1])
+            --y;
         top = y;
         return true;
     };
@@ -219,12 +214,11 @@ void Algorithm::cutLines(const path& png)
     if (blankAbove(baseline_px[0], 0, top, bottom))
         edge_px[0] = std::max(double(top), bottom + 1 - 0.15 * pitch_px);
     for (int k = 1; k < n; ++k)
-        if (blankAbove(baseline_px[k], baseline_px[k-1], top, bottom))
+        if (blankAbove(baseline_px[k], baseline_px[k - 1], top, bottom))
             edge_px[k] = 0.5 * (top + bottom + 1);
 }
 
-void Algorithm::warnUnknownMarks()
-{
+void Algorithm::warnUnknownMarks() {
     std::set<std::string> missing;
     auto check = [&](const LineRef& r) {
         if (!r.label.empty() && !marks.count(r.label))
@@ -240,26 +234,23 @@ void Algorithm::warnUnknownMarks()
         spdlog::warn("[algo] no \\slopemark{{{}}}", m);
 }
 
-double Algorithm::edgeOf(double k) const
-{
+double Algorithm::edgeOf(double k) const {
     k = std::clamp(k, 0., double(count()));
     const int i = int(std::floor(k));
     if (i >= count())
         return edge_px.back();
-    return std::lerp(edge_px[i], edge_px[i+1], k - i);
+    return std::lerp(edge_px[i], edge_px[i + 1], k - i);
 }
 
 // -1 for an unknown mark
-int Algorithm::resolve(const LineRef& ref) const
-{
+int Algorithm::resolve(const LineRef& ref) const {
     if (ref.label.empty())
         return std::clamp(ref.line, 0, count());
     auto it = marks.find(ref.label);
     return it == marks.end() ? -1 : std::clamp(it->second, 0, count());
 }
 
-int Algorithm::revealOn(int slide) const
-{
+int Algorithm::revealOn(int slide) const {
     auto it = reveal_at.upper_bound(slide);
     if (it == reveal_at.begin())
         return count();
@@ -267,13 +258,12 @@ int Algorithm::revealOn(int slide) const
     return r < 0 ? count() : r;
 }
 
-bool Algorithm::focusOn(int slide, int& first, int& last) const
-{
+bool Algorithm::focusOn(int slide, int& first, int& last) const {
     auto it = focus_at.upper_bound(slide);
     if (it == focus_at.begin())
         return false;
     first = resolve(std::prev(it)->second.first);
-    last  = resolve(std::prev(it)->second.second);
+    last = resolve(std::prev(it)->second.second);
     if (first <= 0 || last <= 0)
         return false;
     if (last < first)
@@ -281,58 +271,49 @@ bool Algorithm::focusOn(int slide, int& first, int& last) const
     return true;
 }
 
-#define ALGO_CUE(...) \
-    const auto id = pid; \
-    return {[=](int slide) { \
+#define ALGO_CUE(...)                           \
+    const auto id = pid;                        \
+    return {[=](int slide) {                    \
         auto c = Primitive::get<Algorithm>(id); \
-        __VA_ARGS__ \
+        __VA_ARGS__                             \
     }};
 
-SlideCue Algorithm::reveal(CodeAnchor where)
-{
+SlideCue Algorithm::reveal(CodeAnchor where) {
     ALGO_CUE(c->reveal_at[slide] = {"", where == END ? INT_MAX : 0};)
 }
 
-SlideCue Algorithm::reveal(int line)
-{
+SlideCue Algorithm::reveal(int line) {
     ALGO_CUE(c->reveal_at[slide] = {"", line};)
 }
 
-SlideCue Algorithm::reveal(const std::string& label)
-{
+SlideCue Algorithm::reveal(const std::string& label) {
     ALGO_CUE(c->reveal_at[slide] = {label, 0};)
 }
 
-SlideCue Algorithm::focus(const std::string& label)
-{
+SlideCue Algorithm::focus(const std::string& label) {
     ALGO_CUE(c->focus_at[slide] = {{label, 0}, {label, 0}};)
 }
 
-SlideCue Algorithm::focus(const std::string& from, const std::string& to)
-{
+SlideCue Algorithm::focus(const std::string& from, const std::string& to) {
     ALGO_CUE(c->focus_at[slide] = {{from, 0}, {to, 0}};)
 }
 
-SlideCue Algorithm::focus(int first_line, int last_line)
-{
+SlideCue Algorithm::focus(int first_line, int last_line) {
     ALGO_CUE(c->focus_at[slide] = {{"", first_line}, {"", last_line}};)
 }
 
-SlideCue Algorithm::unfocus()
-{
+SlideCue Algorithm::unfocus() {
     ALGO_CUE(c->focus_at[slide] = {};)
 }
 
 #undef ALGO_CUE
 
-void Algorithm::draw(const TimeObject& t, const StateInSlide& sis)
-{
+void Algorithm::draw(const TimeObject& t, const StateInSlide& sis) {
     FlushPending();
     if (data.width == -1)
         return;
     // the lines of an image still compiling, or that failed, are not written yet
-    if (parsed_for != full_content && !batch_future.valid()
-        && io::file_exists(GetLatexPath(full_content)))
+    if (parsed_for != full_content && !batch_future.valid() && io::file_exists(GetLatexPath(full_content)))
         parseLines();
     if (sis.hasPlane() || baseline_px.empty()) {
         if (sis.hasPlane() && !warned_plane && (!reveal_at.empty() || !focus_at.empty())) {
@@ -367,13 +348,20 @@ void Algorithm::draw(const TimeObject& t, const StateInSlide& sis)
     const double f = std::clamp<double>(pos - i, 0, 1);
 
     auto clipOf = [&](int slide) { return edge_px[std::clamp(revealOn(slide), 0, count())]; };
-    const double clip = std::lerp(clipOf(i), clipOf(i+1), f);
+    const double clip = std::lerp(clipOf(i), clipOf(i + 1), f);
 
     int fa, la, fb, lb;
-    const bool a = focusOn(i, fa, la), b = focusOn(i+1, fb, lb);
+    const bool a = focusOn(i, fa, la), b = focusOn(i + 1, fb, lb);
     double bf = 0, bl = 0, amt = 0;
-    if (a && b)  { bf = std::lerp(fa, fb, f); bl = std::lerp(la, lb, f); amt = 1; }
-    else if (a || b) { bf = a ? fa : fb; bl = a ? la : lb; amt = a ? 1 - f : f; }
+    if (a && b) {
+        bf = std::lerp(fa, fb, f);
+        bl = std::lerp(la, lb, f);
+        amt = 1;
+    } else if (a || b) {
+        bf = a ? fa : fb;
+        bl = a ? la : lb;
+        amt = a ? 1 - f : f;
+    }
 
     const float alpha = float(sis.getAlpha());
     auto* dl = ImGui::GetWindowDrawList();
@@ -404,4 +392,4 @@ void Algorithm::draw(const TimeObject& t, const StateInSlide& sis)
     strip(bot, H, dim);
 }
 
-}
+} // namespace slope

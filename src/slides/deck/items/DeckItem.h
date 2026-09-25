@@ -102,6 +102,7 @@ std::string deckWhere();
 // the innermost line is kept in deckErrorLine(), so the loader can tell where the deck failed.
 class DeckLineScope {
     int prev, thrown;
+
 public:
     // Sets the current line for the lifetime of the object.
     explicit DeckLineScope(int line);
@@ -110,12 +111,11 @@ public:
 int& deckErrorLine();
 
 // Logs a warning about a deck problem, with the line of the item when it is known.
-template<class... A>
-void deckWarn(fmt::format_string<A...> f, A&&... a)
-{
+template <class... A>
+void deckWarn(fmt::format_string<A...> f, A&&... a) {
     spdlog::warn("deck{}: {}", deckWhere(), fmt::format(f, std::forward<A>(a)...));
 }
 
-}
+} // namespace slope
 
 #endif // DECKITEM_H

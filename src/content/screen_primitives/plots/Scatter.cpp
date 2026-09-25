@@ -4,8 +4,7 @@
 
 namespace slope {
 
-ScatterPtr Scatter::make(const std::string& name, const BoardRef& board)
-{
+ScatterPtr Scatter::make(const std::string& name, const BoardRef& board) {
     auto s = NewPrimitive<Scatter>();
     s->name = name;
     s->board = board.name;
@@ -16,42 +15,37 @@ ScatterPtr Scatter::make(const std::string& name, const BoardRef& board)
 }
 
 ScatterPtr Scatter::Add(const std::string& name, BoardRef board,
-                        const std::vector<vec2>& points)
-{
+                        const std::vector<vec2>& points) {
     auto s = make(name, board);
     s->points = points;
     return s;
 }
 
-ScatterPtr Scatter::Add(const std::string& name, BoardRef board, const path& csv)
-{
+ScatterPtr Scatter::Add(const std::string& name, BoardRef board, const path& csv) {
     auto s = make(name, board);
     s->file = csv;
     return s;
 }
 
 ScatterPtr Scatter::Add(const std::string& name, BoardRef board,
-                        const std::vector<scalar>& values, const vec2& span)
-{
+                        const std::vector<scalar>& values, const vec2& span) {
     std::vector<vec2> pts;
     for (std::size_t i = 0; i < values.size(); i++)
-        pts.push_back(vec2(span(0) + (span(1) - span(0)) * scalar(i)
-                                   / std::max<scalar>(1, scalar(values.size() - 1)),
+        pts.push_back(vec2(span(0) + (span(1) - span(0)) * scalar(i) / std::max<scalar>(1, scalar(values.size() - 1)),
                            values[i]));
     return Add(name, board, pts);
 }
 
-const std::vector<std::string>& Scatter::settingNames()
-{
+const std::vector<std::string>& Scatter::settingNames() {
     static const std::vector<std::string> all = {"color", "size", "reveal"};
     return all;
 }
 
-BoardPtr Scatter::owner() const
-{
+BoardPtr Scatter::owner() const {
     if (auto b = cached.lock()) return b;
     auto b = Board::find(board);
-    if (b) cached = b;
+    if (b)
+        cached = b;
     else {
         static std::set<std::string> said;
         if (said.insert(board).second)
@@ -60,8 +54,7 @@ BoardPtr Scatter::owner() const
     return b;
 }
 
-void Scatter::refresh()
-{
+void Scatter::refresh() {
     if (file.empty()) return;
     std::error_code ec;
     const auto now = std::filesystem::last_write_time(formatPath(file), ec);
@@ -71,16 +64,14 @@ void Scatter::refresh()
     points = readCsvPoints(file);
 }
 
-vec2 Scatter::getSize() const
-{
+vec2 Scatter::getSize() const {
     auto b = owner();
     return b ? b->getSize() : vec2(1, 1);
 }
 
 // Marks are drawn over the board's image. A fragment shader would have to
 // search for them, where here their places are known.
-void Scatter::paint(const TimeObject& t, const StateInSlide& sis, float appeared)
-{
+void Scatter::paint(const TimeObject& t, const StateInSlide& sis, float appeared) {
     this->appeared = appeared;
     auto b = owner();
     if (!b) return;
@@ -114,19 +105,24 @@ void Scatter::paint(const TimeObject& t, const StateInSlide& sis, float appeared
     }
 }
 
-void Scatter::draw(const TimeObject& t, const StateInSlide& sis)
-{ last_frame = t.absolute_frame_number; paint(t, sis, 1); }
+void Scatter::draw(const TimeObject& t, const StateInSlide& sis) {
+    last_frame = t.absolute_frame_number;
+    paint(t, sis, 1);
+}
 
-void Scatter::playIntro(const TimeObject& t, const StateInSlide& sis)
-{ last_frame = t.absolute_frame_number; paint(t, sis, float(t.transition_parameter)); }
+void Scatter::playIntro(const TimeObject& t, const StateInSlide& sis) {
+    last_frame = t.absolute_frame_number;
+    paint(t, sis, float(t.transition_parameter));
+}
 
-void Scatter::playOutro(const TimeObject& t, const StateInSlide& sis)
-{ last_frame = t.absolute_frame_number; paint(t, sis, float(1 - t.transition_parameter)); }
+void Scatter::playOutro(const TimeObject& t, const StateInSlide& sis) {
+    last_frame = t.absolute_frame_number;
+    paint(t, sis, float(1 - t.transition_parameter));
+}
 
 // three marks along the swatch, at the size they are drawn on the board
 void Scatter::legendSwatch(ImDrawList* dl, const ImVec2& a, const ImVec2& b,
-                           scalar scale, scalar alpha) const
-{
+                           scalar scale, scalar alpha) const {
     const RGBA ink = settings.ink("color", default_ink);
     const float r = float(settings.num("size", 5, 1, 20) * scale);
     const ImU32 col = ImGui::GetColorU32(ImVec4(ink.Value.x, ink.Value.y, ink.Value.z,
@@ -135,4 +131,4 @@ void Scatter::legendSwatch(ImDrawList* dl, const ImVec2& a, const ImVec2& b,
         dl->AddCircleFilled(ImVec2(a.x + (b.x - a.x) * (0.5f * i), 0.5f * (a.y + b.y)), r, col);
 }
 
-}
+} // namespace slope

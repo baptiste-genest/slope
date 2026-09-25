@@ -26,8 +26,7 @@ namespace slope {
  */
 
 // A mesh whose vertices are a snippet function of two parameters.
-class SnippetSurface : public Mesh
-{
+class SnippetSurface : public Mesh {
 public:
     using SnippetSurfacePtr = std::shared_ptr<SnippetSurface>;
 
@@ -75,7 +74,7 @@ public:
 
     // Applies a new spec, and rebuilds the grid if it changed. Lets a deck reload edit a surface in place.
     void configure(const Spec& spec);
-    const Spec& spec() const {return sp;}
+    const Spec& spec() const { return sp; }
 
     // Evaluates the snippet on the grid. Called once per frame.
     void update();
@@ -101,16 +100,14 @@ private:
     // Same, then creates a new polyscope structure for the new topology.
     void rebuild();
     // Number of vertices along u and along v.
-    int columns() const {return sp.closed_u ? nu : nu + 1;}
-    int rows() const {return sp.closed_v ? nv : nv + 1;}
+    int columns() const { return sp.closed_u ? nu : nu + 1; }
+    int rows() const { return sp.closed_v ? nv : nv + 1; }
 };
 
 using SnippetSurfacePtr = SnippetSurface::SnippetSurfacePtr;
 
-
 // A curve whose nodes are a snippet function of one parameter.
-class SnippetCurve : public Curve3D
-{
+class SnippetCurve : public Curve3D {
 public:
     using SnippetCurvePtr = std::shared_ptr<SnippetCurve>;
 
@@ -155,7 +152,7 @@ public:
 
     // Applies a new spec, like for a surface, so a deck reload edits the curve in place.
     void configure(const Spec& spec);
-    const Spec& spec() const {return sp;}
+    const Spec& spec() const { return sp; }
 
     // Evaluates the snippet at the nodes. Called once per frame.
     void update();
@@ -174,7 +171,7 @@ private:
     Snippet::fn<vec(scalar)> f;
 
     // Number of nodes. A closed curve has no node for the last sample, since the loop closes it.
-    int samples() const {return sp.closed ? n : n + 1;}
+    int samples() const { return sp.closed ? n : n + 1; }
     // Parameter value of node i.
     scalar node(int i) const;
     // Evaluates the snippet at the nodes.
@@ -187,6 +184,6 @@ private:
 
 using SnippetCurvePtr = SnippetCurve::SnippetCurvePtr;
 
-}
+} // namespace slope
 
 #endif // POLYSCOPESNIPPETS_H

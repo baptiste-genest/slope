@@ -3,7 +3,6 @@
 
 // heavy headers (json, svg, stb, regex, X11) live in the few TUs that use them
 
-
 //#define EIGEN_MPL2_ONLY
 #define EIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT
 
@@ -46,7 +45,6 @@
 #include <filesystem>
 
 #include <glm/gtx/matrix_interpolation.hpp>
-
 
 #include <iostream>
 #include <fstream>

@@ -1,5 +1,5 @@
 #include "content/screen_primitives/gpu/Shader.h"
-#include "content/authoring/Snippet.h"   // bind(name), one namespace with Params
+#include "content/authoring/Snippet.h" // bind(name), one namespace with Params
 #include "content/config/ReloadErrors.h"
 #include "GLFW/glfw3.h"
 #include "polyscope/view.h"
@@ -29,14 +29,13 @@ namespace {
 
 #if !defined(__APPLE__) && !defined(_WIN32)
 // the headless EGL backend never initializes GLFW, so resolve without it
-void* linuxHeadlessProcAddress(const char* name)
-{
-    static void* gl_handle = [] () -> void* {
+void* linuxHeadlessProcAddress(const char* name) {
+    static void* gl_handle = []() -> void* {
         void* h = dlopen("libGL.so.1", RTLD_LAZY | RTLD_GLOBAL);
         if (!h) h = dlopen("libGL.so", RTLD_LAZY | RTLD_GLOBAL);
         return h;
     }();
-    static void* (*egl_get_proc_address)(const char*) = [] () -> void* (*)(const char*) {
+    static void* (*egl_get_proc_address)(const char*) = []() -> void* (*)(const char*) {
         void* h = dlopen("libEGL.so.1", RTLD_LAZY);
         if (!h) h = dlopen("libEGL.so", RTLD_LAZY);
         if (!h) return nullptr;
@@ -53,64 +52,64 @@ void* linuxHeadlessProcAddress(const char* name)
 // GL types (identical redefinitions are harmless if a gl.h is already included)
 typedef unsigned int SLGLenum;
 typedef unsigned int SLGLuint;
-typedef int          SLGLint;
-typedef int          SLGLsizei;
-typedef float        SLGLfloat;
-typedef char         SLGLchar;
-typedef std::ptrdiff_t SLGLsizeiptr;   // GLsizeiptr
-typedef std::ptrdiff_t SLGLintptr;     // GLintptr
+typedef int SLGLint;
+typedef int SLGLsizei;
+typedef float SLGLfloat;
+typedef char SLGLchar;
+typedef std::ptrdiff_t SLGLsizeiptr; // GLsizeiptr
+typedef std::ptrdiff_t SLGLintptr;   // GLintptr
 
 // constants (2.0+ ones a classic gl.h would not define)
-constexpr SLGLenum SL_FRAGMENT_SHADER      = 0x8B30;
-constexpr SLGLenum SL_VERTEX_SHADER        = 0x8B31;
-constexpr SLGLenum SL_COMPILE_STATUS       = 0x8B81;
-constexpr SLGLenum SL_LINK_STATUS          = 0x8B82;
-constexpr SLGLenum SL_INFO_LOG_LENGTH      = 0x8B84;
-constexpr SLGLenum SL_FRAMEBUFFER          = 0x8D40;
-constexpr SLGLenum SL_COLOR_ATTACHMENT0    = 0x8CE0;
+constexpr SLGLenum SL_FRAGMENT_SHADER = 0x8B30;
+constexpr SLGLenum SL_VERTEX_SHADER = 0x8B31;
+constexpr SLGLenum SL_COMPILE_STATUS = 0x8B81;
+constexpr SLGLenum SL_LINK_STATUS = 0x8B82;
+constexpr SLGLenum SL_INFO_LOG_LENGTH = 0x8B84;
+constexpr SLGLenum SL_FRAMEBUFFER = 0x8D40;
+constexpr SLGLenum SL_COLOR_ATTACHMENT0 = 0x8CE0;
 constexpr SLGLenum SL_FRAMEBUFFER_COMPLETE = 0x8CD5;
-constexpr SLGLenum SL_FRAMEBUFFER_BINDING  = 0x8CA6;
-constexpr SLGLenum SL_CURRENT_PROGRAM      = 0x8B8D;
+constexpr SLGLenum SL_FRAMEBUFFER_BINDING = 0x8CA6;
+constexpr SLGLenum SL_CURRENT_PROGRAM = 0x8B8D;
 constexpr SLGLenum SL_VERTEX_ARRAY_BINDING = 0x85B5;
-constexpr SLGLenum SL_TEXTURE_2D           = 0x0DE1;
-constexpr SLGLenum SL_TEXTURE_BINDING_2D   = 0x8069;
-constexpr SLGLenum SL_TEXTURE_MIN_FILTER   = 0x2801;
-constexpr SLGLenum SL_TEXTURE_MAG_FILTER   = 0x2800;
-constexpr SLGLenum SL_TEXTURE_WRAP_S       = 0x2802;
-constexpr SLGLenum SL_TEXTURE_WRAP_T       = 0x2803;
-constexpr SLGLenum SL_LINEAR               = 0x2601;
-constexpr SLGLenum SL_CLAMP_TO_EDGE        = 0x812F;
-constexpr SLGLenum SL_RED                  = 0x1903;
-constexpr SLGLenum SL_RG                   = 0x8227;
-constexpr SLGLenum SL_RGB                  = 0x1907;
-constexpr SLGLenum SL_RGBA                 = 0x1908;
-constexpr SLGLenum SL_R32F                 = 0x822E;
-constexpr SLGLenum SL_R32UI                = 0x8236;
-constexpr SLGLenum SL_RED_INTEGER          = 0x8D94;
-constexpr SLGLenum SL_UNSIGNED_INT         = 0x1405;
-constexpr SLGLenum SL_RG32F                = 0x8230;
-constexpr SLGLenum SL_RGB32F               = 0x8815;
-constexpr SLGLenum SL_RGBA32F              = 0x8814;
-constexpr SLGLenum SL_UNSIGNED_BYTE        = 0x1401;
-constexpr SLGLenum SL_FLOAT                = 0x1406;
-constexpr SLGLenum SL_NEAREST              = 0x2600;
-constexpr SLGLenum SL_REPEAT               = 0x2901;
-constexpr SLGLenum SL_TEXTURE0             = 0x84C0;
-constexpr SLGLenum SL_COLOR_BUFFER_BIT     = 0x00004000;
-constexpr SLGLenum SL_TRIANGLES            = 0x0004;
-constexpr SLGLenum SL_VIEWPORT             = 0x0BA2;
-constexpr SLGLenum SL_DEPTH_TEST           = 0x0B71;
-constexpr SLGLenum SL_BLEND                = 0x0BE2;
-constexpr SLGLenum SL_SCISSOR_TEST         = 0x0C11;
-constexpr SLGLenum SL_SHADER_STORAGE_BUFFER      = 0x90D2;
+constexpr SLGLenum SL_TEXTURE_2D = 0x0DE1;
+constexpr SLGLenum SL_TEXTURE_BINDING_2D = 0x8069;
+constexpr SLGLenum SL_TEXTURE_MIN_FILTER = 0x2801;
+constexpr SLGLenum SL_TEXTURE_MAG_FILTER = 0x2800;
+constexpr SLGLenum SL_TEXTURE_WRAP_S = 0x2802;
+constexpr SLGLenum SL_TEXTURE_WRAP_T = 0x2803;
+constexpr SLGLenum SL_LINEAR = 0x2601;
+constexpr SLGLenum SL_CLAMP_TO_EDGE = 0x812F;
+constexpr SLGLenum SL_RED = 0x1903;
+constexpr SLGLenum SL_RG = 0x8227;
+constexpr SLGLenum SL_RGB = 0x1907;
+constexpr SLGLenum SL_RGBA = 0x1908;
+constexpr SLGLenum SL_R32F = 0x822E;
+constexpr SLGLenum SL_R32UI = 0x8236;
+constexpr SLGLenum SL_RED_INTEGER = 0x8D94;
+constexpr SLGLenum SL_UNSIGNED_INT = 0x1405;
+constexpr SLGLenum SL_RG32F = 0x8230;
+constexpr SLGLenum SL_RGB32F = 0x8815;
+constexpr SLGLenum SL_RGBA32F = 0x8814;
+constexpr SLGLenum SL_UNSIGNED_BYTE = 0x1401;
+constexpr SLGLenum SL_FLOAT = 0x1406;
+constexpr SLGLenum SL_NEAREST = 0x2600;
+constexpr SLGLenum SL_REPEAT = 0x2901;
+constexpr SLGLenum SL_TEXTURE0 = 0x84C0;
+constexpr SLGLenum SL_COLOR_BUFFER_BIT = 0x00004000;
+constexpr SLGLenum SL_TRIANGLES = 0x0004;
+constexpr SLGLenum SL_VIEWPORT = 0x0BA2;
+constexpr SLGLenum SL_DEPTH_TEST = 0x0B71;
+constexpr SLGLenum SL_BLEND = 0x0BE2;
+constexpr SLGLenum SL_SCISSOR_TEST = 0x0C11;
+constexpr SLGLenum SL_SHADER_STORAGE_BUFFER = 0x90D2;
 constexpr SLGLenum SL_SHADER_STORAGE_BARRIER_BIT = 0x00002000;
-constexpr SLGLenum SL_DYNAMIC_DRAW               = 0x88E8;
-constexpr SLGLenum SL_MAJOR_VERSION              = 0x821B;
-constexpr SLGLenum SL_MINOR_VERSION              = 0x821C;
-constexpr SLGLenum SL_MAX_TEXTURE_IMAGE_UNITS    = 0x8872;
-constexpr SLGLenum SL_COLOR_CLEAR_VALUE          = 0x0C22;
-constexpr SLGLenum SL_ACTIVE_UNIFORMS            = 0x8B86;
-constexpr SLGLenum SL_ACTIVE_UNIFORM_MAX_LENGTH  = 0x8B87;
+constexpr SLGLenum SL_DYNAMIC_DRAW = 0x88E8;
+constexpr SLGLenum SL_MAJOR_VERSION = 0x821B;
+constexpr SLGLenum SL_MINOR_VERSION = 0x821C;
+constexpr SLGLenum SL_MAX_TEXTURE_IMAGE_UNITS = 0x8872;
+constexpr SLGLenum SL_COLOR_CLEAR_VALUE = 0x0C22;
+constexpr SLGLenum SL_ACTIVE_UNIFORMS = 0x8B86;
+constexpr SLGLenum SL_ACTIVE_UNIFORM_MAX_LENGTH = 0x8B87;
 
 struct GL {
     // shaders / programs
@@ -183,14 +182,13 @@ struct GL {
     void (*ClearBufferData)(SLGLenum, SLGLint, SLGLenum, SLGLenum, const void*) = nullptr;
     void (*MemoryBarrier)(SLGLenum) = nullptr;
 
-    bool ok = false;      // every *required* entry point resolved
-    int  major = 0, minor = 0;   // context version, for the #version we emit
-    int  max_units = 16;         // fragment texture units (GL 3.3 guarantees 16)
+    bool ok = false;          // every *required* entry point resolved
+    int major = 0, minor = 0; // context version, for the #version we emit
+    int max_units = 16;       // fragment texture units (GL 3.3 guarantees 16)
 };
 
-template<class Fn>
-bool loadOne(Fn& slot, const char* name, bool required)
-{
+template <class Fn>
+bool loadOne(Fn& slot, const char* name, bool required) {
 #if !defined(__APPLE__) && !defined(_WIN32)
     if (polyscope::render::engine && polyscope::render::engine->isHeadless())
         slot = reinterpret_cast<Fn>(linuxHeadlessProcAddress(name));
@@ -202,8 +200,7 @@ bool loadOne(Fn& slot, const char* name, bool required)
     return slot != nullptr;
 }
 
-GL& gl()
-{
+GL& gl() {
     static GL g;
     static bool tried = false;
     if (tried)
@@ -211,43 +208,69 @@ GL& gl()
     tried = true;
     bool ok = true;
     // L is required, LO is optional and guarded at every call site
-#define L(fn, name)  ok &= loadOne(g.fn, name, true)
+#define L(fn, name) ok &= loadOne(g.fn, name, true)
 #define LO(fn, name) loadOne(g.fn, name, false)
-    L(CreateShader,"glCreateShader"); L(ShaderSource,"glShaderSource");
-    L(CompileShader,"glCompileShader"); L(GetShaderiv,"glGetShaderiv");
-    L(GetShaderInfoLog,"glGetShaderInfoLog"); L(DeleteShader,"glDeleteShader");
-    L(CreateProgram,"glCreateProgram"); L(AttachShader,"glAttachShader");
-    L(LinkProgram,"glLinkProgram"); L(GetProgramiv,"glGetProgramiv");
-    L(GetProgramInfoLog,"glGetProgramInfoLog"); L(DeleteProgram,"glDeleteProgram");
-    L(UseProgram,"glUseProgram"); L(GetUniformLocation,"glGetUniformLocation");
-    L(Uniform1f,"glUniform1f"); L(Uniform2f,"glUniform2f");
-    L(Uniform3f,"glUniform3f"); L(Uniform4f,"glUniform4f"); L(Uniform1i,"glUniform1i");
-    L(Uniform1fv,"glUniform1fv"); L(Uniform2fv,"glUniform2fv");
-    L(Uniform3fv,"glUniform3fv"); L(GetActiveUniform,"glGetActiveUniform");
-    L(UniformMatrix4fv,"glUniformMatrix4fv");
-    L(GenVertexArrays,"glGenVertexArrays"); L(BindVertexArray,"glBindVertexArray");
-    L(DeleteVertexArrays,"glDeleteVertexArrays");
-    L(GenFramebuffers,"glGenFramebuffers"); L(BindFramebuffer,"glBindFramebuffer");
-    L(FramebufferTexture2D,"glFramebufferTexture2D");
-    L(DeleteFramebuffers,"glDeleteFramebuffers");
-    L(CheckFramebufferStatus,"glCheckFramebufferStatus");
-    L(DrawBuffers,"glDrawBuffers"); L(ReadBuffer,"glReadBuffer");
-    L(GenTextures,"glGenTextures"); L(BindTexture,"glBindTexture");
-    L(ActiveTexture,"glActiveTexture");
-    L(TexImage2D,"glTexImage2D"); L(TexSubImage2D,"glTexSubImage2D");
-    L(TexParameteri,"glTexParameteri");
-    L(DeleteTextures,"glDeleteTextures"); L(ReadPixels,"glReadPixels");
-    L(Viewport,"glViewport"); L(DrawArrays,"glDrawArrays");
-    L(Clear,"glClear"); L(ClearColor,"glClearColor"); L(GetIntegerv,"glGetIntegerv");
-    L(GetFloatv,"glGetFloatv");
-    L(Enable,"glEnable"); L(Disable,"glDisable"); L(IsEnabled,"glIsEnabled");
-    L(GenBuffers,"glGenBuffers"); L(BindBuffer,"glBindBuffer");
-    L(BufferData,"glBufferData"); L(BufferSubData,"glBufferSubData");
-    L(BindBufferBase,"glBindBufferBase"); L(GetBufferSubData,"glGetBufferSubData");
-    L(DeleteBuffers,"glDeleteBuffers");
+    L(CreateShader, "glCreateShader");
+    L(ShaderSource, "glShaderSource");
+    L(CompileShader, "glCompileShader");
+    L(GetShaderiv, "glGetShaderiv");
+    L(GetShaderInfoLog, "glGetShaderInfoLog");
+    L(DeleteShader, "glDeleteShader");
+    L(CreateProgram, "glCreateProgram");
+    L(AttachShader, "glAttachShader");
+    L(LinkProgram, "glLinkProgram");
+    L(GetProgramiv, "glGetProgramiv");
+    L(GetProgramInfoLog, "glGetProgramInfoLog");
+    L(DeleteProgram, "glDeleteProgram");
+    L(UseProgram, "glUseProgram");
+    L(GetUniformLocation, "glGetUniformLocation");
+    L(Uniform1f, "glUniform1f");
+    L(Uniform2f, "glUniform2f");
+    L(Uniform3f, "glUniform3f");
+    L(Uniform4f, "glUniform4f");
+    L(Uniform1i, "glUniform1i");
+    L(Uniform1fv, "glUniform1fv");
+    L(Uniform2fv, "glUniform2fv");
+    L(Uniform3fv, "glUniform3fv");
+    L(GetActiveUniform, "glGetActiveUniform");
+    L(UniformMatrix4fv, "glUniformMatrix4fv");
+    L(GenVertexArrays, "glGenVertexArrays");
+    L(BindVertexArray, "glBindVertexArray");
+    L(DeleteVertexArrays, "glDeleteVertexArrays");
+    L(GenFramebuffers, "glGenFramebuffers");
+    L(BindFramebuffer, "glBindFramebuffer");
+    L(FramebufferTexture2D, "glFramebufferTexture2D");
+    L(DeleteFramebuffers, "glDeleteFramebuffers");
+    L(CheckFramebufferStatus, "glCheckFramebufferStatus");
+    L(DrawBuffers, "glDrawBuffers");
+    L(ReadBuffer, "glReadBuffer");
+    L(GenTextures, "glGenTextures");
+    L(BindTexture, "glBindTexture");
+    L(ActiveTexture, "glActiveTexture");
+    L(TexImage2D, "glTexImage2D");
+    L(TexSubImage2D, "glTexSubImage2D");
+    L(TexParameteri, "glTexParameteri");
+    L(DeleteTextures, "glDeleteTextures");
+    L(ReadPixels, "glReadPixels");
+    L(Viewport, "glViewport");
+    L(DrawArrays, "glDrawArrays");
+    L(Clear, "glClear");
+    L(ClearColor, "glClearColor");
+    L(GetIntegerv, "glGetIntegerv");
+    L(GetFloatv, "glGetFloatv");
+    L(Enable, "glEnable");
+    L(Disable, "glDisable");
+    L(IsEnabled, "glIsEnabled");
+    L(GenBuffers, "glGenBuffers");
+    L(BindBuffer, "glBindBuffer");
+    L(BufferData, "glBufferData");
+    L(BufferSubData, "glBufferSubData");
+    L(BindBufferBase, "glBindBufferBase");
+    L(GetBufferSubData, "glGetBufferSubData");
+    L(DeleteBuffers, "glDeleteBuffers");
     // 4.3 like the SSBOs it serves, absent on an older context
-    LO(ClearBufferData,"glClearBufferData");
-    LO(MemoryBarrier,"glMemoryBarrier");   // GL 4.2, absent on 3.3 and 4.1
+    LO(ClearBufferData, "glClearBufferData");
+    LO(MemoryBarrier, "glMemoryBarrier"); // GL 4.2, absent on 3.3 and 4.1
 #undef LO
 #undef L
     g.ok = ok;
@@ -265,8 +288,7 @@ GL& gl()
 // GLSL version the prelude declares. polyscope asks GLFW for 3.3 core;
 // drivers hand back newer (SSBOs available), but macOS caps at 4.1 where
 // "#version 430" fails to compile, so ask the context rather than assume.
-const char* versionLine()
-{
+const char* versionLine() {
     auto& g = gl();
     const bool has430 = (g.major > 4) || (g.major == 4 && g.minor >= 3);
     return has430 ? "#version 430 core\n" : "#version 330 core\n";
@@ -387,8 +409,7 @@ vec2 iUVc() { return 2.0*(gl_FragCoord.xy - 0.5*iResolution)/iResolution.y; }
 constexpr float kSlideUnreached = 1e30f;
 
 // how long iSlideTime has to be. Never 0, an empty array will not compile
-int keyframeSlideCount()
-{
+int keyframeSlideCount() {
     int max_slide = -1;
     if (TimeObject::keyframes)
         for (const auto& [name, slide] : *TimeObject::keyframes)
@@ -396,8 +417,7 @@ int keyframeSlideCount()
     return std::max(max_slide + 1, 1);
 }
 
-std::string keyframeDefines()
-{
+std::string keyframeDefines() {
     // when each slide was reached, which the frame number cannot give
     const int n = keyframeSlideCount();
     std::string out;
@@ -411,18 +431,25 @@ std::string keyframeDefines()
 }
 
 const char* kKeyframeFns[] = {
-    "afterKeyframe", "beforeKeyframe", "atKeyframe",
-    "slidesSinceKeyframe", "secondsSinceKeyframe", "duringKeyframe",
+    "afterKeyframe",
+    "beforeKeyframe",
+    "atKeyframe",
+    "slidesSinceKeyframe",
+    "secondsSinceKeyframe",
+    "duringKeyframe",
     "sinceKeyframe",
     // the keyframe helpers of <slide.glsl>
-    "fadeInAt", "fadeInAtSmooth", "onceAt", "betweenKeyframes",
-    "stageAfter", "stageAfterSmooth",
+    "fadeInAt",
+    "fadeInAtSmooth",
+    "onceAt",
+    "betweenKeyframes",
+    "stageAfter",
+    "stageAfterSmooth",
 };
 
 bool identChar(char c) { return std::isalnum((unsigned char)c) || c == '_'; }
 
-bool isKeyframeFn(const std::string& id)
-{
+bool isKeyframeFn(const std::string& id) {
     for (const char* f : kKeyframeFns)
         if (id == f) return true;
     return false;
@@ -430,8 +457,7 @@ bool isKeyframeFn(const std::string& id)
 
 // -2 for a name the deck does not have, which is what C++ answers with, so
 // every query on it stays false
-int keyframeIndexFor(const std::string& name, const std::string& where)
-{
+int keyframeIndexFor(const std::string& name, const std::string& where) {
     if (TimeObject::keyframes) {
         auto it = TimeObject::keyframes->find(name);
         if (it != TimeObject::keyframes->end())
@@ -454,41 +480,52 @@ int keyframeIndexFor(const std::string& name, const std::string& where)
 // valid shader can be harmed by this. Comments are skipped so one written in
 // prose survives. Substitution stays on its own line, which keeps every
 // compile error pointing where it did.
-void rewriteKeyframeNames(std::string& src, const std::string& where)
-{
+void rewriteKeyframeNames(std::string& src, const std::string& where) {
     std::string out;
     out.reserve(src.size());
     std::size_t i = 0, n = src.size();
-    int args = 0;   // paren depth inside a keyframe call, 0 when outside one
+    int args = 0; // paren depth inside a keyframe call, 0 when outside one
     while (i < n) {
         if (src[i] == '/' && i + 1 < n && src[i + 1] == '/') {
             std::size_t e = src.find('\n', i);
             if (e == std::string::npos) e = n;
-            out += src.substr(i, e - i); i = e; continue;
+            out += src.substr(i, e - i);
+            i = e;
+            continue;
         }
         if (src[i] == '/' && i + 1 < n && src[i + 1] == '*') {
             std::size_t e = src.find("*/", i + 2);
             e = (e == std::string::npos) ? n : e + 2;
-            out += src.substr(i, e - i); i = e; continue;
+            out += src.substr(i, e - i);
+            i = e;
+            continue;
         }
         if (args > 0) {
             if (src[i] == '"') {
                 std::size_t e = src.find('"', i + 1);
-                if (e == std::string::npos) { out += src.substr(i); i = n; break; }
+                if (e == std::string::npos) {
+                    out += src.substr(i);
+                    i = n;
+                    break;
+                }
                 out += std::to_string(keyframeIndexFor(src.substr(i + 1, e - i - 1), where));
                 i = e + 1;
                 continue;
             }
-            if (src[i] == '(') args++;
-            else if (src[i] == ')') args--;
+            if (src[i] == '(')
+                args++;
+            else if (src[i] == ')')
+                args--;
             out += src[i++];
             continue;
         }
         if (identChar(src[i])) {
             std::size_t j = i;
-            while (j < n && identChar(src[j])) j++;
+            while (j < n && identChar(src[j]))
+                j++;
             std::size_t k = j;
-            while (k < n && std::isspace((unsigned char)src[k])) k++;
+            while (k < n && std::isspace((unsigned char)src[k]))
+                k++;
             const bool call = k < n && src[k] == '(' && isKeyframeFn(src.substr(i, j - i));
             out += src.substr(i, (call ? k + 1 : j) - i);
             i = call ? k + 1 : j;
@@ -502,8 +539,7 @@ void rewriteKeyframeNames(std::string& src, const std::string& where)
 
 // what a shader was built against. The names are not emitted any more, but
 // their indices are baked into its source, so a move still invalidates it
-std::string keyframeSignature()
-{
+std::string keyframeSignature() {
     std::string out = std::to_string(keyframeSlideCount()) + ";";
     if (TimeObject::keyframes)
         for (const auto& [name, slide] : *TimeObject::keyframes)
@@ -521,13 +557,12 @@ const char* kLineReset = "#line 1 0\n";
 struct IncludeExpansion {
     std::string source;
     std::vector<std::pair<std::string, std::filesystem::file_time_type>> deps;
-    std::vector<std::string> units;   // source-string index -> file
-    std::set<std::string> once;       // files that asked not to be re-expanded
-    std::string errors;               // a bad #include fails the compile, not only the log
+    std::vector<std::string> units; // source-string index -> file
+    std::set<std::string> once;     // files that asked not to be re-expanded
+    std::string errors;             // a bad #include fails the compile, not only the log
 };
 
-bool readWholeFile(const std::string& file, std::string& out)
-{
+bool readWholeFile(const std::string& file, std::string& out) {
     std::ifstream f(file);
     if (!f.is_open())
         return false;
@@ -537,13 +572,15 @@ bool readWholeFile(const std::string& file, std::string& out)
     return true;
 }
 
-std::vector<std::string> splitLines(const std::string& src)
-{
+std::vector<std::string> splitLines(const std::string& src) {
     std::vector<std::string> lines;
     size_t i = 0;
     while (true) {
         size_t e = src.find('\n', i);
-        if (e == std::string::npos) { lines.push_back(src.substr(i)); break; }
+        if (e == std::string::npos) {
+            lines.push_back(src.substr(i));
+            break;
+        }
         lines.push_back(src.substr(i, e - i));
         i = e + 1;
     }
@@ -552,8 +589,7 @@ std::vector<std::string> splitLines(const std::string& src)
 
 // the file an #include resolves to, or "". <file> is the shader stdlib,
 // "file" is the deck's own, falling back to the stdlib.
-std::string resolveInclude(const std::string& target, const path& dir, bool bank_only)
-{
+std::string resolveInclude(const std::string& target, const path& dir, bool bank_only) {
     std::error_code ec;
     auto tryPath = [&ec](const path& p) -> std::string {
         return std::filesystem::exists(p, ec) ? p.string() : std::string();
@@ -572,11 +608,11 @@ std::string resolveInclude(const std::string& target, const path& dir, bool bank
 // "#include "x"" -> x, "" if the line is not a well-formed include.
 // `bank_only` reports the <angle-bracket> form.
 std::string parseIncludeTarget(const std::string& rest, const std::string& where, int line,
-                               bool& bank_only)
-{
+                               bool& bank_only) {
     bank_only = false;
     size_t i = 0;
-    while (i < rest.size() && (rest[i] == ' ' || rest[i] == '\t')) ++i;
+    while (i < rest.size() && (rest[i] == ' ' || rest[i] == '\t'))
+        ++i;
     if (i >= rest.size() || (rest[i] != '"' && rest[i] != '<')) {
         spdlog::error("[shader] {}:{}: #include expects \"file\" or <file>", where, line);
         return "";
@@ -592,18 +628,18 @@ std::string parseIncludeTarget(const std::string& rest, const std::string& where
 }
 
 void expandInto(const std::string& src, const path& dir, const std::string& self,
-                int unit, std::vector<std::string>& stack, IncludeExpansion& X, int depth)
-{
+                int unit, std::vector<std::string>& stack, IncludeExpansion& X, int depth) {
     static constexpr int kMaxDepth = 32;
     const auto lines = splitLines(src);
     for (size_t k = 0; k < lines.size(); ++k) {
         const std::string& line = lines[k];
         size_t j = 0;
-        while (j < line.size() && (line[j] == ' ' || line[j] == '\t')) ++j;
+        while (j < line.size() && (line[j] == ' ' || line[j] == '\t'))
+            ++j;
 
         if (line.compare(j, 12, "#pragma once") == 0) {
             X.once.insert(self);
-            X.source += "\n";           // keep the parent's line numbering
+            X.source += "\n"; // keep the parent's line numbering
             continue;
         }
         if (line.compare(j, 8, "#include") != 0) {
@@ -628,8 +664,7 @@ void expandInto(const std::string& src, const path& dir, const std::string& self
                           self, k + 1,
                           bank_only ? "<" + target + ">" : "\"" + target + "\"",
                           Options::ShaderPath);
-            X.errors += self + ":" + std::to_string(k + 1) + ": cannot find #include "
-                      + (bank_only ? "<" + target + ">" : "\"" + target + "\"") + "\n";
+            X.errors += self + ":" + std::to_string(k + 1) + ": cannot find #include " + (bank_only ? "<" + target + ">" : "\"" + target + "\"") + "\n";
             continue;
         }
         std::error_code ec;
@@ -638,16 +673,16 @@ void expandInto(const std::string& src, const path& dir, const std::string& self
             canon = file;
 
         if (X.once.count(canon))
-            continue;                   // already pulled in, and asked to be once
+            continue; // already pulled in, and asked to be once
         if (std::find(stack.begin(), stack.end(), canon) != stack.end()) {
             spdlog::error("[shader] {}:{}: circular #include of \"{}\"", self, k + 1, target);
-            X.errors += self + ":" + std::to_string(k + 1) + ": circular #include of \""
-                      + target + "\"\n";
+            X.errors += self + ":" + std::to_string(k + 1) + ": circular #include of \"" + target + "\"\n";
             continue;
         }
         if (depth >= kMaxDepth) {
             spdlog::error("[shader] #include nested deeper than {} levels, giving up "
-                          "at \"{}\"", kMaxDepth, target);
+                          "at \"{}\"",
+                          kMaxDepth, target);
             X.errors += "#include nested too deep at \"" + target + "\"\n";
             continue;
         }
@@ -674,8 +709,7 @@ void expandInto(const std::string& src, const path& dir, const std::string& self
 }
 
 IncludeExpansion expandIncludes(const std::string& src, const path& dir,
-                                const std::string& self)
-{
+                                const std::string& self) {
     IncludeExpansion X;
     X.units.push_back(self);
     std::vector<std::string> stack{self};
@@ -685,36 +719,49 @@ IncludeExpansion expandIncludes(const std::string& src, const path& dir,
 
 // true if the source has a genuine "#version" directive, first token on a
 // line, so a comment mentioning the word does not drop the prelude.
-bool hasVersionDirective(const std::string& src)
-{
+bool hasVersionDirective(const std::string& src) {
     const size_t n = src.size();
-    bool in_block = false;   // inside a /* ... */
-    bool in_line  = false;   // inside a // ..., until the newline
-    bool fresh    = true;    // nothing but blanks/comments since the last newline
+    bool in_block = false; // inside a /* ... */
+    bool in_line = false;  // inside a // ..., until the newline
+    bool fresh = true;     // nothing but blanks/comments since the last newline
     for (size_t i = 0; i < n; ++i) {
         const char c = src[i];
-        if (c == '\n') { in_line = false; fresh = true; continue; }
+        if (c == '\n') {
+            in_line = false;
+            fresh = true;
+            continue;
+        }
         if (in_line) continue;
-        if (in_block) {                       // a "#version" in here is just prose
-            if (c == '*' && i + 1 < n && src[i+1] == '/') { in_block = false; ++i; }
+        if (in_block) { // a "#version" in here is just prose
+            if (c == '*' && i + 1 < n && src[i + 1] == '/') {
+                in_block = false;
+                ++i;
+            }
             continue;
         }
         if (c == '/' && i + 1 < n) {
             // the spec lets comments precede a real directive
-            if (src[i+1] == '/') { in_line  = true; ++i; continue; }
-            if (src[i+1] == '*') { in_block = true; ++i; continue; }
+            if (src[i + 1] == '/') {
+                in_line = true;
+                ++i;
+                continue;
+            }
+            if (src[i + 1] == '*') {
+                in_block = true;
+                ++i;
+                continue;
+            }
         }
         if (c == ' ' || c == '\t' || c == '\r') continue;
         if (fresh && src.compare(i, 8, "#version") == 0)
             return true;
-        fresh = false;                        // a real token opened this line
+        fresh = false; // a real token opened this line
     }
     return false;
 }
 
 SLGLuint compileStage(SLGLenum type, const std::string& src, const char* label,
-                      std::string* log_out = nullptr)
-{
+                      std::string* log_out = nullptr) {
     auto& g = gl();
     SLGLuint s = g.CreateShader(type);
     const SLGLchar* p = src.c_str();
@@ -740,8 +787,7 @@ SLGLuint compileStage(SLGLenum type, const std::string& src, const char* label,
 // load an image file into a GL texture (flipped to y-up, so texture(iChannelN,
 // uv) with uv.y=0 samples the bottom row, like ShaderToy)
 SLGLuint loadImageTexture(const std::string& file, SLGLenum filter, SLGLenum wrap,
-                          int& w, int& h)
-{
+                          int& w, int& h) {
     auto& g = gl();
     if (!g.ok)
         return 0;
@@ -768,27 +814,23 @@ SLGLuint loadImageTexture(const std::string& file, SLGLenum filter, SLGLenum wra
 
 } // namespace
 
-void Shader::setFragmentSource(std::string src)
-{
+void Shader::setFragmentSource(std::string src) {
     fragment_src = std::move(src);
     needs_recompile = true;
 }
 
-void Shader::setFragmentFile(const path& file)
-{
+void Shader::setFragmentFile(const path& file) {
     source_path = file;
     from_file = true;
     reloadFromFile();
 }
 
-void Shader::registerLive()
-{
+void Shader::registerLive() {
     if (std::find(all_shaders.begin(), all_shaders.end(), this) == all_shaders.end())
         all_shaders.push_back(this);
 }
 
-ShaderPtr Shader::Add(const std::string& fragment_source, int w, int h)
-{
+ShaderPtr Shader::Add(const std::string& fragment_source, int w, int h) {
     auto s = NewPrimitive<Shader>();
     s->setFragmentSource(fragment_source);
     s->registerLive();
@@ -797,11 +839,9 @@ ShaderPtr Shader::Add(const std::string& fragment_source, int w, int h)
     return s;
 }
 
-ShaderPtr Shader::FromFile(const path& file, int w, int h)
-{
+ShaderPtr Shader::FromFile(const path& file, int w, int h) {
     // once the project path is known a missing file is a mistake, only earlier is it retried
-    if (std::error_code ec; !Options::ProjectDataPath.empty()
-                            && !std::filesystem::is_regular_file(formatPath(file), ec))
+    if (std::error_code ec; !Options::ProjectDataPath.empty() && !std::filesystem::is_regular_file(formatPath(file), ec))
         ReloadErrors::missingFile(formatPath(file), "[shader] cannot open \"" + formatPath(file) + "\"");
     auto s = NewPrimitive<Shader>();
     s->source_path = file;
@@ -813,8 +853,7 @@ ShaderPtr Shader::FromFile(const path& file, int w, int h)
     return s;
 }
 
-void Shader::reloadFromFile()
-{
+void Shader::reloadFromFile() {
     // resolved per call, a shader built before deck init has no project path yet
     source_file = formatPath(source_path);
     std::ifstream f(source_file);
@@ -835,7 +874,7 @@ void Shader::reloadFromFile()
         buf << f.rdbuf();
         fragment_src = buf.str();
         load_failed = false;
-        if (load_error_reported) {   // we complained, so say it is back
+        if (load_error_reported) { // we complained, so say it is back
             spdlog::info("[shader] loaded {}", source_file.string());
             ReloadErrors::clear(source_file, "shader");
             load_error_reported = false;
@@ -848,8 +887,7 @@ void Shader::reloadFromFile()
         last_modified = t;
 }
 
-Shader::~Shader()
-{
+Shader::~Shader() {
     // not freed here, a Shader can outlive the context and the driver reclaims
     auto ia = std::find(all_shaders.begin(), all_shaders.end(), this);
     if (ia != all_shaders.end())
@@ -864,12 +902,17 @@ Shader::~Shader()
 // Does this source use the scene-depth API? Whole identifiers only, blind to
 // comments, and scanned on the shader's own text (not the expanded #include
 // tree) so that merely including <camera.glsl> does not switch this on deck-wide.
-bool Shader::referencesSceneDepth(const std::string& src)
-{
+bool Shader::referencesSceneDepth(const std::string& src) {
     static const char* kNames[] = {
-        "iSceneDepth", "iSceneDepthValid", "iSceneDepthSize",
-        "sceneDepthHere", "visibleOverScene", "sceneEyeDistance",
-        "sceneClearance", "sceneOcclusion", "sceneWorldPos",
+        "iSceneDepth",
+        "iSceneDepthValid",
+        "iSceneDepthSize",
+        "sceneDepthHere",
+        "visibleOverScene",
+        "sceneEyeDistance",
+        "sceneClearance",
+        "sceneOcclusion",
+        "sceneWorldPos",
     };
     auto ident = [](char c) { return std::isalnum((unsigned char)c) || c == '_'; };
 
@@ -878,11 +921,13 @@ bool Shader::referencesSceneDepth(const std::string& src)
     code.reserve(src.size());
     for (std::size_t i = 0; i < src.size(); ++i) {
         if (src[i] == '/' && i + 1 < src.size() && src[i + 1] == '/') {
-            while (i < src.size() && src[i] != '\n') ++i;
+            while (i < src.size() && src[i] != '\n')
+                ++i;
             code.push_back('\n');
         } else if (src[i] == '/' && i + 1 < src.size() && src[i + 1] == '*') {
             i += 2;
-            while (i + 1 < src.size() && !(src[i] == '*' && src[i + 1] == '/')) ++i;
+            while (i + 1 < src.size() && !(src[i] == '*' && src[i + 1] == '/'))
+                ++i;
             ++i;
             code.push_back(' ');
         } else {
@@ -894,7 +939,7 @@ bool Shader::referencesSceneDepth(const std::string& src)
         const std::size_t len = std::strlen(n);
         for (std::size_t p = code.find(n); p != std::string::npos;
              p = code.find(n, p + 1)) {
-            const bool left  = p > 0 && ident(code[p - 1]);
+            const bool left = p > 0 && ident(code[p - 1]);
             const bool right = p + len < code.size() && ident(code[p + len]);
             if (!left && !right)
                 return true;
@@ -907,8 +952,7 @@ bool Shader::referencesSceneDepth(const std::string& src)
 // so a multi-pass frame leaves only the last peeled layer. Pinning to one
 // pass keeps the true depth of the nearest surface. Only the ordering of several
 // transparent layers is lost.
-void Shader::applySceneDepthMode()
-{
+void Shader::applySceneDepthMode() {
     if (scene_depth_users > 0) {
         if (saved_peel_passes < 0)
             saved_peel_passes = polyscope::options::transparencyRenderPasses;
@@ -919,8 +963,7 @@ void Shader::applySceneDepthMode()
     }
 }
 
-void Shader::useSceneDepth(bool on)
-{
+void Shader::useSceneDepth(bool on) {
     if (on == wants_scene_depth)
         return;
     wants_scene_depth = on;
@@ -928,8 +971,7 @@ void Shader::useSceneDepth(bool on)
     applySceneDepthMode();
 }
 
-void Shader::setResolution(int w, int h)
-{
+void Shader::setResolution(int w, int h) {
     explicit_resolution = true;
     if (w == res_x && h == res_y)
         return;
@@ -939,46 +981,62 @@ void Shader::setResolution(int w, int h)
 }
 
 // uniforms
-void Shader::set(const std::string& n, float v)
-{ uniforms[n] = [v](int l, const TimeObject&){ gl().Uniform1f(l, v); }; }
-void Shader::set(const std::string& n, int v)
-{ uniforms[n] = [v](int l, const TimeObject&){ gl().Uniform1i(l, v); }; }
-void Shader::set(const std::string& n, const vec2& v)
-{ float a=float(v(0)),b=float(v(1)); uniforms[n]=[a,b](int l, const TimeObject&){ gl().Uniform2f(l,a,b); }; }
-void Shader::set(const std::string& n, const vec& v)
-{ float a=float(v(0)),b=float(v(1)),c=float(v(2)); uniforms[n]=[a,b,c](int l, const TimeObject&){ gl().Uniform3f(l,a,b,c); }; }
-void Shader::set(const std::string& n, const RGBA& v)
-{ ImVec4 c=v.Value; uniforms[n]=[c](int l, const TimeObject&){ gl().Uniform4f(l,c.x,c.y,c.z,c.w); }; }
+void Shader::set(const std::string& n, float v) {
+    uniforms[n] = [v](int l, const TimeObject&) { gl().Uniform1f(l, v); };
+}
+void Shader::set(const std::string& n, int v) {
+    uniforms[n] = [v](int l, const TimeObject&) { gl().Uniform1i(l, v); };
+}
+void Shader::set(const std::string& n, const vec2& v) {
+    float a = float(v(0)), b = float(v(1));
+    uniforms[n] = [a, b](int l, const TimeObject&) { gl().Uniform2f(l, a, b); };
+}
+void Shader::set(const std::string& n, const vec& v) {
+    float a = float(v(0)), b = float(v(1)), c = float(v(2));
+    uniforms[n] = [a, b, c](int l, const TimeObject&) { gl().Uniform3f(l, a, b, c); };
+}
+void Shader::set(const std::string& n, const RGBA& v) {
+    ImVec4 c = v.Value;
+    uniforms[n] = [c](int l, const TimeObject&) { gl().Uniform4f(l, c.x, c.y, c.z, c.w); };
+}
 
-void Shader::bindF(const std::string& n, std::function<float(const TimeObject&)> f)
-{ uniforms[n] = [f](int l, const TimeObject& t){ gl().Uniform1f(l, f(t)); }; }
-void Shader::bindDynamic(const std::string& n, std::function<int(scalar*)> f)
-{
+void Shader::bindF(const std::string& n, std::function<float(const TimeObject&)> f) {
+    uniforms[n] = [f](int l, const TimeObject& t) { gl().Uniform1f(l, f(t)); };
+}
+void Shader::bindDynamic(const std::string& n, std::function<int(scalar*)> f) {
     uniforms[n] = [f](int loc, const TimeObject&) {
         scalar v[4] = {0, 0, 0, 0};
         auto& g = gl();
         switch (f(v)) {
-        case 1: g.Uniform1f(loc, float(v[0])); break;
-        case 2: g.Uniform2f(loc, float(v[0]), float(v[1])); break;
-        case 3: g.Uniform3f(loc, float(v[0]), float(v[1]), float(v[2])); break;
-        case 4: g.Uniform4f(loc, float(v[0]), float(v[1]), float(v[2]), float(v[3])); break;
-        default: break;
+        case 1:
+            g.Uniform1f(loc, float(v[0]));
+            break;
+        case 2:
+            g.Uniform2f(loc, float(v[0]), float(v[1]));
+            break;
+        case 3:
+            g.Uniform3f(loc, float(v[0]), float(v[1]), float(v[2]));
+            break;
+        case 4:
+            g.Uniform4f(loc, float(v[0]), float(v[1]), float(v[2]), float(v[3]));
+            break;
+        default:
+            break;
         }
     };
 }
 
-int Shader::uniformLocation(const std::string& name)
-{
+int Shader::uniformLocation(const std::string& name) {
     auto it = user_uniform_loc.find(name);
     if (it == user_uniform_loc.end())
         it = user_uniform_loc.emplace(
-            name, gl().GetUniformLocation(program, name.c_str())).first;
+                                 name, gl().GetUniformLocation(program, name.c_str()))
+                 .first;
     return it->second;
 }
 
 // arrays are reported as "name[0]", and their size is the declared length
-int Shader::arrayCapacity(const std::string& name)
-{
+int Shader::arrayCapacity(const std::string& name) {
     auto it = array_capacity.find(name);
     if (it != array_capacity.end())
         return it->second;
@@ -1007,8 +1065,7 @@ int Shader::arrayCapacity(const std::string& name)
     return cap;
 }
 
-void Shader::uploadArray(const std::string& name, int loc, const float* v, int count, int comps)
-{
+void Shader::uploadArray(const std::string& name, int loc, const float* v, int count, int comps) {
     const int cap = arrayCapacity(name);
     if (cap > 0 && count > cap) {
         if (array_overflow_said.insert(name).second)
@@ -1021,19 +1078,25 @@ void Shader::uploadArray(const std::string& name, int loc, const float* v, int c
     }
     auto& g = gl();
     switch (comps) {
-    case 1: g.Uniform1fv(loc, count, v); break;
-    case 2: g.Uniform2fv(loc, count, v); break;
-    case 3: g.Uniform3fv(loc, count, v); break;
-    default: return;
+    case 1:
+        g.Uniform1fv(loc, count, v);
+        break;
+    case 2:
+        g.Uniform2fv(loc, count, v);
+        break;
+    case 3:
+        g.Uniform3fv(loc, count, v);
+        break;
+    default:
+        return;
     }
     if (int l = uniformLocation(name + "_count"); l >= 0)
         g.Uniform1i(l, count);
 }
 
 // flattens whatever the caller holds into the float buffer GL wants
-template<class T>
-static std::vector<float> flattenArray(const std::vector<T>& v, int comps)
-{
+template <class T>
+static std::vector<float> flattenArray(const std::vector<T>& v, int comps) {
     std::vector<float> out(v.size() * std::size_t(comps));
     for (std::size_t i = 0; i < v.size(); i++)
         for (int c = 0; c < comps; c++)
@@ -1041,47 +1104,39 @@ static std::vector<float> flattenArray(const std::vector<T>& v, int comps)
     return out;
 }
 
-void Shader::setArray(const std::string& n, std::vector<float> data, int comps)
-{
+void Shader::setArray(const std::string& n, std::vector<float> data, int comps) {
     const int count = comps > 0 ? int(data.size()) / comps : 0;
     uniforms[n] = [this, n, data = std::move(data), count, comps](int l, const TimeObject&) {
         uploadArray(n, l, data.data(), count, comps);
     };
 }
 
-void Shader::set(const std::string& n, const std::vector<float>& v)
-{ setArray(n, v, 1); }
-void Shader::set(const std::string& n, const std::vector<vec2>& v)
-{ setArray(n, flattenArray(v, 2), 2); }
-void Shader::set(const std::string& n, const std::vector<vec>& v)
-{ setArray(n, flattenArray(v, 3), 3); }
+void Shader::set(const std::string& n, const std::vector<float>& v) { setArray(n, v, 1); }
+void Shader::set(const std::string& n, const std::vector<vec2>& v) { setArray(n, flattenArray(v, 2), 2); }
+void Shader::set(const std::string& n, const std::vector<vec>& v) { setArray(n, flattenArray(v, 3), 3); }
 
-void Shader::bindArray(const std::string& n, std::function<std::vector<float>()> f)
-{
+void Shader::bindArray(const std::string& n, std::function<std::vector<float>()> f) {
     uniforms[n] = [this, n, f](int l, const TimeObject&) {
         auto v = f();
         uploadArray(n, l, v.data(), int(v.size()), 1);
     };
 }
 
-void Shader::bindArray(const std::string& n, std::function<std::vector<vec2>()> f)
-{
+void Shader::bindArray(const std::string& n, std::function<std::vector<vec2>()> f) {
     uniforms[n] = [this, n, f](int l, const TimeObject&) {
         auto v = flattenArray(f(), 2);
         uploadArray(n, l, v.data(), int(v.size()) / 2, 2);
     };
 }
 
-void Shader::bindArray(const std::string& n, std::function<std::vector<vec>()> f)
-{
+void Shader::bindArray(const std::string& n, std::function<std::vector<vec>()> f) {
     uniforms[n] = [this, n, f](int l, const TimeObject&) {
         auto v = flattenArray(f(), 3);
         uploadArray(n, l, v.data(), int(v.size()) / 3, 3);
     };
 }
 
-void Shader::bind(const std::string& name)
-{
+void Shader::bind(const std::string& name) {
     // said once, and only after the first frame, nothing is published before it
     auto said = std::make_shared<bool>(false);
     std::string where = source_file.empty() ? std::string("shader")
@@ -1091,43 +1146,47 @@ void Shader::bind(const std::string& name)
         if (!val.valid() && Snippet::ready() && !*said) {
             *said = true;
             spdlog::error("[shader] {} : uniform \"{}\" has no snippet variable or parameter "
-                          "of that name, nothing is uploaded", where, name);
+                          "of that name, nothing is uploaded",
+                          where, name);
         }
-        for (int i = 0; i < val.n; i++) v[i] = val.v[i];
+        for (int i = 0; i < val.n; i++)
+            v[i] = val.v[i];
         return val.n;
     });
 }
 
-void Shader::bind(std::initializer_list<const char*> names)
-{
+void Shader::bind(std::initializer_list<const char*> names) {
     for (const char* n : names)
         bind(std::string(n));
 }
 
-void Shader::bindInt(const std::string& n, std::function<int()> f)
-{ uniforms[n] = [f](int l, const TimeObject&){ gl().Uniform1i(l, f()); }; }
-void Shader::bindInt(const std::string& n, std::function<int(const TimeObject&)> f)
-{ uniforms[n] = [f](int l, const TimeObject& t){ gl().Uniform1i(l, f(t)); }; }
-void Shader::bindV2(const std::string& n, std::function<vec2(const TimeObject&)> f)
-{ uniforms[n] = [f](int l, const TimeObject& t){ auto v=f(t); gl().Uniform2f(l, float(v(0)), float(v(1))); }; }
-void Shader::bindV3(const std::string& n, std::function<vec(const TimeObject&)> f)
-{ uniforms[n] = [f](int l, const TimeObject& t){ auto v=f(t); gl().Uniform3f(l, float(v(0)), float(v(1)), float(v(2))); }; }
-void Shader::bindV4(const std::string& n, std::function<RGBA(const TimeObject&)> f)
-{ uniforms[n] = [f](int l, const TimeObject& t){ ImVec4 c=f(t).Value; gl().Uniform4f(l, c.x, c.y, c.z, c.w); }; }
+void Shader::bindInt(const std::string& n, std::function<int()> f) {
+    uniforms[n] = [f](int l, const TimeObject&) { gl().Uniform1i(l, f()); };
+}
+void Shader::bindInt(const std::string& n, std::function<int(const TimeObject&)> f) {
+    uniforms[n] = [f](int l, const TimeObject& t) { gl().Uniform1i(l, f(t)); };
+}
+void Shader::bindV2(const std::string& n, std::function<vec2(const TimeObject&)> f) {
+    uniforms[n] = [f](int l, const TimeObject& t) { auto v=f(t); gl().Uniform2f(l, float(v(0)), float(v(1))); };
+}
+void Shader::bindV3(const std::string& n, std::function<vec(const TimeObject&)> f) {
+    uniforms[n] = [f](int l, const TimeObject& t) { auto v=f(t); gl().Uniform3f(l, float(v(0)), float(v(1)), float(v(2))); };
+}
+void Shader::bindV4(const std::string& n, std::function<RGBA(const TimeObject&)> f) {
+    uniforms[n] = [f](int l, const TimeObject& t) { ImVec4 c=f(t).Value; gl().Uniform4f(l, c.x, c.y, c.z, c.w); };
+}
 
 // textures & buffers
 // the four ShaderToy channels are textures under a reserved name. Out of range
 // gives "", which every entry point below ignores.
-std::string Shader::ChannelName(int i)
-{
+std::string Shader::ChannelName(int i) {
     if (i < 0 || i >= kChannels)
         return "";
     return "iChannel" + std::to_string(i);
 }
 
 // every rebind goes through here, overwriting an owned entry would leak it
-void Shader::releaseTexture(const std::string& name)
-{
+void Shader::releaseTexture(const std::string& name) {
     auto it = textures.find(name);
     if (it == textures.end())
         return;
@@ -1140,19 +1199,17 @@ void Shader::releaseTexture(const std::string& name)
 
 // dropping the last self-sampling texture also drops the need for a ping-pong
 // target, and adding one creates it.
-void Shader::refreshFeedback()
-{
+void Shader::refreshFeedback() {
     bool self = false;
     for (auto& [n, t] : textures)
         if (t.kind == Texture::Kind::Self) self = true;
     if (self != feedback) {
         feedback = self;
-        gl_ready = false;   // the second target appears / disappears
+        gl_ready = false; // the second target appears / disappears
     }
 }
 
-void Shader::setTexture(const std::string& name, const path& image_file, Filter f, Wrap w)
-{
+void Shader::setTexture(const std::string& name, const path& image_file, Filter f, Wrap w) {
     if (name.empty()) return;
     const std::string file = formatPath(image_file);
     if (std::error_code ec; !std::filesystem::is_regular_file(file, ec))
@@ -1166,7 +1223,7 @@ void Shader::setTexture(const std::string& name, const path& image_file, Filter 
         return;
 
     const SLGLenum filt = (f == Filter::Nearest) ? SL_NEAREST : SL_LINEAR;
-    const SLGLenum wr   = (w == Wrap::Repeat)    ? SL_REPEAT  : SL_CLAMP_TO_EDGE;
+    const SLGLenum wr = (w == Wrap::Repeat) ? SL_REPEAT : SL_CLAMP_TO_EDGE;
     int iw = 0, ih = 0;
     SLGLuint tex = loadImageTexture(file, filt, wr, iw, ih);
 
@@ -1182,8 +1239,7 @@ void Shader::setTexture(const std::string& name, const path& image_file, Filter 
     markLegacyChannel(name, t);
 }
 
-void Shader::setTexture(const std::string& name, const ShaderPtr& src, int attachment)
-{
+void Shader::setTexture(const std::string& name, const ShaderPtr& src, int attachment) {
     if (name.empty() || !src) return;
     // reading and writing one texture in a pass is what ping-pong is for
     if (src.get() == this) {
@@ -1198,8 +1254,7 @@ void Shader::setTexture(const std::string& name, const ShaderPtr& src, int attac
     markLegacyChannel(name, t);
 }
 
-void Shader::setTextureSelf(const std::string& name, int attachment)
-{
+void Shader::setTextureSelf(const std::string& name, int attachment) {
     if (name.empty()) return;
     releaseTexture(name);
     Texture& t = textures[name];
@@ -1209,19 +1264,16 @@ void Shader::setTextureSelf(const std::string& name, int attachment)
     refreshFeedback();
 }
 
-void Shader::clearTexture(const std::string& name)
-{
+void Shader::clearTexture(const std::string& name) {
     releaseTexture(name);
 }
 
-void Shader::clearTextures()
-{
+void Shader::clearTextures() {
     while (!textures.empty())
         releaseTexture(textures.begin()->first);
 }
 
-void Shader::retainTextures(const std::vector<std::string>& names)
-{
+void Shader::retainTextures(const std::vector<std::string>& names) {
     std::vector<std::string> drop;
     for (auto& [name, t] : textures)
         // file-backed only, the others were set from code this never saw
@@ -1235,37 +1287,32 @@ void Shader::retainTextures(const std::vector<std::string>& names)
 // "iChannel2" -> 2, so the bind loop knows to also fill iChannelResolution[2].
 // Only these four reserved names carry it. A named texture reports its size
 // through <name>_size instead.
-void Shader::markLegacyChannel(const std::string& name, Texture& t)
-{
+void Shader::markLegacyChannel(const std::string& name, Texture& t) {
     t.legacy_channel = -1;
     for (int i = 0; i < kChannels; ++i)
         if (name == ChannelName(i))
             t.legacy_channel = i;
 }
 
-void Shader::setFloatBuffer(bool on)
-{
+void Shader::setFloatBuffer(bool on) {
     if (float_buffer == on) return;
     float_buffer = on;
     gl_ready = false;
 }
 
-void Shader::setFilter(Filter f)
-{
+void Shader::setFilter(Filter f) {
     self_filter = (f == Filter::Nearest) ? SL_NEAREST : SL_LINEAR;
     gl_ready = false;
 }
 
-void Shader::setWrap(Wrap w)
-{
+void Shader::setWrap(Wrap w) {
     self_wrap = (w == Wrap::Repeat) ? SL_REPEAT : SL_CLAMP_TO_EDGE;
     gl_ready = false;
 }
 
 void Shader::setHidden(bool on) { hidden = on; }
 
-void Shader::setTargets(int n)
-{
+void Shader::setTargets(int n) {
     n = std::max(1, std::min(n, kMaxTargets));
     if (n == num_targets) return;
     num_targets = n;
@@ -1274,8 +1321,7 @@ void Shader::setTargets(int n)
 
 // data textures, CPU to GPU
 void Shader::setTexture(const std::string& name, const float* data, int w, int h,
-                        int comps, Filter f, Wrap wrapMode)
-{
+                        int comps, Filter f, Wrap wrapMode) {
     if (name.empty() || !data || w <= 0 || h <= 0)
         return;
     auto& g = gl();
@@ -1283,16 +1329,28 @@ void Shader::setTexture(const std::string& name, const float* data, int w, int h
         return;
     comps = std::max(1, std::min(4, comps));
 
-    SLGLint  internal;
+    SLGLint internal;
     SLGLenum fmt;
     switch (comps) {
-        case 1:  internal = SLGLint(SL_R32F);    fmt = SL_RED;  break;
-        case 2:  internal = SLGLint(SL_RG32F);   fmt = SL_RG;   break;
-        case 3:  internal = SLGLint(SL_RGB32F);  fmt = SL_RGB;  break;
-        default: internal = SLGLint(SL_RGBA32F); fmt = SL_RGBA; break;
+    case 1:
+        internal = SLGLint(SL_R32F);
+        fmt = SL_RED;
+        break;
+    case 2:
+        internal = SLGLint(SL_RG32F);
+        fmt = SL_RG;
+        break;
+    case 3:
+        internal = SLGLint(SL_RGB32F);
+        fmt = SL_RGB;
+        break;
+    default:
+        internal = SLGLint(SL_RGBA32F);
+        fmt = SL_RGBA;
+        break;
     }
-    const SLGLenum filter = (f == Filter::Nearest)     ? SL_NEAREST : SL_LINEAR;
-    const SLGLenum wrap   = (wrapMode == Wrap::Repeat) ? SL_REPEAT  : SL_CLAMP_TO_EDGE;
+    const SLGLenum filter = (f == Filter::Nearest) ? SL_NEAREST : SL_LINEAR;
+    const SLGLenum wrap = (wrapMode == Wrap::Repeat) ? SL_REPEAT : SL_CLAMP_TO_EDGE;
 
     SLGLint prev_tex = 0;
     g.GetIntegerv(SL_TEXTURE_BINDING_2D, &prev_tex);
@@ -1316,16 +1374,18 @@ void Shader::setTexture(const std::string& name, const float* data, int w, int h
         g.TexParameteri(SL_TEXTURE_2D, SL_TEXTURE_MAG_FILTER, SLGLint(filter));
         g.TexParameteri(SL_TEXTURE_2D, SL_TEXTURE_WRAP_S, SLGLint(wrap));
         g.TexParameteri(SL_TEXTURE_2D, SL_TEXTURE_WRAP_T, SLGLint(wrap));
-        c.w = w; c.h = h; c.comps = comps;
-        c.filter = f; c.wrap = wrapMode;
+        c.w = w;
+        c.h = h;
+        c.comps = comps;
+        c.filter = f;
+        c.wrap = wrapMode;
         markLegacyChannel(name, c);
     }
     g.BindTexture(SL_TEXTURE_2D, SLGLuint(prev_tex));
 }
 
 // readback, GPU to CPU
-bool Shader::readback(std::vector<float>& out, int attachment) const
-{
+bool Shader::readback(std::vector<float>& out, int attachment) const {
     auto& g = gl();
     if (!g.ok || !compiled || !buf[cur].fbo ||
         attachment < 0 || attachment >= num_targets || !buf[cur].tex[attachment])
@@ -1340,21 +1400,22 @@ bool Shader::readback(std::vector<float>& out, int attachment) const
     return true;
 }
 
-RGBA Shader::readbackMean(int attachment) const
-{
+RGBA Shader::readbackMean(int attachment) const {
     std::vector<float> px;
     if (!readback(px, attachment) || px.empty())
         return RGBA(0.f, 0.f, 0.f, 0.f);
     double r = 0, gg = 0, b = 0, a = 0;
     const size_t n = px.size() / 4;
     for (size_t k = 0; k < n; ++k) {
-        r += px[4*k]; gg += px[4*k+1]; b += px[4*k+2]; a += px[4*k+3];
+        r += px[4 * k];
+        gg += px[4 * k + 1];
+        b += px[4 * k + 2];
+        a += px[4 * k + 3];
     }
-    return RGBA(float(r/n), float(gg/n), float(b/n), float(a/n));
+    return RGBA(float(r / n), float(gg / n), float(b / n), float(a / n));
 }
 
-RGBA Shader::readbackPixel(int x, int y, int attachment) const
-{
+RGBA Shader::readbackPixel(int x, int y, int attachment) const {
     auto& g = gl();
     if (!g.ok || !compiled || !buf[cur].fbo ||
         attachment < 0 || attachment >= num_targets || !buf[cur].tex[attachment] ||
@@ -1371,8 +1432,7 @@ RGBA Shader::readbackPixel(int x, int y, int attachment) const
 }
 
 // shader storage buffers
-void Shader::setBuffer(int binding, const void* data, std::size_t bytes)
-{
+void Shader::setBuffer(int binding, const void* data, std::size_t bytes) {
     auto& g = gl();
     if (!g.ok || binding < 0 || bytes == 0)
         return;
@@ -1391,16 +1451,14 @@ void Shader::setBuffer(int binding, const void* data, std::size_t bytes)
     g.BindBuffer(SL_SHADER_STORAGE_BUFFER, 0);
 }
 
-void Shader::allocBuffer(int binding, std::size_t bytes)
-{
+void Shader::allocBuffer(int binding, std::size_t bytes) {
     if (bytes == 0)
         return;
     std::vector<unsigned char> zeros(bytes, 0);
     setBuffer(binding, zeros.data(), bytes);
 }
 
-bool Shader::readBuffer(int binding, void* dst, std::size_t bytes) const
-{
+bool Shader::readBuffer(int binding, void* dst, std::size_t bytes) const {
     auto& g = gl();
     auto it = ssbos.find(binding);
     if (!g.ok || it == ssbos.end() || !it->second || !it->second->id ||
@@ -1413,8 +1471,7 @@ bool Shader::readBuffer(int binding, void* dst, std::size_t bytes) const
     return true;
 }
 
-void Shader::clearBufferData(int binding, unsigned int value)
-{
+void Shader::clearBufferData(int binding, unsigned int value) {
     auto& g = gl();
     auto it = ssbos.find(binding);
     if (!g.ok || !g.ClearBufferData || it == ssbos.end() ||
@@ -1427,21 +1484,20 @@ void Shader::clearBufferData(int binding, unsigned int value)
     g.BindBuffer(SL_SHADER_STORAGE_BUFFER, 0);
 }
 
-void Shader::shareBuffer(int binding, const ShaderPtr& src, int src_binding)
-{
+void Shader::shareBuffer(int binding, const ShaderPtr& src, int src_binding) {
     if (binding < 0 || !src || src.get() == this)
         return;
     auto it = src->ssbos.find(src_binding);
     if (it == src->ssbos.end() || !it->second) {
         spdlog::warn("[shader] shareBuffer : the source has no buffer at binding {}"
-                     " (set it before sharing it)", src_binding);
+                     " (set it before sharing it)",
+                     src_binding);
         return;
     }
-    ssbos[binding] = it->second;   // one buffer, two binding points
+    ssbos[binding] = it->second; // one buffer, two binding points
 }
 
-void Shader::clearBuffer(int binding)
-{
+void Shader::clearBuffer(int binding) {
     auto it = ssbos.find(binding);
     if (it == ssbos.end())
         return;
@@ -1455,8 +1511,7 @@ void Shader::clearBuffer(int binding)
 }
 
 // GL resources
-void Shader::ensureResources()
-{
+void Shader::ensureResources() {
     if (gl_ready)
         return;
     auto& g = gl();
@@ -1467,8 +1522,8 @@ void Shader::ensureResources()
         g.GenVertexArrays(1, &vao);
 
     // the caller captures GL state after this runs, so restore the viewport here
-    SLGLint prev_fbo = 0, prev_tex = 0, prev_vp[4] = {0,0,0,0};
-    SLGLfloat prev_clear[4] = {0,0,0,0};
+    SLGLint prev_fbo = 0, prev_tex = 0, prev_vp[4] = {0, 0, 0, 0};
+    SLGLfloat prev_clear[4] = {0, 0, 0, 0};
     g.GetIntegerv(SL_FRAMEBUFFER_BINDING, &prev_fbo);
     g.GetIntegerv(SL_TEXTURE_BINDING_2D, &prev_tex);
     g.GetIntegerv(SL_VIEWPORT, prev_vp);
@@ -1479,7 +1534,7 @@ void Shader::ensureResources()
     // just a swap of which one we read / write.
     const int n = feedback ? 2 : 1;
     const SLGLint internal = float_buffer ? SLGLint(SL_RGBA32F) : SLGLint(SL_RGBA);
-    const SLGLenum type    = float_buffer ? SL_FLOAT : SL_UNSIGNED_BYTE;
+    const SLGLenum type = float_buffer ? SL_FLOAT : SL_UNSIGNED_BYTE;
 
     const int nt = std::max(1, std::min(num_targets, kMaxTargets));
     SLGLenum draw_bufs[kMaxTargets];
@@ -1505,7 +1560,7 @@ void Shader::ensureResources()
                 g.TexParameteri(SL_TEXTURE_2D, SL_TEXTURE_WRAP_T, SLGLint(self_wrap));
                 g.FramebufferTexture2D(SL_FRAMEBUFFER, SL_COLOR_ATTACHMENT0 + a,
                                        SL_TEXTURE_2D, T.tex[a], 0);
-            } else if (T.tex[a]) {           // shrinking, drop stale attachments
+            } else if (T.tex[a]) { // shrinking, drop stale attachments
                 g.DeleteTextures(1, &T.tex[a]);
                 T.tex[a] = 0;
                 g.FramebufferTexture2D(SL_FRAMEBUFFER, SL_COLOR_ATTACHMENT0 + a,
@@ -1531,8 +1586,7 @@ void Shader::ensureResources()
     gl_ready = true;
 }
 
-void Shader::recompile()
-{
+void Shader::recompile() {
     needs_recompile = false;
     auto& g = gl();
     if (!g.ok)
@@ -1564,16 +1618,16 @@ void Shader::recompile()
     // keyframe defines come after the prelude (they may reference nothing) and
     // before the #line reset, so user line numbers in compile errors stay right
     const std::string frag = complete
-        ? X.source
-        : (versionLine() + std::string(kFragPreludeBody) + keyframeDefines()
-           + kLineReset + X.source);
+                                 ? X.source
+                                 : (versionLine() + std::string(kFragPreludeBody) + keyframeDefines() + kLineReset + X.source);
 
     // an SSBO shader on a context that cannot offer 430 would fail to compile
     // name the real cause before the confusing "unexpected buffer" error
     if (!complete && std::string(versionLine()).find("430") == std::string::npos &&
         fragment_src.find("std430") != std::string::npos)
         spdlog::error("[shader] this shader uses SSBOs (std430) but the GL context "
-                      "is only {}.{} : shader storage buffers need 4.3", g.major, g.minor);
+                      "is only {}.{} : shader storage buffers need 4.3",
+                      g.major, g.minor);
 
     SLGLuint vs = compileStage(SL_VERTEX_SHADER,
                                versionLine() + std::string(kVertexBody), "vertex");
@@ -1633,50 +1687,49 @@ void Shader::recompile()
 
 // resolve every built-in name once, here, rather than once per frame. Only
 // called after a link succeeds, a failed recompile keeps the previous locations
-void Shader::cacheUniformLocations()
-{
+void Shader::cacheUniformLocations() {
     auto& g = gl();
     if (!g.ok || !program)
         return;
-    auto L = [&](const char* n){ return g.GetUniformLocation(program, n); };
+    auto L = [&](const char* n) { return g.GetUniformLocation(program, n); };
 
     uloc = BuiltinLocs{};
     uloc.iResolution = L("iResolution");
-    uloc.iAspect     = L("iAspect");
-    uloc.iTime       = L("iTime");
-    uloc.iTimeDelta  = L("iTimeDelta");
-    uloc.iFrame      = L("iFrame");
-    uloc.iFrameRate  = L("iFrameRate");
+    uloc.iAspect = L("iAspect");
+    uloc.iTime = L("iTime");
+    uloc.iTimeDelta = L("iTimeDelta");
+    uloc.iFrame = L("iFrame");
+    uloc.iFrameRate = L("iFrameRate");
 
-    uloc.from_begin            = L("from_begin");
-    uloc.from_action           = L("from_action");
-    uloc.inner_time            = L("inner_time");
-    uloc.delta_time            = L("delta_time");
+    uloc.from_begin = L("from_begin");
+    uloc.from_action = L("from_action");
+    uloc.inner_time = L("inner_time");
+    uloc.delta_time = L("delta_time");
     uloc.absolute_frame_number = L("absolute_frame_number");
     uloc.relative_frame_number = L("relative_frame_number");
-    uloc.transition_parameter  = L("transition_parameter");
-    uloc.slide_progress        = L("slide_progress");
-    uloc.iSlideTime            = L("iSlideTime");
+    uloc.transition_parameter = L("transition_parameter");
+    uloc.slide_progress = L("slide_progress");
+    uloc.iSlideTime = L("iSlideTime");
 
-    uloc.iView       = L("iView");
-    uloc.iViewInv    = L("iViewInv");
-    uloc.iProj       = L("iProj");
-    uloc.iProjInv    = L("iProjInv");
-    uloc.iCamPos     = L("iCamPos");
-    uloc.iCamFov     = L("iCamFov");
+    uloc.iView = L("iView");
+    uloc.iViewInv = L("iViewInv");
+    uloc.iProj = L("iProj");
+    uloc.iProjInv = L("iProjInv");
+    uloc.iCamPos = L("iCamPos");
+    uloc.iCamFov = L("iCamFov");
     uloc.iScreenRect = L("iScreenRect");
     uloc.iWindowSize = L("iWindowSize");
     uloc.iViewCenter = L("iViewCenter");
-    uloc.iViewHalf   = L("iViewHalf");
+    uloc.iViewHalf = L("iViewHalf");
 
-    uloc.iSceneDepth      = L("iSceneDepth");
+    uloc.iSceneDepth = L("iSceneDepth");
     uloc.iSceneDepthValid = L("iSceneDepthValid");
-    uloc.iSceneDepthSize  = L("iSceneDepthSize");
+    uloc.iSceneDepthSize = L("iSceneDepthSize");
 
-    uloc.iMouse     = L("iMouse");
+    uloc.iMouse = L("iMouse");
     uloc.iMouseNorm = L("iMouseNorm");
-    uloc.iHovered   = L("iHovered");
-    uloc.iDate      = L("iDate");
+    uloc.iHovered = L("iHovered");
+    uloc.iDate = L("iDate");
 
     // Only the ShaderToy resolution array is a fixed built-in.
     // The samplers are named at runtime and resolved for each texture below.
@@ -1694,9 +1747,8 @@ void Shader::cacheUniformLocations()
     array_overflow_said.clear();
 }
 
-void Shader::setTexture(const std::string &name, const SnippetTexture::Spec &spec,
-                        Filter f, Wrap wrap)
-{
+void Shader::setTexture(const std::string& name, const SnippetTexture::Spec& spec,
+                        Filter f, Wrap wrap) {
     auto& e = snippet_textures[name];
     if (e.tex)
         e.tex->configure(spec);
@@ -1706,9 +1758,8 @@ void Shader::setTexture(const std::string &name, const SnippetTexture::Spec &spe
     e.wrap = wrap;
 }
 
-void Shader::refreshSnippetTextures()
-{
-    for (auto& [name, e] : snippet_textures){
+void Shader::refreshSnippetTextures() {
+    for (auto& [name, e] : snippet_textures) {
         if (!e.tex || !e.tex->update())
             continue;
         setTexture(name, e.tex->data(), e.tex->width(), e.tex->height(),
@@ -1716,8 +1767,7 @@ void Shader::refreshSnippetTextures()
     }
 }
 
-void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
-{
+void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis) {
     refreshSnippetTextures();
     ensureResources();
     if (needs_recompile)
@@ -1728,10 +1778,10 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
 
     // save the bits of GL state we are about to stomp, so polyscope's own frame
     // resumes untouched
-    SLGLint prev_fbo=0, prev_prog=0, prev_vao=0, prev_tex=0, prev_vp[4]={0,0,0,0};
-    SLGLfloat prev_clear[4] = {0,0,0,0};
-    const bool prev_depth   = g.IsEnabled(SL_DEPTH_TEST) != 0;
-    const bool prev_blend   = g.IsEnabled(SL_BLEND) != 0;
+    SLGLint prev_fbo = 0, prev_prog = 0, prev_vao = 0, prev_tex = 0, prev_vp[4] = {0, 0, 0, 0};
+    SLGLfloat prev_clear[4] = {0, 0, 0, 0};
+    const bool prev_depth = g.IsEnabled(SL_DEPTH_TEST) != 0;
+    const bool prev_blend = g.IsEnabled(SL_BLEND) != 0;
     const bool prev_scissor = g.IsEnabled(SL_SCISSOR_TEST) != 0;
     g.GetFloatv(SL_COLOR_CLEAR_VALUE, prev_clear);
     g.GetIntegerv(SL_FRAMEBUFFER_BINDING, &prev_fbo);
@@ -1741,7 +1791,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     g.GetIntegerv(SL_VIEWPORT, prev_vp);
 
     // ping-pong, read the current output and write the other target
-    const int read  = cur;
+    const int read = cur;
     const int write = feedback ? (1 - cur) : 0;
 
     g.BindFramebuffer(SL_FRAMEBUFFER, buf[write].fbo);
@@ -1759,9 +1809,9 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     g.UseProgram(program);
     g.BindVertexArray(vao);
 
-    const BuiltinLocs& U = uloc;   // resolved at link time, not per frame
-    SLGLuint scene_depth_tex = 0;  // filled by the camera block, bound after
-                                   // the textures (whose count fixes its unit)
+    const BuiltinLocs& U = uloc;  // resolved at link time, not per frame
+    SLGLuint scene_depth_tex = 0; // filled by the camera block, bound after
+                                  // the textures (whose count fixes its unit)
 
     // built-in uniforms
     if (int l = U.iResolution; l >= 0) g.Uniform2f(l, float(res_x), float(res_y));
@@ -1793,11 +1843,10 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     // Latched rather than re-read by worldToScreen, since a label must land on
     // the view that was drawn even though the anchor resolves on another call.
     drawn_view_center = view_center ? view_center() : vec2::Zero();
-    drawn_view_half   = resolveViewHalf();
+    drawn_view_half = resolveViewHalf();
     // a half-extent of zero collapses every world point onto the centre, which
     // is a flat picture and stacked labels rather than anything readable
-    if (view_half && !(std::abs(drawn_view_half(0)) > 1e-12
-                    && std::abs(drawn_view_half(1)) > 1e-12) && !bad_view_reported) {
+    if (view_half && !(std::abs(drawn_view_half(0)) > 1e-12 && std::abs(drawn_view_half(1)) > 1e-12) && !bad_view_reported) {
         bad_view_reported = true;
         spdlog::error("shader \"{}\" has a view half-extent of ({}, {}), so its world "
                       "space is degenerate; nothing declared it, or its name is misspelt",
@@ -1812,19 +1861,25 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     // Deferred renders run from an ImGui draw callback with an empty window
     // stack, so the rect is taken from record time, not read here.
     ImVec2 pmin, pmax;
-    if (use_pending_rect) { pmin = pending_pmin; pmax = pending_pmax; }
-    else                    screenRect(sis, pmin, pmax);
+    if (use_pending_rect) {
+        pmin = pending_pmin;
+        pmax = pending_pmax;
+    } else
+        screenRect(sis, pmin, pmax);
     const float w = pmax.x - pmin.x, h = pmax.y - pmin.y;
     const ImVec2 m = ImGui::GetIO().MousePos;
-    const float u = (m.x - pmin.x) / std::max(w, 1.f);           // 0..1, left -> right
-    const float v = (m.y - pmin.y) / std::max(h, 1.f);           // 0..1, top -> bottom
-    const bool  hovered = (u >= 0.f && u <= 1.f && v >= 0.f && v <= 1.f);
-    const float mx = u * res_x;            // rect pixels, y up
+    const float u = (m.x - pmin.x) / std::max(w, 1.f); // 0..1, left -> right
+    const float v = (m.y - pmin.y) / std::max(h, 1.f); // 0..1, top -> bottom
+    const bool hovered = (u >= 0.f && u <= 1.f && v >= 0.f && v <= 1.f);
+    const float mx = u * res_x; // rect pixels, y up
     const float my = (1.f - v) * res_y;
 
     // latch the position on the press frame, sign of iMouse.z holds the state
     const bool down = hovered && ImGui::IsMouseDown(0);
-    if (down && !mouse_was_down) { last_click_x = mx; last_click_y = my; }
+    if (down && !mouse_was_down) {
+        last_click_x = mx;
+        last_click_y = my;
+    }
     mouse_was_down = down;
 
     if (int l = U.iMouse; l >= 0)
@@ -1867,7 +1922,8 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
         // polyscope's depth buffer, so a shader can be occluded by the 3D
         // scene instead of always drawing over it. Re-asserted every frame,
         // since the options panel can toggle it live.
-        SLGLuint dtex = 0; int dw = 0, dh = 0;
+        SLGLuint dtex = 0;
+        int dw = 0, dh = 0;
         if (wants_scene_depth) {
             applySceneDepthMode();
 
@@ -1888,8 +1944,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
         }
         // usable, not merely present, mid-peel it holds the last peeled layer
         const bool depth_usable =
-            dtex && (polyscope::options::transparencyMode != polyscope::TransparencyMode::Pretty
-                     || polyscope::options::transparencyRenderPasses <= 1);
+            dtex && (polyscope::options::transparencyMode != polyscope::TransparencyMode::Pretty || polyscope::options::transparencyRenderPasses <= 1);
         if (int l = U.iSceneDepthValid; l >= 0) g.Uniform1f(l, depth_usable ? 1.f : 0.f);
         if (int l = U.iSceneDepthSize; l >= 0) g.Uniform2f(l, float(dw), float(dh));
     }
@@ -1912,13 +1967,13 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     // order. Names arrive at runtime, so the sampler locations are resolved on
     // first use after a link and cached with the program they belong to.
     int unit = 0;
-    const int unit_budget = std::max(1, g.max_units - 1);   // one kept for depth
+    const int unit_budget = std::max(1, g.max_units - 1); // one kept for depth
     for (auto& [name, c] : textures) {
         if (c.kind == Texture::Kind::Off)
             continue;
         if (c.loc_program != program) {
             c.sampler_loc = g.GetUniformLocation(program, name.c_str());
-            c.size_loc    = g.GetUniformLocation(program, (name + "_size").c_str());
+            c.size_loc = g.GetUniformLocation(program, (name + "_size").c_str());
             c.loc_program = program;
         }
         // an undeclared name costs nothing, dropping a sampler never breaks
@@ -1928,23 +1983,33 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
             static std::set<std::string> warned;
             if (warned.insert(name).second)
                 spdlog::error("[shader] out of texture units ({} available) : "
-                              "\"{}\" is not bound", unit_budget, name);
+                              "\"{}\" is not bound",
+                              unit_budget, name);
             continue;
         }
-        SLGLuint tex = 0; int cw = 0, ch = 0;
+        SLGLuint tex = 0;
+        int cw = 0, ch = 0;
         switch (c.kind) {
-            case Texture::Kind::Image:
-                tex = c.image_tex; cw = c.w; ch = c.h; break;
-            case Texture::Kind::ShaderOut:
-                // the source may have been dropped since it was bound
-                if (auto sp = c.src.lock()) {
-                    tex = sp->currentTexture(c.attachment);
-                    cw = sp->res_x; ch = sp->res_y;
-                }
-                break;
-            case Texture::Kind::Self:
-                tex = buf[read].tex[c.attachment]; cw = res_x; ch = res_y; break;
-            default: break;
+        case Texture::Kind::Image:
+            tex = c.image_tex;
+            cw = c.w;
+            ch = c.h;
+            break;
+        case Texture::Kind::ShaderOut:
+            // the source may have been dropped since it was bound
+            if (auto sp = c.src.lock()) {
+                tex = sp->currentTexture(c.attachment);
+                cw = sp->res_x;
+                ch = sp->res_y;
+            }
+            break;
+        case Texture::Kind::Self:
+            tex = buf[read].tex[c.attachment];
+            cw = res_x;
+            ch = res_y;
+            break;
+        default:
+            break;
         }
         if (!tex)
             continue;
@@ -1952,7 +2017,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
         g.ActiveTexture(SL_TEXTURE0 + c.unit);
         g.BindTexture(SL_TEXTURE_2D, tex);
         if (c.sampler_loc >= 0) g.Uniform1i(c.sampler_loc, c.unit);
-        if (c.size_loc    >= 0) g.Uniform2f(c.size_loc, float(cw), float(ch));
+        if (c.size_loc >= 0) g.Uniform2f(c.size_loc, float(cw), float(ch));
         // the four ShaderToy names also feed the resolution array they came with
         if (c.legacy_channel >= 0 && U.iChannelRes[c.legacy_channel] >= 0)
             g.Uniform3f(U.iChannelRes[c.legacy_channel], float(cw), float(ch), 1.f);
@@ -2013,120 +2078,114 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis)
     g.Viewport(prev_vp[0], prev_vp[1], prev_vp[2], prev_vp[3]);
     g.ClearColor(prev_clear[0], prev_clear[1], prev_clear[2], prev_clear[3]);
     // restored to what it was, the ImGui pass this runs in usually has it off
-    if (prev_depth) g.Enable(SL_DEPTH_TEST);
-    else            g.Disable(SL_DEPTH_TEST);
-    if (prev_blend) g.Enable(SL_BLEND);
-    else            g.Disable(SL_BLEND);
-    if (prev_scissor) g.Enable(SL_SCISSOR_TEST);
-    else              g.Disable(SL_SCISSOR_TEST);
+    if (prev_depth)
+        g.Enable(SL_DEPTH_TEST);
+    else
+        g.Disable(SL_DEPTH_TEST);
+    if (prev_blend)
+        g.Enable(SL_BLEND);
+    else
+        g.Disable(SL_BLEND);
+    if (prev_scissor)
+        g.Enable(SL_SCISSOR_TEST);
+    else
+        g.Disable(SL_SCISSOR_TEST);
 }
 
-void Shader::screenRect(const StateInSlide& sis, ImVec2& pmin, ImVec2& pmax) const
-{
+void Shader::screenRect(const StateInSlide& sis, ImVec2& pmin, ImVec2& pmax) const {
     const float scale = float(sis.getScale());
     const vec2 base = getSize();
-    const ImVec2 size(float(base(0))*scale, float(base(1))*scale);
+    const ImVec2 size(float(base(0)) * scale, float(base(1)) * scale);
     const auto P = sis.getAbsolutePosition();
-    pmin = ImVec2(P.x - size.x*0.5f, P.y - size.y*0.5f);
+    pmin = ImVec2(P.x - size.x * 0.5f, P.y - size.y * 0.5f);
     pmax = ImVec2(pmin.x + size.x, pmin.y + size.y);
 
     // recorded here rather than at the blit, since this is the one place the
     // rect is defined, so what tracking inverts is what is drawn
     const auto W = ImGui::GetWindowSize();
     if (W.x > 0 && W.y > 0) {
-        drawn_rect_min = vec2(pmin.x/W.x, pmin.y/W.y);
-        drawn_rect_max = vec2(pmax.x/W.x, pmax.y/W.y);
+        drawn_rect_min = vec2(pmin.x / W.x, pmin.y / W.y);
+        drawn_rect_max = vec2(pmax.x / W.x, pmax.y / W.y);
         rect_recorded = true;
     }
 }
 
 // world space
 
-void Shader::setView(const vec2& center, scalar half_height)
-{
-    bindView([center]{ return center; }, [half_height]{ return half_height; });
+void Shader::setView(const vec2& center, scalar half_height) {
+    bindView([center] { return center; }, [half_height] { return half_height; });
 }
 
-void Shader::bindView(std::function<vec2()> center, std::function<scalar()> half_height)
-{
+void Shader::bindView(std::function<vec2()> center, std::function<scalar()> half_height) {
     view_center = center;
-    view_half   = [half_height]{ return vec2(0, half_height ? half_height() : 1); };
-    view_x_from_aspect = true;   // x follows the render aspect, as it always has
+    view_half = [half_height] { return vec2(0, half_height ? half_height() : 1); };
+    view_x_from_aspect = true; // x follows the render aspect, as it always has
 }
 
-void Shader::setView(const vec2& center, const vec2& half)
-{
-    bindView([center]{ return center; }, [half]{ return half; });
+void Shader::setView(const vec2& center, const vec2& half) {
+    bindView([center] { return center; }, [half] { return half; });
 }
 
-void Shader::bindView(std::function<vec2()> center, std::function<vec2()> half)
-{
+void Shader::bindView(std::function<vec2()> center, std::function<vec2()> half) {
     view_center = center;
-    view_half   = half;
+    view_half = half;
     view_x_from_aspect = false;
 }
 
-void Shader::setViewRect(const vec2& lo, const vec2& hi)
-{
-    setView((lo + hi)*0.5, (hi - lo)*0.5);
+void Shader::setViewRect(const vec2& lo, const vec2& hi) {
+    setView((lo + hi) * 0.5, (hi - lo) * 0.5);
 }
 
-void Shader::bindViewRect(std::function<std::pair<vec2,vec2>()> rect)
-{
-    bindView([rect]{ auto [lo, hi] = rect(); return vec2((lo + hi)*0.5); },
-             [rect]{ auto [lo, hi] = rect(); return vec2((hi - lo)*0.5); });
+void Shader::bindViewRect(std::function<std::pair<vec2, vec2>()> rect) {
+    bindView([rect] { auto [lo, hi] = rect(); return vec2((lo + hi)*0.5); },
+             [rect] { auto [lo, hi] = rect(); return vec2((hi - lo)*0.5); });
 }
 
 // The half-extent uploaded. A scalar view takes its width from the aspect.
-vec2 Shader::resolveViewHalf() const
-{
+vec2 Shader::resolveViewHalf() const {
     vec2 h = view_half ? view_half() : vec2(1, 1);
     if (view_x_from_aspect)
         h(0) = h(1) * scalar(res_x) / std::max(res_y, 1);
     return h;
 }
 
-vec2 Shader::worldToScreen(const vec2& w) const
-{
+vec2 Shader::worldToScreen(const vec2& w) const {
     vec2 lo = drawn_rect_min, hi = drawn_rect_max;
     if (!rect_recorded) {
         // never drawn, so assume where a centered placement would put it
         const vec2 s = getRelativeSize();
-        lo = vec2(0.5 - s(0)*0.5, 0.5 - s(1)*0.5);
+        lo = vec2(0.5 - s(0) * 0.5, 0.5 - s(1) * 0.5);
         hi = lo + s;
     }
-    const vec2 mid = (lo + hi)*0.5;
+    const vec2 mid = (lo + hi) * 0.5;
     if (std::abs(drawn_view_half(0)) < 1e-12 || std::abs(drawn_view_half(1)) < 1e-12)
         return mid;
 
     // exactly iWorld() inverted, per axis
     const vec2 n = (w - drawn_view_center).cwiseQuotient(drawn_view_half);
-    const scalar u = 0.5 + n(0)*0.5;
-    const scalar v = 0.5 + n(1)*0.5;                    // y up, like gl_FragCoord
-    return vec2(lo(0) + u*(hi(0) - lo(0)),
-                lo(1) + (1 - v)*(hi(1) - lo(1)));       // y down, like anchors
+    const scalar u = 0.5 + n(0) * 0.5;
+    const scalar v = 0.5 + n(1) * 0.5; // y up, like gl_FragCoord
+    return vec2(lo(0) + u * (hi(0) - lo(0)),
+                lo(1) + (1 - v) * (hi(1) - lo(1))); // y down, like anchors
 }
 
-vec2 Shader::screenToWorld(const vec2& s) const
-{
+vec2 Shader::screenToWorld(const vec2& s) const {
     vec2 lo = drawn_rect_min, hi = drawn_rect_max;
     if (!rect_recorded) {
         const vec2 sz = getRelativeSize();
-        lo = vec2(0.5 - sz(0)*0.5, 0.5 - sz(1)*0.5);
+        lo = vec2(0.5 - sz(0) * 0.5, 0.5 - sz(1) * 0.5);
         hi = lo + sz;
     }
     const scalar dx = hi(0) - lo(0), dy = hi(1) - lo(1);
     if (std::abs(dx) < 1e-12 || std::abs(dy) < 1e-12)
         return drawn_view_center;
 
-    const scalar u = (s(0) - lo(0))/dx;
-    const scalar v = 1 - (s(1) - lo(1))/dy;
-    return drawn_view_center
-         + vec2((u - 0.5)*2, (v - 0.5)*2).cwiseProduct(drawn_view_half);
+    const scalar u = (s(0) - lo(0)) / dx;
+    const scalar v = 1 - (s(1) - lo(1)) / dy;
+    return drawn_view_center + vec2((u - 0.5) * 2, (v - 0.5) * 2).cwiseProduct(drawn_view_half);
 }
 
-std::function<vec2()> Shader::tracker(std::function<vec2()> world, vec2 offset)
-{
+std::function<vec2()> Shader::tracker(std::function<vec2()> world, vec2 offset) {
     // weak, so a tracked shader that goes away leaves the follower harmless
     std::weak_ptr<Shader> self = std::static_pointer_cast<Shader>(ScreenPrimitive::get(pid));
     return [self, world, offset]() -> vec2 {
@@ -2136,13 +2195,11 @@ std::function<vec2()> Shader::tracker(std::function<vec2()> world, vec2 offset)
     };
 }
 
-std::function<vec2()> Shader::tracker(const vec2& world, const vec2& offset)
-{
-    return tracker(std::function<vec2()>([world]{ return world; }), offset);
+std::function<vec2()> Shader::tracker(const vec2& world, const vec2& offset) {
+    return tracker(std::function<vec2()>([world] { return world; }), offset);
 }
 
-void Shader::display(const StateInSlide& sis, float global_alpha)
-{
+void Shader::display(const StateInSlide& sis, float global_alpha) {
     // a hidden pass only feeds other shaders, it renders but never blits
     if (hidden || !compiled || !buf[cur].tex[0])
         return;
@@ -2156,8 +2213,7 @@ void Shader::display(const StateInSlide& sis, float global_alpha)
                                          pmin, pmax, ImVec2(0, 1), ImVec2(1, 0), col);
 }
 
-vec2 Shader::getSize() const
-{
+vec2 Shader::getSize() const {
     // at the screen-size default res_x/res_y are the window, so show it 1:1
     if (!explicit_resolution)
         return vec2(res_x, res_y);
@@ -2175,8 +2231,7 @@ vec2 Shader::getSize() const
 // Deferred so a shader can see this frame's scene depth. ImGui only records
 // draw commands here and executes them at ImGuiRender(), after the scene pass. Only shaders using scene depth
 // defer this way, and everything else renders inline.
-void Shader::ImGuiRenderCallback(const ImDrawList*, const ImDrawCmd* cmd)
-{
+void Shader::ImGuiRenderCallback(const ImDrawList*, const ImDrawCmd* cmd) {
     Shader* self = static_cast<Shader*>(cmd->UserCallbackData);
     // the draw list outlives the frame's C++ scope, so a Shader freed between
     // recording and execution would leave a dangling pointer here
@@ -2187,10 +2242,9 @@ void Shader::ImGuiRenderCallback(const ImDrawList*, const ImDrawCmd* cmd)
 
 // Render one recorded placement. A queue, not a single slot, because every
 // placement is recorded before any callback runs, one slot per placement
-void Shader::runNextPendingRender()
-{
+void Shader::runNextPendingRender() {
     if (pending_next >= pending.size())
-        return;                                  // more callbacks than records
+        return; // more callbacks than records
     const PendingRender job = pending[pending_next++];
 
     pending_pmin = job.pmin;
@@ -2210,8 +2264,7 @@ void Shader::runNextPendingRender()
     use_pending_rect = false;
 }
 
-void Shader::reportRenderError(const std::string& what)
-{
+void Shader::reportRenderError(const std::string& what) {
     // once per shader, this would otherwise fire every frame of the talk
     if (render_error_reported)
         return;
@@ -2221,8 +2274,7 @@ void Shader::reportRenderError(const std::string& what)
                   from_file ? source_file.string() : "<inline>", what);
 }
 
-void Shader::drawWith(const TimeObject& t, const StateInSlide& sis, float alpha)
-{
+void Shader::drawWith(const TimeObject& t, const StateInSlide& sis, float alpha) {
     // A shader built before the deck was initialized could not resolve its path yet.
     // The first draw is always after the initialization, so it tries again here.
     if (from_file && load_failed)
@@ -2259,23 +2311,19 @@ void Shader::drawWith(const TimeObject& t, const StateInSlide& sis, float alpha)
     display(sis, alpha);
 }
 
-void Shader::draw(const TimeObject& t, const StateInSlide& sis)
-{
+void Shader::draw(const TimeObject& t, const StateInSlide& sis) {
     drawWith(t, sis, float(sis.getAlpha()));
 }
 
-void Shader::playIntro(const TimeObject& t, const StateInSlide& sis)
-{
+void Shader::playIntro(const TimeObject& t, const StateInSlide& sis) {
     drawWith(t, sis, float(sis.getAlpha()));
 }
 
-void Shader::playOutro(const TimeObject& t, const StateInSlide& sis)
-{
+void Shader::playOutro(const TimeObject& t, const StateInSlide& sis) {
     drawWith(t, sis, float(sis.getAlpha()));
 }
 
-std::vector<path> Shader::WatchedFiles()
-{
+std::vector<path> Shader::WatchedFiles() {
     std::vector<path> out;
     auto push = [&](const path& p) {
         if (p.empty()) return;
@@ -2287,13 +2335,13 @@ std::vector<path> Shader::WatchedFiles()
     };
     for (auto* s : all_shaders) {
         if (s->from_file) push(s->source_file);
-        for (const auto& [file, stamp] : s->include_deps) push(path(file));
+        for (const auto& [file, stamp] : s->include_deps)
+            push(path(file));
     }
     return out;
 }
 
-void Shader::HotReloadIfModified()
-{
+void Shader::HotReloadIfModified() {
     static auto last_refresh = Time::now();
     if (TimeFrom(last_refresh) < 0.2)
         return;
@@ -2319,7 +2367,7 @@ void Shader::HotReloadIfModified()
     for (auto* s : all_shaders) {
         std::error_code ec;
         if (s->from_file && s->load_failed) {
-            s->reloadFromFile();    // re-resolves the path, now that the deck is up
+            s->reloadFromFile(); // re-resolves the path, now that the deck is up
             continue;
         }
         if (s->from_file) {
@@ -2327,7 +2375,7 @@ void Shader::HotReloadIfModified()
             if (!ec && t != s->last_modified) {
                 spdlog::info("[shader] reloading {}", s->source_file.string());
                 s->reloadFromFile();
-                continue;   // the re-expansion will refresh its includes
+                continue; // the re-expansion will refresh its includes
             }
         }
         // a shared header changed, the file is untouched but the program is stale
@@ -2343,4 +2391,4 @@ void Shader::HotReloadIfModified()
     }
 }
 
-}
+} // namespace slope

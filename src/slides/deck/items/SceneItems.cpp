@@ -9,8 +9,7 @@
 namespace slope {
 
 // "color:" of any scene item, the palette colour when left out
-static void applyColor(const PrimitivePtr& p, const json& item)
-{
+static void applyColor(const PrimitivePtr& p, const json& item) {
     auto& poly = static_cast<PolyscopePrimitive&>(*p);
     if (item.contains("color"))
         poly.setColor(readColor(item["color"], ColorType(poly.getDefaultColor(), 1)));
@@ -19,13 +18,11 @@ static void applyColor(const PrimitivePtr& p, const json& item)
 }
 
 // for the items cached on content, where another colour is another object
-static std::string colorKey(const json& item)
-{
+static std::string colorKey(const json& item) {
     return item.contains("color") ? ":color=" + item["color"].dump() : "";
 }
 
-static SnippetSurface::Spec surfaceSpec(const json& item)
-{
+static SnippetSurface::Spec surfaceSpec(const json& item) {
     SnippetSurface::Spec spec;
     spec.fn = requireSection(item["surface"], "surface");
     spec.name = item.value("id", spec.fn);
@@ -54,8 +51,7 @@ static SnippetSurface::Spec surfaceSpec(const json& item)
     return spec;
 }
 
-static SnippetCurve::Spec curveSpec(const json& item)
-{
+static SnippetCurve::Spec curveSpec(const json& item) {
     SnippetCurve::Spec spec;
     spec.fn = requireSection(item["curve"], "curve");
     spec.name = item.value("id", spec.fn);
@@ -66,16 +62,15 @@ static SnippetCurve::Spec curveSpec(const json& item)
     return spec;
 }
 
-std::vector<ItemSpec> sceneItemSpecs()
-{
+std::vector<ItemSpec> sceneItemSpecs() {
     std::vector<ItemSpec> specs;
 
     specs.push_back({
-        "mesh", ItemSpec::Kind::Scene, {"id","at","transform","alpha","smooth","normalize","color","group"},
+        "mesh",
+        ItemSpec::Kind::Scene,
+        {"id", "at", "transform", "alpha", "smooth", "normalize", "color", "group"},
         [](const json& i) {
-            return "mesh:" + i["mesh"].get<std::string>()
-                 + (i.value("smooth", true) ? ":smooth" : "")
-                 + (i.value("normalize", false) ? ":norm" : "") + colorKey(i);
+            return "mesh:" + i["mesh"].get<std::string>() + (i.value("smooth", true) ? ":smooth" : "") + (i.value("normalize", false) ? ":norm" : "") + colorKey(i);
         },
         [](const json& i) -> PrimitivePtr {
             auto m = Mesh::Add(i["mesh"].get<std::string>(), i.value("smooth", true));
@@ -93,8 +88,9 @@ std::vector<ItemSpec> sceneItemSpecs()
     // cached on identity alone, so editing the domain or the resolution
     // reconfigures the object in place instead of building a second one
     specs.push_back({
-        "surface", ItemSpec::Kind::Scene,
-        {"id","at","transform","alpha","smooth","u","v","resolution","closed","color","group"},
+        "surface",
+        ItemSpec::Kind::Scene,
+        {"id", "at", "transform", "alpha", "smooth", "u", "v", "resolution", "closed", "color", "group"},
         [](const json& i) {
             auto spec = surfaceSpec(i);
             return "surface:" + spec.name + ":" + spec.fn;
@@ -108,8 +104,9 @@ std::vector<ItemSpec> sceneItemSpecs()
     });
 
     specs.push_back({
-        "curve", ItemSpec::Kind::Scene,
-        {"id","at","transform","alpha","u","resolution","closed","radius","color","group"},
+        "curve",
+        ItemSpec::Kind::Scene,
+        {"id", "at", "transform", "alpha", "u", "resolution", "closed", "radius", "color", "group"},
         [](const json& i) {
             auto spec = curveSpec(i);
             return "curve:" + spec.name + ":" + spec.fn;
@@ -124,10 +121,11 @@ std::vector<ItemSpec> sceneItemSpecs()
 
     // "point: <snippet>" rides a snippet variable, "point: [x,y,z]" sits still
     specs.push_back({
-        "point", ItemSpec::Kind::Scene, {"id","at","transform","alpha","radius","color","group"},
+        "point",
+        ItemSpec::Kind::Scene,
+        {"id", "at", "transform", "alpha", "radius", "color", "group"},
         [](const json& i) {
-            return "point:" + i["point"].dump() + ":" + std::to_string(i.value("radius", 0.05))
-                 + colorKey(i);
+            return "point:" + i["point"].dump() + ":" + std::to_string(i.value("radius", 0.05)) + colorKey(i);
         },
         [](const json& i) -> PrimitivePtr {
             LiveVec p = readLiveVec(i["point"], "point");
@@ -143,11 +141,11 @@ std::vector<ItemSpec> sceneItemSpecs()
     });
 
     specs.push_back({
-        "cloud", ItemSpec::Kind::Scene, {"id","at","transform","alpha","radius","normalize","color","group"},
+        "cloud",
+        ItemSpec::Kind::Scene,
+        {"id", "at", "transform", "alpha", "radius", "normalize", "color", "group"},
         [](const json& i) {
-            return "cloud:" + i["cloud"].get<std::string>()
-                 + (i.contains("radius") ? ":radius=" + i["radius"].dump() : "")
-                 + (i.value("normalize", false) ? ":norm" : "") + colorKey(i);
+            return "cloud:" + i["cloud"].get<std::string>() + (i.contains("radius") ? ":radius=" + i["radius"].dump() : "") + (i.value("normalize", false) ? ":norm" : "") + colorKey(i);
         },
         [](const json& i) -> PrimitivePtr {
             // a name is read every frame, so tuning it never builds a second cloud
@@ -168,4 +166,4 @@ std::vector<ItemSpec> sceneItemSpecs()
     return specs;
 }
 
-}
+} // namespace slope

@@ -6,8 +6,7 @@ namespace slope {
 namespace {
 
 // only the label changes, the binding stays ImGuiKey_LeftCtrl everywhere
-std::string platformLabel(std::string shortcut)
-{
+std::string platformLabel(std::string shortcut) {
 #ifdef __APPLE__
     std::size_t pos;
     while ((pos = shortcut.find("Ctrl")) != std::string::npos)
@@ -18,13 +17,11 @@ std::string platformLabel(std::string shortcut)
 
 } // namespace
 
-void InputManager::printInputs()
-{
+void InputManager::printInputs() {
     std::cout << "	[ KEYBOARD INPUT GUIDE ]:\n";
     for (const auto& input : inputs) {
         std::cout << "   - [" << platformLabel(input.shortcut) << "] : " << input.description << "\n";
     }
 }
-
 
 } // namespace slope

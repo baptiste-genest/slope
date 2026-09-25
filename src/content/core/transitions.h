@@ -8,25 +8,25 @@
 namespace slope {
 
 // Returns the state to draw for a given time.
-using TransitionAction = std::function<StateInSlide(const TimeObject&,const StateInSlide&)>;
+using TransitionAction = std::function<StateInSlide(const TimeObject&, const StateInSlide&)>;
 
 // How a primitive appears and disappears.
 struct TransitionAnimator {
     // Change the state while the primitive appears and disappears.
-    TransitionAction intro,outro;
+    TransitionAction intro, outro;
 
     // Easing applied to the transition parameter.
 
-    RateFunc rate_in  = rate::smooth_squared;
+    RateFunc rate_in = rate::smooth_squared;
     RateFunc rate_out = rate::smooth_squared;
 
     // Applies the intro easing to p, clamped to [0,1].
     scalar shapeIn(scalar p) const {
-        return (rate_in ? rate_in : rate::smooth_squared)(std::clamp(p,0.,1.));
+        return (rate_in ? rate_in : rate::smooth_squared)(std::clamp(p, 0., 1.));
     }
     // Applies the outro easing to p, clamped to [0,1].
     scalar shapeOut(scalar p) const {
-        return (rate_out ? rate_out : rate::smooth_squared)(std::clamp(p,0.,1.));
+        return (rate_out ? rate_out : rate::smooth_squared)(std::clamp(p, 0., 1.));
     }
 
     // Default transition, a fade.
@@ -41,6 +41,6 @@ TransitionAnimator SlideInSlideOut();
 // Leaves the state unchanged, for a primitive that animates its own appearance.
 TransitionAnimator NoTransition();
 
-}
+} // namespace slope
 
 #endif // TRANSITIONS_H
