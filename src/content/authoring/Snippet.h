@@ -35,16 +35,15 @@ namespace slope {
  *     return p + vec3(0, 0, envelope * math.exp(-20*p:norm()^2))
  *   end
  *
- * A value, a dictionary entry and what a function returns all follow one rule :
- * up to 4 numbers, given as any mix of numbers, booleans, vec2/vec3/complex and
- * arrays of those. So these are the same vec3 :
+ * A value, a dictionary entry and what a function returns are read the same
+ * way, as up to 4 numbers given by numbers, vec2/vec3/complex or arrays of
+ * those. These three are the same vec3.
  *
  *   return x, y, z          return vec3(x, y, z)          return {x, y, z}
  *
- * Anything else (a string, a nested array, 5 numbers) is an error, and so is
- * reading a value with the wrong number of components, except a vec2 read as
- * a vec3 (z = 0) and an RGB read as a color (alpha = 1). Both are said once
- * per reload, in the file editor and the log.
+ * Any other shape is an error. Reading a value with the wrong number of
+ * components is a warning, unless a vec2 is read as a vec3 (z = 0) or an RGB
+ * as a color (alpha = 1).
  *
  * A section name may be grouped with "/", so it can own a parameter another
  * object publishes.
@@ -102,13 +101,15 @@ namespace slope {
  *              bounds and returns it, tunable in the Tuner panel and saved to
  *              params.json. An existing parameter is read by its bare name,
  *              like any other value in the namespace
- *   vec2/vec3  arithmetic, :norm() :dot() :cross()
+ *   vec2/vec3  arithmetic and ==, :norm() :dot() :cross(), never mixing sizes
  *   complex    *complex* * and /, :abs() :arg() :conj(), cis(theta)
  *   smoothstep, plus Lua's math / string
  *
  * A syntax error keeps the last chunk that worked, a runtime error freezes that
  * section's values, and both are logged once and retried on the next edit, so a
- * broken snippet never takes the talk down.
+ * broken snippet never takes the talk down. Everything else that is likely a
+ * mistake (a nan, an unknown keyframe, a name published twice, a malformed
+ * "--- name" line) is a warning. All of them show in the file editor.
  */
 
 class Snippet;
@@ -136,8 +137,7 @@ public:
 
     // ── values ─────────────────────────────────────────────────────────────
     // 1..4 components, whatever the section returned; n == 0 means the name is
-    // unknown or its section failed. A conversion keeps the first components
-    // and fills the missing ones with zero, alpha with one
+    // unknown or its section failed. Missing components convert to 0, alpha to 1
     struct Value {
         std::array<scalar,4> v{{0,0,0,0}};
         int n = 0;
@@ -180,9 +180,7 @@ public:
     static long reloads();
 
     static Value get(const std::string& name);
-    // the same, and says so when the name is unknown or its value is not `want`
-    // numbers; for any reader that has no fallback of its own
-    //   vec2 c = Snippet::get("center", 2);
+    // warns when the name is unknown or does not hold `want` numbers
     static Value get(const std::string& name, int want);
     // bumps whenever the value actually differs from the previous frame's.
     // Track it yourself only when one consumer watches many things; dirty()
@@ -229,8 +227,8 @@ public:
     // survives hot reloads, the handle is stable and its chunk re-resolved
     static CallPtr resolve(const std::string& name);
     // flat marshalling, so the fn<> template below needs no Lua header.
-    // sizes[i] is the component count of argument i (1, 2 or 3). Not `exact`,
-    // returning more than nout numbers is fine.
+    // sizes[i] is the component count of argument i (1, 2 or 3). `exact` also
+    // warns about extra results.
     static bool invoke(const CallPtr& c, const scalar* in, const int* sizes,
                        int nargs, scalar* out, int nout, bool exact = true);
 

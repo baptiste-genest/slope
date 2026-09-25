@@ -411,12 +411,84 @@ return 3
         const std::string msg = errors.empty() ? "" : errors.begin()->second;
         for (const char* n : {"'word' returns a string", "'five' returns 5 numbers",
                               "'f_nothing' returns nothing", "'f_scalar' returns a number where a vec3",
-                              "'not_fn' is used as a function", "'not_fn' (section 'not_fn') holds a number where a vec2"})
+                              "'not_fn' returns a value but is called as a function", "'not_fn' (section 'not_fn') holds a number where a vec2"})
             if (msg.find(n) == std::string::npos) {
-                std::cerr << "missing from the file editor : " << n << "\n" << msg << std::endl;
+                std::cerr << "the file editor lacks \"" << n << "\"\n" << msg << std::endl;
                 failures++;
             }
     }
+
+    // ── every other mistake is said too, not only shapes ────────────────────
+    static const std::map<std::string, int> kf2{{"a", 0}};
+    TimeObject::keyframes = &kf2;
+    rewrite(R"(local stray = 1
+--- add_nil
+return vec2(1, 2) + nil
+
+--- add_mixed
+return vec2(1, 2) + vec3(1, 2, 3)
+
+--- dot_num
+return vec2(1, 2):dot(3)
+
+--- dotted_norm
+return vec2(1, 2).norm()
+
+--- no_field
+return vec2(1, 2).w
+
+--- inf
+return 1 / 0
+
+--- kf
+return t:sinceKeyframe("typo")
+
+--- f_inf
+return function(x) return 1 / x end
+
+--- dup
+return 1
+
+--- dup
+return 2
+
+--- d1
+return { k = 1 }
+
+--- d2
+return { k = 2 }
+
+--- eq
+return vec2(1, 2) == vec2(1, 2)
+
+--- my-name
+)");
+    Snippet::setTime(at(0));
+    Snippet::get("k");
+    CHECK_NEAR((scalar)Snippet::get("eq"), 1.0);
+    Snippet::fn<scalar(scalar)>("f_inf")(0);
+    {
+        const auto errors = ReloadErrors::all();
+        const std::string msg = errors.empty() ? "" : errors.begin()->second;
+        for (const char* n : {"cannot add a vec2 and a nil", "cannot add a vec2 and a vec3",
+                              "dot_num: vec2:dot() wants a vec2 but got a number", "dotted_norm: norm is a method",
+                              "a vec2 has no field 'w'", "'inf' is nan or inf",
+                              "unknown keyframe \"typo\"", "'f_inf' returns nan or inf",
+                              "'--- my-name' is not a section header",
+                              "code before the first", "section 'dup' is declared twice",
+                              "'k' is published by both section"})
+            if (msg.find(n) == std::string::npos) {
+                std::cerr << "the file editor lacks \"" << n << "\"" << std::endl;
+                failures++;
+            }
+        if (failures) std::cerr << msg << std::endl;
+    }
+    TimeObject::keyframes = nullptr;
+
+    // a snippet file that does not exist is a load error, not an empty file
+    bool threw = false;
+    try { Snippet::load("no_such_file.lua"); } catch (const std::runtime_error&) { threw = true; }
+    CHECK(threw);
 
     // ── the per-call cost, for the record ───────────────────────────────────
     // trivial vs realistic, to separate the C -> Lua boundary from the body

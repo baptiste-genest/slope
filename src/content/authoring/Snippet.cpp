@@ -8,16 +8,20 @@
 #include <fstream>
 #include <sstream>
 #include <cstring>
+#include <cstdarg>
 #include <set>
 
 #include <lua.hpp>   // already wraps the C headers in extern "C"
 
 namespace slope {
 
+namespace { struct Section; }
+
 // a stable handle, hot reload swaps the chunk underneath it
 struct Snippet::Call {
     std::string name;
     int  ref = LUA_NOREF;
+    Section* sec = nullptr;   // bound with ref
     long failed_frame = -1;
     bool reported = false;
 };
@@ -104,12 +108,14 @@ int time_ref     = LUA_NOREF;
 bool evaluateSection(Section* s);
 bool evaluateVar(const std::string& name);
 
+// lets a built-in say which section misused it
+Section* running = nullptr;
+
 // set while discovery only learns what each section publishes, where a failure
 // is about a name that has not run yet rather than about the snippet
 bool quiet_reports = false;
 
-// every standing problem, per file then per subject, so the file editor shows
-// them all rather than the last one
+// per file then per subject, so the editor lists them all
 std::map<std::string, std::map<std::string, std::string>> problems;
 std::set<std::string> warned;
 
@@ -130,18 +136,54 @@ void reportOnce(Section* s, const std::string& what) {
     spdlog::error("[snippet] {}", what);
 }
 
-// a usable value read the wrong way, said once per reload
+// once per reload, in the section's file or else the first snippet file
 void warnOnce(const Section* s, const std::string& key, const std::string& what) {
     if (quiet_reports || !warned.insert(key).second) return;
     if (s) publishProblem(s->file, key, what);
+    else if (!files.empty()) publishProblem(files.front().given.string(), key, what);
     spdlog::warn("[snippet] {}", what);
 }
 
+// where the Lua code calling a built-in is, as "file:section:line: "
+std::string whereCalled(lua_State* s) {
+    for (int level = 1; level <= 2; level++) {
+        luaL_where(s, level);
+        std::string w = lua_tostring(s, -1) ? lua_tostring(s, -1) : "";
+        lua_pop(s, 1);
+        if (!w.empty()) return w;
+    }
+    // "return f(x)" is a tail call, which drops the caller's line
+    return running ? running->file + ":" + running->name + ": " : "";
+}
+
+// like luaL_error, but located at the caller
+int raise(lua_State* s, const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    lua_pushstring(s, whereCalled(s).c_str());
+    lua_pushvfstring(s, fmt, ap);
+    va_end(ap);
+    lua_concat(s, 2);
+    return lua_error(s);
+}
+
+void warnHere(lua_State* s, const std::string& key, const std::string& what) {
+    warnOnce(running, key, whereCalled(s) + what);
+}
+
+bool finite(const Snippet::Value& v) {
+    for (int i = 0; i < v.n; i++)
+        if (!std::isfinite(v.v[i])) return false;
+    return true;
+}
+
+void checkFinite(const Section* s, const std::string& name, const Snippet::Value& v) {
+    if (!finite(v))
+        warnOnce(s, name + "#finite", "'" + name + "' is nan or inf, maybe from a division by zero");
+}
+
 // ── reading what Lua returned into a Snippet::Value ─────────────────────────
-// One rule for sections and the functions they return : any mix of numbers,
-// booleans, vec2/vec3/complex and arrays of those, 4 numbers at most, so
-// "return x, y", "return vec2(x, y)" and "return {x, y}" are the same value.
-const char* kShapes = "; a value is up to 4 numbers, vectors or arrays";
+const char* kShapes = " instead of at most 4 numbers, vectors or arrays";
 
 std::string shape(int n) {
     switch (n) {
@@ -153,11 +195,12 @@ std::string shape(int n) {
     }
 }
 
-// a vec2 widens to a vec3 in the z = 0 plane; any other difference is a mistake
+// only a vec2 may widen to a vec3, in the z = 0 plane
 bool fits(int n, int want, bool exact) {
     return n == want || (n == 2 && want == 3) || (!exact && n > want);
 }
 
+// numbers, booleans, vectors and flat arrays of those, in order
 bool flatten(lua_State* s, int idx, Snippet::Value& out, int& total, std::string& err, int depth) {
     auto put = [&](double x) { if (total < 4) out.v[total] = x; total++; };
     switch (lua_type(s, idx)) {
@@ -228,10 +271,15 @@ void storeVar(const std::string& name, Section* sec, const Snippet::Value& val) 
     // one namespace, so a name held by both sides is a mistake, not a winner
     if (Params::components(name) > 0 && !clash_reported.count(name)) {
         clash_reported.insert(name);
-        spdlog::error("[snippet] \"{}\" is published by a section and registered as a "
-                      "parameter; they share one namespace, so rename one", name);
+        const std::string msg = "'" + name + "' is both published by a section and registered as "
+                                "a parameter, which share one namespace, so rename one";
+        if (sec) publishProblem(sec->file, name + "#param", msg);
+        spdlog::error("[snippet] {}", msg);
     }
     Var& var = vars[name];
+    if (sec && var.sec && var.sec != sec)
+        warnOnce(sec, name + "#twice", "'" + name + "' is published by both section '"
+                 + var.sec->name + "' and section '" + sec->name + "', so the last one run wins");
     var.sec = sec;
     if (var.frame >= 0) {
         bool moved = var.value.n != val.n;
@@ -274,11 +322,16 @@ int env_index(lua_State* s) {
             return 1;
         }
     }
-    // a callable section, so one snippet can build on another
-    if (auto it = sections.find(name); it != sections.end()
-        && evaluateSection(it->second.get()) && it->second->call_ref != LUA_NOREF) {
-        lua_rawgeti(s, LUA_REGISTRYINDEX, it->second->call_ref);
-        return 1;
+    // a section not run yet, either a callable or a value its run just published
+    if (auto it = sections.find(name); it != sections.end() && evaluateSection(it->second.get())) {
+        if (it->second->call_ref != LUA_NOREF) {
+            lua_rawgeti(s, LUA_REGISTRYINDEX, it->second->call_ref);
+            return 1;
+        }
+        if (auto v = vars.find(name); v != vars.end() && v->second.value.valid()) {
+            pushValue(s, v->second.value);
+            return 1;
+        }
     }
     if (auto v = fromParams(name); v.valid()) {
         pushValue(s, v);
@@ -304,7 +357,11 @@ bool evaluateSection(Section* s) {
 
     const int base = lua_gettop(L);
     lua_rawgeti(L, LUA_REGISTRYINDEX, s->ref);
-    if (lua_pcall(L, 0, LUA_MULTRET, 0) != 0) {
+    Section* outer = running;
+    running = s;
+    const int rc = lua_pcall(L, 0, LUA_MULTRET, 0);
+    running = outer;
+    if (rc != 0) {
         reportOnce(s, std::string(lua_tostring(L, -1) ? lua_tostring(L, -1) : "error"));
         lua_settop(L, base);
         s->failed = true;
@@ -330,10 +387,12 @@ bool evaluateSection(Section* s) {
                 Snippet::Value v;
                 std::string err;
                 if (lua_isfunction(L, -1))
-                    reportOnce(s, "section '" + s->name + "', key '" + k + "' holds a function;"
-                                  " a callable must be a section of its own");
-                else if (readReturn(L, lua_gettop(L), 1, v, err))
+                    reportOnce(s, "section '" + s->name + "', key '" + k + "' holds a function,"
+                                  " which only works as a section of its own");
+                else if (readReturn(L, lua_gettop(L), 1, v, err)) {
+                    checkFinite(s, k, v);
                     storeVar(k, s, v);
+                }
                 else
                     reportOnce(s, "section '" + s->name + "', key '" + k + "' holds " + err + kShapes);
                 s->keys.push_back(k);
@@ -345,8 +404,10 @@ bool evaluateSection(Section* s) {
     } else {
         Snippet::Value v;
         std::string err;
-        if (readReturn(L, base + 1, nres, v, err))
+        if (readReturn(L, base + 1, nres, v, err)) {
+            checkFinite(s, s->name, v);
             storeVar(s->name, s, v);
+        }
         else {
             // not stored, so readers keep the last value that made sense
             reportOnce(s, "section '" + s->name + "' returns " + err + kShapes);
@@ -376,15 +437,18 @@ bool evaluateVar(const std::string& name) {
 
 // ── built-in functions ──────────────────────────────────────────────────────
 int l_vec2(lua_State* s) {
+    if (lua_gettop(s) > 2) return raise(s, "vec2 takes 2 numbers, got %d arguments", lua_gettop(s));
     pushSVec(s, TAG_V2, luaL_optnumber(s, 1, 0), luaL_optnumber(s, 2, 0));
     return 1;
 }
 int l_vec3(lua_State* s) {
+    if (lua_gettop(s) > 3) return raise(s, "vec3 takes 3 numbers, got %d arguments", lua_gettop(s));
     pushSVec(s, TAG_V3, luaL_optnumber(s, 1, 0), luaL_optnumber(s, 2, 0),
              luaL_optnumber(s, 3, 0));
     return 1;
 }
 int l_complex(lua_State* s) {
+    if (lua_gettop(s) > 2) return raise(s, "complex takes 2 numbers, got %d arguments", lua_gettop(s));
     pushSVec(s, TAG_CPX, luaL_optnumber(s, 1, 0), luaL_optnumber(s, 2, 0));
     return 1;
 }
@@ -398,14 +462,39 @@ int l_smoothstep(lua_State* s) {
     return 1;
 }
 
-// operand helper, a number counts as a scalar and an SVec as itself
-bool operands(lua_State* s, SVec& a, SVec& b, bool& a_num, bool& b_num) {
+const char* kindOf(lua_State* s, int i) {
+    if (SVec* u = asSVec(s, i))
+        return u->tag == TAG_V2 ? "vec2" : u->tag == TAG_V3 ? "vec3" : "complex";
+    return lua_typename(s, lua_type(s, i));
+}
+
+// a vector meets a number or a vector of its size, anything else is an error
+bool operands(lua_State* s, SVec& a, SVec& b, bool& a_num, bool& b_num, const char* op) {
     SVec* pa = asSVec(s, 1);
     SVec* pb = asSVec(s, 2);
     a_num = !pa; b_num = !pb;
+    if ((!pa && lua_type(s, 1) != LUA_TNUMBER) || (!pb && lua_type(s, 2) != LUA_TNUMBER)
+        || (pa && pb && comps(pa->tag) != comps(pb->tag)))
+        raise(s, "cannot %s a %s and a %s", op, kindOf(s, 1), kindOf(s, 2));
     if (pa) a = *pa; else { a.tag = 0; a.v[0] = lua_tonumber(s, 1); }
     if (pb) b = *pb; else { b.tag = 0; b.v[0] = lua_tonumber(s, 2); }
     return pa || pb;
+}
+
+// the other argument of a method, which must match the receiver
+SVec* sameKind(lua_State* s, SVec* a, const char* method) {
+    SVec* b = asSVec(s, 2);
+    if (!b || comps(b->tag) != comps(a->tag))
+        raise(s, "%s:%s() wants a %s but got a %s", kindOf(s, 1), method, kindOf(s, 1), kindOf(s, 2));
+    return b;
+}
+
+int l_eq(lua_State* s) {
+    SVec* a = asSVec(s, 1); SVec* b = asSVec(s, 2);
+    bool eq = a && b && comps(a->tag) == comps(b->tag);
+    for (int i = 0; eq && i < comps(a->tag); i++) eq = a->v[i] == b->v[i];
+    lua_pushboolean(s, eq);
+    return 1;
 }
 
 int tagOf(const SVec& a, bool a_num, const SVec& b, bool b_num) {
@@ -414,7 +503,7 @@ int tagOf(const SVec& a, bool a_num, const SVec& b, bool b_num) {
 
 int l_add(lua_State* s) {
     SVec a, b; bool an, bn;
-    if (!operands(s, a, b, an, bn)) return 0;
+    if (!operands(s, a, b, an, bn, "add")) return 0;
     int tag = tagOf(a, an, b, bn), c = comps(tag);
     double r[3] = {0,0,0};
     for (int i = 0; i < c; i++) r[i] = (an ? a.v[0] : a.v[i]) + (bn ? b.v[0] : b.v[i]);
@@ -423,7 +512,7 @@ int l_add(lua_State* s) {
 }
 int l_sub(lua_State* s) {
     SVec a, b; bool an, bn;
-    if (!operands(s, a, b, an, bn)) return 0;
+    if (!operands(s, a, b, an, bn, "subtract")) return 0;
     int tag = tagOf(a, an, b, bn), c = comps(tag);
     double r[3] = {0,0,0};
     for (int i = 0; i < c; i++) r[i] = (an ? a.v[0] : a.v[i]) - (bn ? b.v[0] : b.v[i]);
@@ -438,7 +527,7 @@ int l_unm(lua_State* s) {
 }
 int l_mul(lua_State* s) {
     SVec a, b; bool an, bn;
-    if (!operands(s, a, b, an, bn)) return 0;
+    if (!operands(s, a, b, an, bn, "multiply")) return 0;
     int tag = tagOf(a, an, b, bn);
     if (!an && !bn && tag == TAG_CPX) {
         pushSVec(s, TAG_CPX, a.v[0]*b.v[0] - a.v[1]*b.v[1],
@@ -454,11 +543,11 @@ int l_mul(lua_State* s) {
 }
 int l_div(lua_State* s) {
     SVec a, b; bool an, bn;
-    if (!operands(s, a, b, an, bn)) return 0;
+    if (!operands(s, a, b, an, bn, "divide")) return 0;
     int tag = tagOf(a, an, b, bn);
     if (!bn && tag == TAG_CPX) {
         double d = b.v[0]*b.v[0] + b.v[1]*b.v[1];
-        if (d == 0) return luaL_error(s, "division by zero complex");
+        if (d == 0) return raise(s, "division by zero complex");
         double ar = an ? a.v[0] : a.v[0], ai = an ? 0 : a.v[1];
         pushSVec(s, TAG_CPX, (ar*b.v[0] + ai*b.v[1]) / d,
                              (ai*b.v[0] - ar*b.v[1]) / d);
@@ -486,7 +575,7 @@ int l_tostring(lua_State* s) {
 
 int l_norm(lua_State* s) {
     SVec* a = asSVec(s, 1);
-    if (!a) return 0;
+    if (!a) return raise(s, "norm is a method, called as v:norm()");
     int c = comps(a->tag);
     double n = 0;
     for (int i = 0; i < c; i++) n += a->v[i]*a->v[i];
@@ -494,8 +583,9 @@ int l_norm(lua_State* s) {
     return 1;
 }
 int l_dot(lua_State* s) {
-    SVec* a = asSVec(s, 1); SVec* b = asSVec(s, 2);
-    if (!a || !b) return 0;
+    SVec* a = asSVec(s, 1);
+    if (!a) return raise(s, "dot is a method, called as v:dot(w)");
+    SVec* b = sameKind(s, a, "dot");
     int c = comps(a->tag);
     double d = 0;
     for (int i = 0; i < c; i++) d += a->v[i]*b->v[i];
@@ -503,8 +593,9 @@ int l_dot(lua_State* s) {
     return 1;
 }
 int l_cross(lua_State* s) {
-    SVec* a = asSVec(s, 1); SVec* b = asSVec(s, 2);
-    if (!a || !b) return 0;
+    SVec* a = asSVec(s, 1);
+    if (!a) return raise(s, "cross is a method, called as v:cross(w)");
+    SVec* b = sameKind(s, a, "cross");
     pushSVec(s, TAG_V3, a->v[1]*b->v[2] - a->v[2]*b->v[1],
                         a->v[2]*b->v[0] - a->v[0]*b->v[2],
                         a->v[0]*b->v[1] - a->v[1]*b->v[0]);
@@ -512,13 +603,13 @@ int l_cross(lua_State* s) {
 }
 int l_arg(lua_State* s) {
     SVec* a = asSVec(s, 1);
-    if (!a) return 0;
+    if (!a) return raise(s, "arg is a method, called as v:arg()");
     lua_pushnumber(s, std::atan2(a->v[1], a->v[0]));
     return 1;
 }
 int l_conj(lua_State* s) {
     SVec* a = asSVec(s, 1);
-    if (!a) return 0;
+    if (!a) return raise(s, "conj is a method, called as v:conj()");
     pushSVec(s, TAG_CPX, a->v[0], -a->v[1]);
     return 1;
 }
@@ -536,29 +627,46 @@ int l_index(lua_State* s) {
     if (a && k && !std::strcmp(k, "im")) { lua_pushnumber(s, a->v[1]); return 1; }
     lua_pushvalue(s, 2);
     lua_rawget(s, lua_upvalueindex(1));
+    if (lua_isnil(s, -1))
+        return raise(s, "a %s has no field '%s'", kindOf(s, 1), k ? k : "?");
     return 1;
 }
 
 // ── the `t` table ───────────────────────────────────────────────────────────
+// an unknown name answers false like in C++, and is said with its line
+void checkKeyframe(lua_State* s, const char* n) {
+    if (TimeObject::keyframes && !TimeObject::keyframes->count(n))
+        warnHere(s, std::string("keyframe#") + n, "unknown keyframe \"" + std::string(n) + "\"");
+}
+
+// the name ends the arguments, whether called t:f("a") or t.f("a")
+const char* keyframeArg(lua_State* s) {
+    if (lua_type(s, lua_gettop(s)) != LUA_TSTRING)
+        raise(s, "a keyframe name is expected, as in t:afterKeyframe(\"name\")");
+    const char* n = lua_tostring(s, lua_gettop(s));
+    checkKeyframe(s, n);
+    return n;
+}
+
 // the TimeObject argument is ignored, `t` is the one the slideshow published
 // this frame, so t:afterKeyframe and t.afterKeyframe both work
 int l_afterKeyframe(lua_State* s) {
-    const char* n = lua_tostring(s, lua_gettop(s));
+    const char* n = keyframeArg(s);
     lua_pushboolean(s, n && current_time.afterKeyframe(n));
     return 1;
 }
 int l_beforeKeyframe(lua_State* s) {
-    const char* n = lua_tostring(s, lua_gettop(s));
+    const char* n = keyframeArg(s);
     lua_pushboolean(s, n && current_time.beforeKeyframe(n));
     return 1;
 }
 int l_atKeyframe(lua_State* s) {
-    const char* n = lua_tostring(s, lua_gettop(s));
+    const char* n = keyframeArg(s);
     lua_pushboolean(s, n && current_time.atKeyframe(n));
     return 1;
 }
 int l_secondsSinceKeyframe(lua_State* s) {
-    const char* n = lua_tostring(s, lua_gettop(s));
+    const char* n = keyframeArg(s);
     lua_pushnumber(s, n ? current_time.secondsSinceKeyframe(n) : 0);
     return 1;
 }
@@ -571,10 +679,12 @@ int l_duringKeyframe(lua_State* s) {
     const int top = lua_gettop(s);
     int i = 1;
     while (i <= top && lua_type(s, i) != LUA_TSTRING) i++;
-    if (i > top) { lua_pushnumber(s, 0); return 1; }
+    if (i > top) return raise(s, "a keyframe name is expected, as in t:sinceKeyframe(\"name\")");
     const char* a = lua_tostring(s, i);
     const char* b = (i + 1 <= top && lua_type(s, i + 1) == LUA_TSTRING)
                         ? lua_tostring(s, i + 1) : nullptr;
+    checkKeyframe(s, a);
+    if (b) checkKeyframe(s, b);
     const int flag = b ? i + 2 : i + 1;
     const bool seq = lua_isboolean(s, flag) && lua_toboolean(s, flag);
     lua_pushnumber(s, b ? current_time.duringKeyframe(a, b, seq)
@@ -588,8 +698,9 @@ int l_sinceKeyframe(lua_State* s) {
     const int top = lua_gettop(s);
     int i = 1;
     while (i <= top && lua_type(s, i) != LUA_TSTRING) i++;
-    if (i > top) { lua_pushnumber(s, 0); return 1; }
+    if (i > top) return raise(s, "a keyframe name is expected, as in t:sinceKeyframe(\"name\")");
     const char* a = lua_tostring(s, i);
+    checkKeyframe(s, a);
     const bool seq = lua_isboolean(s, i + 1) && lua_toboolean(s, i + 1);
     lua_pushnumber(s, current_time.sinceKeyframe(a, seq));
     return 1;
@@ -601,7 +712,7 @@ int l_slidePosition(lua_State* s) {
 }
 
 int l_slidesSinceKeyframe(lua_State* s) {
-    const char* n = lua_tostring(s, lua_gettop(s));
+    const char* n = keyframeArg(s);
     lua_pushnumber(s, n ? current_time.slidesSinceKeyframe(n) : TimeObject::keyframe_unreached);
     return 1;
 }
@@ -611,9 +722,15 @@ int l_slidesSinceKeyframe(lua_State* s) {
 // value. Reading one that already exists needs no call, the bare name works.
 int l_param(lua_State* s) {
     const char* k = luaL_checkstring(s, 1);
-    lua_pushnumber(s, Params::get(k, luaL_optnumber(s, 2, 0),
-                                     luaL_optnumber(s, 3, 0),
-                                     luaL_optnumber(s, 4, 0)));
+    if (int c = Params::components(k); c > 1)
+        return raise(s, "param(\"%s\") is a number, but \"%s\" is already a parameter of "
+                             "%d components", k, k, c);
+    const scalar lo = luaL_optnumber(s, 3, 0), hi = luaL_optnumber(s, 4, 0);
+    if (lo > hi)
+        warnHere(s, std::string("param#") + k, "param(\"" + std::string(k) + "\") "
+                 + (lua_gettop(s) < 4 ? "gives a min without a max" : "has its min above its max")
+                 + ", so its slider has no bounds (the order is param(name, default, min, max))");
+    lua_pushnumber(s, Params::get(k, luaL_optnumber(s, 2, 0), lo, hi));
     return 1;
 }
 
@@ -632,6 +749,7 @@ void buildMetatable(lua_State* s, const char* name, int tag) {
     setField(s, mt, "__mul", l_mul);
     setField(s, mt, "__div", l_div);
     setField(s, mt, "__unm", l_unm);
+    setField(s, mt, "__eq", l_eq);
     setField(s, mt, "__tostring", l_tostring);
 
     lua_newtable(s);                       // the methods table
@@ -763,8 +881,10 @@ void addSection(const std::string& name, const std::string& body,
 
     // the second of two same-named sections wins, say so and free the first
     if (auto it = sections.find(name); it != sections.end()) {
-        spdlog::warn("[snippet] section '{}' is declared twice ({} then {}), "
-                     "the last one wins", name, it->second->file, file);
+        const std::string msg = "section '" + name + "' is declared twice ("
+                                + it->second->file + " then " + file + "), so the last one wins";
+        publishProblem(file, name + "#twice", msg);
+        spdlog::warn("[snippet] {}", msg);
         if (it->second->ref != LUA_NOREF) luaL_unref(L, LUA_REGISTRYINDEX, it->second->ref);
         if (it->second->call_ref != LUA_NOREF) luaL_unref(L, LUA_REGISTRYINDEX, it->second->call_ref);
     }
@@ -789,14 +909,35 @@ bool loadFile(SourceFile& f) {
 
     std::string line, name, body, cur;
     int line_no = 0, start = 0;
+    bool said_orphan = false;
+    auto warnLine = [&](const std::string& what) {
+        const std::string msg = f.given.string() + ":" + std::to_string(line_no) + ": " + what;
+        publishProblem(f.given.string(), "line " + std::to_string(line_no), msg);
+        spdlog::warn("[snippet] {}", msg);
+    };
     while (std::getline(in, line)) {
         line_no++;
         if (sectionHeader(line, name)) {
             if (!cur.empty()) addSection(cur, body, f.given.string(), start);
             cur = name; body.clear(); start = line_no + 1;
-        } else if (!cur.empty()) {
+            continue;
+        }
+        // "--- my-name" is no header and would glue its body onto the section above
+        const size_t i = line.find_first_not_of(" \t");
+        if (i != std::string::npos && line.compare(i, 3, "---") == 0) {
+            const size_t a = line.find_first_not_of(" \t-", i);
+            const size_t b = a == std::string::npos ? a : line.find_first_of(" \t\r", a);
+            if (a != std::string::npos && (b == std::string::npos
+                                           || line.find_first_not_of(" \t\r", b) == std::string::npos))
+                warnLine("'" + line.substr(i) + "' is not a section header, because a name only "
+                         "has letters, digits, _ and /");
+        }
+        if (!cur.empty()) {
             body += line;
             body += '\n';
+        } else if (!said_orphan && i != std::string::npos && line.compare(i, 2, "--") != 0) {
+            said_orphan = true;
+            warnLine("code before the first \"--- name\" line belongs to no section and never runs");
         }
     }
     if (!cur.empty()) addSection(cur, body, f.given.string(), start);
@@ -821,19 +962,20 @@ void discover() {
         s->last_frame = -1;
     }
     quiet_reports = false;
-    // every name exists now, so whatever still fails is the snippet's own error
+    // all run again unmuted, since a warning from a working section is real too
     for (auto& [name, s] : sections) {
-        if (!s->failed) continue;
         evaluateSection(s.get());
         // a section that fails at discovery still owns a variable of its name,
         // so the real error is reported from the frame that reads it
         if (s->failed && !vars.count(name))
             vars[name].sec = s.get();
-        // reported already, not quiet here, so the next frames do not say it again
+        // already reported in this pass, so later frames stay silent
         s->last_frame = -1;
     }
-    for (auto& [name, c] : calls)
+    for (auto& [name, c] : calls) {
         c->ref = LUA_NOREF;   // re-bound lazily against the new chunks
+        c->sec = nullptr;
+    }
     reload_counter++;
 }
 
@@ -893,6 +1035,8 @@ void Snippet::load(const path& file) {
     ensureState();
     for (auto& f : files)
         if (f.given == file) return;
+    if (!std::filesystem::exists(formatPath(file)))
+        throw std::runtime_error("snippets: cannot open \"" + file.string() + "\"");
     files.push_back(SourceFile{file, "", {}, false});
     rebuild();
     spdlog::info("[snippet] loaded {} ({} sections)", file.string(), sections.size());
@@ -981,7 +1125,7 @@ Snippet::Value Snippet::get(const std::string& name, int want) {
     const std::string who = s ? "'" + name + "' (section '" + s->name + "')"
                               : "'" + name + "'";
     warnOnce(s, key, who + " holds " + shape(v.n) + " where " + shape(want) + " is read, "
-                     + (v.n < want ? "the missing numbers are zeros" : "the extra ones are dropped"));
+                     + (v.n < want ? "so the missing numbers are zeros" : "so the extra ones are dropped"));
     return v;
 }
 
@@ -1128,7 +1272,8 @@ void reportCall(Snippet::Call& c, const std::string& what) {
     if (c.reported) return;
     c.reported = true;
     last_error = what;
-    if (Section* s = sectionOf(c.name)) publishProblem(s->file, c.name, what);
+    if (Section* s = sectionOf(c.name)) publishProblem(s->file, c.name + "#call", what);
+    else if (!files.empty()) publishProblem(files.front().given.string(), c.name + "#call", what);
     spdlog::error("[snippet] {}", what);
 }
 
@@ -1147,11 +1292,12 @@ bool Snippet::invoke(const CallPtr& c, const scalar* in, const int* sizes,
             if (!s)
                 reportCall(*c, "no section called '" + c->name + "'");
             else if (!s->failed)
-                reportCall(*c, "section '" + c->name + "' is used as a function but returns a value;"
-                               " wrap it in \"return function(...) ... end\"");
+                reportCall(*c, "section '" + c->name + "' returns a value but is called as a "
+                               "function, which needs \"return function(...) ... end\"");
             return false;
         }
         c->ref = s->call_ref;
+        c->sec = s;
         c->reported = false;
     }
 
@@ -1165,15 +1311,18 @@ bool Snippet::invoke(const CallPtr& c, const scalar* in, const int* sizes,
         k += sizes[i];
     }
 
-    if (lua_pcall(L, nargs, LUA_MULTRET, 0) != 0) {
+    Section* outer = running;
+    running = c->sec;
+    const int rc = lua_pcall(L, nargs, LUA_MULTRET, 0);
+    running = outer;
+    if (rc != 0) {
         reportCall(*c, lua_tostring(L, -1) ? lua_tostring(L, -1) : "error");
         lua_settop(L, base);
         c->failed_frame = frame_counter;
         return false;
     }
 
-    // several plain numbers cost no allocation, which a hot snippet may prefer
-    // over building a vector
+    // plain numbers cost no allocation, unlike a vector
     Value v;
     std::string err;
     const bool ok = readReturn(L, base + 1, lua_gettop(L) - base, v, err);
@@ -1184,11 +1333,14 @@ bool Snippet::invoke(const CallPtr& c, const scalar* in, const int* sizes,
         c->failed_frame = frame_counter;
         return false;
     }
+    if (!finite(v))
+        warnOnce(c->sec, c->name + "#finite", "the function of section '" + c->name
+                 + "' returns nan or inf, maybe from a division by zero");
     if (!fits(v.n, nout, exact))
-        warnOnce(sectionOf(c->name), c->name + "#" + std::to_string(nout),
+        warnOnce(c->sec, c->name + "#" + std::to_string(nout),
                  "the function of section '" + c->name + "' returns " + shape(v.n)
                  + " where " + shape(nout) + " is read, "
-                 + (v.n < nout ? "the missing numbers are zeros" : "the extra ones are dropped"));
+                 + (v.n < nout ? "so the missing numbers are zeros" : "so the extra ones are dropped"));
     for (int i = 0; i < nout; i++) out[i] = i < v.n ? v.v[i] : 0;
     return true;
 }
