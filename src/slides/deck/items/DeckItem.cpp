@@ -75,7 +75,7 @@ const KeyDoc& deckConfigKeys()
 const KeyDoc& sceneKeys()
 {
     static const KeyDoc k = {
-        {"transform",  "name is either param or snippet"},
+        {"transform",  "map of the keys below, or a param or snippet name"},
         {"  pos",      "[x, y, z], or name"},
         {"  scale",    "a number, or [x, y, z], or name"},
         {"  axis",     "[x, y, z] or name, rotation axis, z by default"},

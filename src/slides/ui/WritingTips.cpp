@@ -233,6 +233,7 @@ slides:
         docRows(frameKeys());
         apiRow("- step", "what follows shows on the next slide", mono, px);
         apiRow("- <name>", "a group puts it here, an item id replays it at its last placement", mono, px);
+        apiRow("- replace: id", "with: id or an item takes its place", mono, px);
         apiRow("- <name>: id", "the same with args as the other keys, remove: id takes it off", mono, px);
     }
     if (ImGui::CollapsingHeader("config:", ImGuiTreeNodeFlags_DefaultOpen))
@@ -241,6 +242,7 @@ slides:
     if (ImGui::CollapsingHeader("Placement (every screen item)", ImGuiTreeNodeFlags_DefaultOpen))
     {
         keyRow("keys", joined(placementFields()), mono, px);
+        apiRow("offset: [x, y]", "shifts a placed item", mono, px);
         apiRow("follow: name", "a param, snippet variable or placer, 2D or 3D", mono, px);
         apiRow("follow: item.name", "a 2D point of that shader's view", mono, px);
         apiRow("follow: {object: o, vertex: i}", "vertex i of a mesh, cloud or curve, as it moves", mono, px);
@@ -262,8 +264,13 @@ slides:
                                                        : std::set<std::string>{};
             skip.insert(spec.type);
             itemRow(spec.type, itemValueHint(spec.type), joined(spec.fields, skip), mono, px);
-            if (spec.type == "arrow")
+            if (spec.type == "arrow") {
                 keyRow("  inside arrow:", joined(arrowFields()), mono, px);
+                apiRow("  from, to: [x, y]", "screen point", mono, px);
+                apiRow("  from, to: [x, y, z]", "world point", mono, px);
+                apiRow("  from, to: name", "item, param, snippet variable or placer", mono, px);
+                apiRow("  from, to: {follow: n}", "same as name", mono, px);
+            }
         }
         if (kind == ItemSpec::Kind::Scene)
             docRows(sceneKeys());
