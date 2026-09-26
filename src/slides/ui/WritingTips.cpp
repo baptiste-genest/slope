@@ -198,7 +198,8 @@ slides:
   - frame:
       - title: A title
       - latex: some text
-        at: intro  # views/intro.pos
+        id: intro
+        at: left   # Ctrl+N -> auto label
       - step       # next slide
       - formula: e^{i\pi} = -1
         below: intro
@@ -505,7 +506,9 @@ void shaderTips(ImFont* mono, float px) {
         apiRow("vec2 iMouseNorm", "cursor in 0..1 across the shader, y up", mono, px);
         apiRow("float iHovered", "1 while the cursor is over the shader", mono, px);
         apiRow("vec4 iDate", "year, month, day, seconds since midnight", mono, px);
-        apiRow("sampler2D iChannel0..3", "textures from the deck's \"textures:\"", mono, px);
+        apiRow("uniform sampler2D name", "declare it yourself, bound by the deck's \"textures: {name: file}\"", mono, px);
+        apiRow("uniform vec2 name_size", "optional, its size in pixels", mono, px);
+        apiRow("sampler2D iChannel0..3", "textures set from C++", mono, px);
         apiRow("vec3 iChannelResolution[4]", "their sizes, in pixels", mono, px);
     }
     if (ImGui::CollapsingHeader("Coordinates", ImGuiTreeNodeFlags_DefaultOpen)) {
