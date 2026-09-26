@@ -1,5 +1,5 @@
 # What is Slope?
-## Documentation [Website](https://slopedoc.github.io/) & [Examples](https://github.com/baptiste-genest/SlopeExamples)
+## [Documentation Website](https://slopedoc.github.io/), [Code Examples](https://github.com/baptiste-genest/SlopeExamples) & [Project Template](https://github.com/baptiste-genest/SlopeTemplate)
 Exporting scientific results or complicated concepts into pretty presentations is a very hard process that very often leads to a sad succession of screenshots and equations.
 
 
