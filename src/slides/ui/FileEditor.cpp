@@ -966,7 +966,9 @@ void FileEditor::draw(WindowManager& wm) {
             }
             dl->PopClipRect();
 
-            dl->PushClipRect(p_min, p_max, true);
+            // on the field's own child, which draws its selection over the parent
+            ImDrawList* tl = body_win ? body_win->DrawList : dl;
+            tl->PushClipRect(p_min, p_max, true);
             for (int ri = first; ri < lastl; ++ri) {
                 const size_t b = rows[ri].b, e = rows[ri].e;
                 const float y = origin.y + float(ri) * fs;
@@ -989,7 +991,7 @@ void FileEditor::draw(WindowManager& wm) {
                         seg_end = (k < runs.size()) ? std::min(e, runs[k].begin) : e;
                     }
                     if (seg_end <= seg) break;
-                    dl->AddText(font, fs, ImVec2(x, y), col, base + seg, base + seg_end);
+                    tl->AddText(font, fs, ImVec2(x, y), col, base + seg, base + seg_end);
                     x += measure(seg, seg_end);
                     seg = seg_end;
                 }
@@ -1000,9 +1002,9 @@ void FileEditor::draw(WindowManager& wm) {
                 const float cx = origin.x + measure(rows[cr].b, std::min(size_t(cpos), rows[cr].e));
                 const float cy = origin.y + float(cr) * fs;
                 if (std::fmod(st->CursorAnim, 1.2f) <= 0.8f)
-                    dl->AddLine(ImVec2(cx, cy + 1.f), ImVec2(cx, cy + fs - 1.f), ink, 1.f);
+                    tl->AddLine(ImVec2(cx, cy + 1.f), ImVec2(cx, cy + fs - 1.f), ink, 1.f);
             }
-            dl->PopClipRect();
+            tl->PopClipRect();
         }
 
         ImGui::PopFont();
