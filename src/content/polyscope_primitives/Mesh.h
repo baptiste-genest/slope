@@ -17,9 +17,6 @@ public:
     Mesh() {}
 
     /// Builds a mesh from its vertices and faces.
-    /// @param vertices the vertex positions
-    /// @param faces the faces, as lists of vertex indices
-    /// @param smooth if true, uses smooth shading
     Mesh(const vecs& vertices, const Faces& faces, bool smooth = false);
 
     // Loads a mesh from an .obj file.
