@@ -501,7 +501,7 @@ void shaderTips(ImFont* mono, float px) {
         apiRow("float iAspect", "width / height", mono, px);
         apiRow("float iTime", "seconds since the shader appeared", mono, px);
         apiRow("float iTimeDelta", "seconds since the last frame", mono, px);
-        apiRow("int iFrame", "frames rendered so far", mono, px);
+        apiRow("int iFrame", "passes rendered so far (pass_per_frame per frame)", mono, px);
         apiRow("vec4 iMouse", "xy cursor in pixels, zw last click", mono, px);
         apiRow("vec2 iMouseNorm", "cursor in 0..1 across the shader, y up", mono, px);
         apiRow("float iHovered", "1 while the cursor is over the shader", mono, px);

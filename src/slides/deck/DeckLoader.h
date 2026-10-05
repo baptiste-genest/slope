@@ -86,6 +86,7 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *           speed: {default: 1, max: 5}
  *         textures:                     # bound to the sampler of the same
  *           noise: noise.png            # name, declared by the shader
+ *         pass_per_frame: 8             # draws per frame, for iterative work
  *       - object: registered_name       # C++-defined content (or group)
  *         uniforms:                     # when it is a shader, the same
  *           knob: {default: 0.4}        # "uniforms"/"textures"/"view" as

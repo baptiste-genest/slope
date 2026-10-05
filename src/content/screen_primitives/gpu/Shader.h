@@ -298,6 +298,8 @@ public:
     // Uses RGBA32F targets instead of 8 bits, for values that must survive many feedback iterations without banding,
     // such as accumulations and physics.
     void setFloatBuffer(bool on = true);
+    // Draws the shader n times per frame, each pass reading the previous one's output, for faster iterative work.
+    void setPassesPerFrame(int n) { passes_per_frame = std::max(1, n); }
     // Sets the sampling of the targets of this shader. Simulations usually need Nearest and Repeat.
     void setFilter(Filter f);
     void setWrap(Wrap w);
@@ -504,6 +506,7 @@ private:
     int cur = 0;               // buf[cur] = latest output
     bool feedback = false;     // some channel samples our previous frame
     bool float_buffer = false; // RGBA32F targets
+    int passes_per_frame = 1;
     bool hidden = false;       // compute-only, updates but never blits
     unsigned int self_filter = 0x2601 /*LINEAR*/;
     unsigned int self_wrap = 0x812F /*CLAMP_TO_EDGE*/;

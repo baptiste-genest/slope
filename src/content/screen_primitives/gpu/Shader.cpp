@@ -1791,8 +1791,8 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis) {
     g.GetIntegerv(SL_VIEWPORT, prev_vp);
 
     // ping-pong, read the current output and write the other target
-    const int read = cur;
-    const int write = feedback ? (1 - cur) : 0;
+    int read = cur;
+    int write = feedback ? (1 - cur) : 0;
 
     g.BindFramebuffer(SL_FRAMEBUFFER, buf[write].fbo);
     g.Viewport(0, 0, res_x, res_y);
@@ -1969,6 +1969,7 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis) {
     int unit = 0;
     const int unit_budget = std::max(1, g.max_units - 1); // one kept for depth
     for (auto& [name, c] : textures) {
+        c.unit = -1; // a texture skipped this frame keeps no stale unit
         if (c.kind == Texture::Kind::Off)
             continue;
         if (c.loc_program != program) {
@@ -2045,20 +2046,34 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis) {
         setter(uniformLocation(name), t);
 
     g.ClearColor(0.f, 0.f, 0.f, 0.f);
-    g.Clear(SL_COLOR_BUFFER_BIT);
-    g.DrawArrays(SL_TRIANGLES, 0, 3);
+    for (int pass = 0; pass < passes_per_frame; ++pass) {
+        // later passes read what the previous one wrote
+        if (pass > 0) {
+            read = cur;
+            write = feedback ? (1 - cur) : 0;
+            g.BindFramebuffer(SL_FRAMEBUFFER, buf[write].fbo);
+            for (auto& [name, c] : textures)
+                if (c.kind == Texture::Kind::Self && c.unit >= 0) {
+                    g.ActiveTexture(SL_TEXTURE0 + c.unit);
+                    g.BindTexture(SL_TEXTURE_2D, buf[read].tex[c.attachment]);
+                }
+            g.ActiveTexture(SL_TEXTURE0);
+            if (int l = U.iFrame; l >= 0) g.Uniform1i(l, frames_rendered);
+        }
+        g.Clear(SL_COLOR_BUFFER_BIT);
+        g.DrawArrays(SL_TRIANGLES, 0, 3);
 
-    // make SSBO writes from this pass visible to later readBuffer() / next frame,
-    // then release the binding points so we don't leak state into other draws
-    if (!ssbos.empty()) {
-        if (g.MemoryBarrier) g.MemoryBarrier(SL_SHADER_STORAGE_BARRIER_BIT);
-        for (auto& [binding, sb] : ssbos)
-            g.BindBufferBase(SL_SHADER_STORAGE_BUFFER, SLGLuint(binding), 0);
+        // make SSBO writes from this pass visible to the next pass, readBuffer() and next frame
+        if (!ssbos.empty() && g.MemoryBarrier)
+            g.MemoryBarrier(SL_SHADER_STORAGE_BARRIER_BIT);
+
+        // the freshly written target becomes the current output
+        cur = write;
+        ++frames_rendered;
     }
-
-    // the freshly written target becomes the current output
-    cur = write;
-    ++frames_rendered;
+    // release the binding points so we don't leak state into other draws
+    for (auto& [binding, sb] : ssbos)
+        g.BindBufferBase(SL_SHADER_STORAGE_BUFFER, SLGLuint(binding), 0);
 
     // restore. Only unit 0 was saved, so clear every unit we handed out
     if (bound_scene_depth) {

@@ -410,7 +410,7 @@ std::vector<ItemSpec> shaderItemSpecs() {
     return {{
         "shader",
         ItemSpec::Kind::Screen,
-        {"resolution", "uniforms", "textures", "view"},
+        {"resolution", "uniforms", "textures", "view", "pass_per_frame"},
         // the resolution is part of the key, one .frag at two sizes is two
         // primitives and a hot reload reuses the GL resources of each
         [resolution](const json& i) {
@@ -428,6 +428,7 @@ std::vector<ItemSpec> shaderItemSpecs() {
             declareShaderUniforms(sh, i, name);
             declareShaderTextures(sh, i);
             declareShaderView(sh, i);
+            sh->setPassesPerFrame(i.value("pass_per_frame", 1));
         },
         [](const json& i) {
             return std::filesystem::path(i["shader"].get<std::string>()).stem().string();
