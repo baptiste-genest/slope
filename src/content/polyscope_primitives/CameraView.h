@@ -46,15 +46,27 @@ public:
     void enable(bool allow_fly = true) {
         // A flight lasts several frames and an export would capture it half way, so it jumps instead.
         bool fly = flyTo && allow_fly && !Options::ExportMode;
+        // polyscope's own flight lasts 0.4s, so jump, read the target, step back and fly there
+        const glm::mat4 start = polyscope::view::getCameraViewMatrix();
+        const float start_fov = polyscope::view::fov;
         if (fromFile) {
             // Polyscope 2.6.1 never restores "fov" because its key check is inverted.
             // So the saved fov is set first, and both the jump and the flight use it.
             if (saved_fov > 0)
                 polyscope::view::fov = saved_fov;
-            polyscope::view::setCameraFromJson(jsonContent, fly);
+            polyscope::view::setCameraFromJson(jsonContent, false);
         } else
-            polyscope::view::lookAt(from, to, up, fly);
+            polyscope::view::lookAt(from, to, up, false);
+        if (!fly)
+            return;
+        const glm::mat4 target = polyscope::view::getCameraViewMatrix();
+        const float target_fov = polyscope::view::fov;
+        polyscope::view::setCameraViewMatrix(start);
+        polyscope::view::fov = start_fov;
+        polyscope::view::startFlightTo(target, target_fov, fly_seconds);
     }
+    // Duration of the flight in seconds.
+    void setFlightDuration(float seconds) { fly_seconds = seconds; }
     // Returns to the home view of polyscope.
     void disable() {
         polyscope::view::resetCameraToHomeView();
@@ -65,6 +77,7 @@ private:
     glm::vec3 from, to, up;
     std::string jsonContent;
     bool flyTo;
+    float fly_seconds = 0.4f;
     float saved_fov = -1;
 
 public:

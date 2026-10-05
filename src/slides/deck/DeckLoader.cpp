@@ -1757,11 +1757,15 @@ void DeckLoader::addItem(SlideManager& show, const json& item) {
         buildStackChildren(show, prim, item["stack"]);
     } else if (item.contains("camera")) {
         std::string name = item["camera"];
-        bool fly = item.value("fly", false); // a camera cuts unless asked to fly
-        std::string key = name + (fly ? ":fly" : "");
+        // a camera cuts unless asked to fly, fly: <seconds> sets the duration
+        const auto& f = item.contains("fly") ? item["fly"] : json(false);
+        bool fly = f.is_number() ? f.get<float>() > 0 : f.get<bool>();
+        std::string key = name + (fly ? ":fly" + f.dump() : "");
         if (!camera_cache.count(key)) {
             CameraEntry entry;
             entry.cam = CameraView::Add(name, fly);
+            if (f.is_number())
+                entry.cam->setFlightDuration(f.get<float>());
             entry.file = formatCameraFilename(name);
             try {
                 entry.last_modified = std::filesystem::last_write_time(entry.file);

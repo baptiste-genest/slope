@@ -134,7 +134,7 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *         spacing: 0.02                  # or [x,y] for a fixed block
  *         align: left                    # left | center | right
  *       - camera: view_name              # cuts to the view,
- *         fly: true                      # fly: true to glide there
+ *         fly: true                      # glide there, or fly: 2 for 2s
  *       - pause: 3
  *       - keyframe: pipeline_done        # labels this frame, C++ updaters
  *                                        # branch on t.afterKeyframe("...")
