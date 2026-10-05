@@ -69,12 +69,15 @@ void orbitRay(out vec3 ro, out vec3 rd) {
 // it is drawn into. slope's 2D parameters live in exactly this space, so a
 // handle dragged in the panel is at screenPoint() == the parameter's value.
 
-// this fragment in screen coordinates. 0..1 across the window, y up
-vec2 screenPoint() {
-    vec2 f  = gl_FragCoord.xy / iResolution;                 // 0..1 in the target, y up
+// a pixel of this shader (as gl_FragCoord or iMouse.xy) in screen coordinates
+vec2 screenPoint(vec2 pixel) {
+    vec2 f  = pixel / iResolution;                           // 0..1 in the target, y up
     vec2 px = iScreenRect.xy + vec2(f.x, 1.0 - f.y) * iScreenRect.zw;  // window px, y down
     return vec2(px.x / iWindowSize.x, 1.0 - px.y / iWindowSize.y);
 }
+
+// this fragment in screen coordinates. 0..1 across the window, y up
+vec2 screenPoint() { return screenPoint(gl_FragCoord.xy); }
 
 // the way back, a screen coordinate as this shader's own uv (0..1, y up),
 // outside 0..1 when it falls off the rectangle
@@ -91,15 +94,18 @@ float screenAspect() { return iWindowSize.x / iWindowSize.y; }
 // this fragment's position in normalised device coordinates, as polyscope sees it
 vec2 polyscopeNDC() { return 2.0 * screenPoint() - 1.0; }
 
-// Ray from the eye of polyscope through this fragment, as origin ro and unit direction rd.
-void polyscopeRay(out vec3 ro, out vec3 rd) {
-    vec2 ndc = polyscopeNDC();
+// Ray from the eye of polyscope through a pixel of this shader, e.g. iMouse.xy.
+void polyscopeRay(vec2 pixel, out vec3 ro, out vec3 rd) {
+    vec2 ndc = 2.0 * screenPoint(pixel) - 1.0;
     mat4 inv = iViewInv * iProjInv;          // clip -> camera -> world
     vec4 pn = inv * vec4(ndc, -1.0, 1.0);    // on the near plane
     vec4 pf = inv * vec4(ndc,  1.0, 1.0);    // on the far plane
     ro = pn.xyz / pn.w;
     rd = normalize(pf.xyz / pf.w - ro);
 }
+
+// Ray from the eye of polyscope through this fragment, as origin ro and unit direction rd.
+void polyscopeRay(out vec3 ro, out vec3 rd) { polyscopeRay(gl_FragCoord.xy, ro, rd); }
 
 // depth of a world point the way polyscope's depth buffer stores it (0 at the
 // near plane, 1 at the far one), so a shader hit can be compared against the

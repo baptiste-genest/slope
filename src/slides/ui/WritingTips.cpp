@@ -296,7 +296,7 @@ const std::map<std::string, std::string>& stdlibFnDocs() {
         {"screenToLocal", "a window point in this shader's uv"},
         {"screenAspect", "the window's width / height"},
         {"polyscopeNDC", "this pixel in polyscope's device coordinates"},
-        {"polyscopeRay", "ray from polyscope's camera through this pixel"},
+        {"polyscopeRay", "ray from polyscope's camera through this pixel; (px, ro, rd) for any pixel"},
         {"polyscopeDepth", "a world point's depth as polyscope stores it"},
         {"sceneDepthHere", "polyscope's depth here, 1 where nothing is drawn"},
         {"visibleOverScene", "true when the point is in front of the 3D scene"},
