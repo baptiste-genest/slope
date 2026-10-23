@@ -261,6 +261,8 @@ slides:
                 apiRow("  from, to: name", "item, param, snippet variable or placer", mono, px);
                 apiRow("  from, to: {follow: n}", "same as name", mono, px);
             }
+            if (spec.type == "set")
+                apiRow("  color, fill_color, thickness, filled", "arrow or box, blended over the transition", mono, px);
         }
         if (kind == ItemSpec::Kind::Scene)
             docRows(sceneKeys());

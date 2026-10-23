@@ -1,6 +1,7 @@
 #include "content/screen_primitives/shapes/Shape2D.h"
 #include "content/screen_primitives/layout/Anchor.h"
 #include "content/screen_primitives/layout/Canvas.h"
+#include "math/kernels.h"
 #include "polyscope/view.h"
 
 namespace slope {
@@ -68,6 +69,71 @@ static std::pair<ImVec2, ImVec2> strokePolylinePrefix(
     ImVec2 tip = prefix.back();
     ImVec2 prev = prefix.size() >= 2 ? prefix[prefix.size() - 2] : tip;
     return {tip, ImVec2(tip.x - prev.x, tip.y - prev.y)};
+}
+
+// ---------------------------------------------------------------- restyles
+
+static void merge(StyleChange& into, const StyleChange& c) {
+    if (c.color) into.color = c.color;
+    if (c.fill_color) into.fill_color = c.fill_color;
+    if (c.thickness) into.thickness = c.thickness;
+    if (c.filled) into.filled = c.filled;
+}
+
+ShapeStyle StyleTrack::on(const ShapeStyle& base, int slide) const {
+    ShapeStyle s = base;
+    for (auto it = changes.begin(); it != changes.end() && it->first <= slide; ++it) {
+        const StyleChange& c = it->second;
+        if (c.color) s.color = *c.color;
+        if (c.fill_color) s.fill_color = *c.fill_color;
+        if (c.thickness) s.thickness = *c.thickness;
+        if (c.filled) s.filled = *c.filled;
+    }
+    return s;
+}
+
+ShapeStyle StyleTrack::at(const ShapeStyle& base, parameter slide_position) const {
+    if (changes.empty())
+        return base;
+    const int i = int(std::floor(slide_position));
+    const float f = float(smoothstep(std::clamp<parameter>(slide_position - i, 0, 1)));
+    const ShapeStyle a = on(base, i), b = on(base, i + 1);
+    // the ends are returned as they are, so a named color stays tunable
+    if (f <= 0.f) return a;
+    if (f >= 1.f) return b;
+    auto mix = [f](const ColorType& x, const ColorType& y) { return Color(x + (y - x) * f); };
+    // an unfilled end is a transparent fill, so the fill fades in or out
+    auto fill = [](const ShapeStyle& x) {
+        ColorType c = x.fill_color.getValue();
+        if (!x.filled) c.w = 0;
+        return c;
+    };
+    ShapeStyle s;
+    s.color = mix(a.color.getValue(), b.color.getValue());
+    s.fill_color = mix(fill(a), fill(b));
+    s.thickness = std::lerp(a.thickness, b.thickness, f);
+    s.filled = a.filled || b.filled;
+    return s;
+}
+
+template <class T>
+static SlideCue restyleCue(PrimitiveID id, const StyleChange& change) {
+    return {[id, change](int slide) { merge(Primitive::get<T>(id)->restyles.changes[slide], change); }};
+}
+
+SlideCue Shape2D::restyle(const StyleChange& change) { return restyleCue<Shape2D>(pid, change); }
+SlideCue Box2D::restyle(const StyleChange& change) { return restyleCue<Box2D>(pid, change); }
+SlideCue Arrow2D::restyle(const StyleChange& change) { return restyleCue<Arrow2D>(pid, change); }
+
+void ClearAllRestyles() {
+    for (const auto& p : Primitive::primitives) {
+        if (auto s = std::dynamic_pointer_cast<Shape2D>(p))
+            s->restyles.changes.clear();
+        else if (auto b = std::dynamic_pointer_cast<Box2D>(p))
+            b->restyles.changes.clear();
+        else if (auto a = std::dynamic_pointer_cast<Arrow2D>(p))
+            a->restyles.changes.clear();
+    }
 }
 
 // ---------------------------------------------------------------- Shape2D
@@ -141,7 +207,8 @@ vec2 Shape2D::getSize() const {
                 (hi(1) - lo(1)) * Options::ScreenResolutionHeight);
 }
 
-void Shape2D::draw(const TimeObject&, const StateInSlide& sis) {
+void Shape2D::draw(const TimeObject& t, const StateInSlide& sis) {
+    const ShapeStyle style = restyles.at(this->style, t.slidePosition());
     auto px = toPixels(sis);
     if (style.filled && px.size() >= 3)
         ImGui::GetWindowDrawList()->AddConvexPolyFilled(
@@ -151,6 +218,7 @@ void Shape2D::draw(const TimeObject&, const StateInSlide& sis) {
 }
 
 void Shape2D::playIntro(const TimeObject& t, const StateInSlide& sis) {
+    const ShapeStyle style = restyles.at(this->style, t.slidePosition());
     parameter u = t.transition_parameter;
     auto px = toPixels(sis);
     if (style.filled && u >= 1 && px.size() >= 3)
@@ -201,10 +269,15 @@ bool Box2D::bounds(vec2& lo, vec2& hi) const {
     return true;
 }
 
-void Box2D::drawBox(parameter t, float alpha) {
+void Box2D::drawBox(const TimeObject& time, parameter t, float alpha) {
     vec2 lo, hi;
     if (!bounds(lo, hi))
         return;
+    ShapeStyle base = this->style;
+    if (use_background_fill)
+        base.fill_color = Color(polyscope::view::bgColor[0], polyscope::view::bgColor[1],
+                                polyscope::view::bgColor[2], 1.f);
+    const ShapeStyle style = restyles.at(base, time.slidePosition());
     updateAnchor((lo + hi) * 0.5); // so arrows can attach to the box
     std::vector<ImVec2> px = {
         Canvas::toScreen(lo), Canvas::toScreen(vec2(hi(0), lo(1))),
@@ -212,12 +285,8 @@ void Box2D::drawBox(parameter t, float alpha) {
         Canvas::toScreen(lo)};
     if (style.filled) {
         float fill_alpha = alpha * std::min<float>(1.f, t); // fades in with the intro
-        ImU32 fill = use_background_fill
-                         ? withAlpha(RGBA(polyscope::view::bgColor[0], polyscope::view::bgColor[1],
-                                          polyscope::view::bgColor[2], 1.f),
-                                     fill_alpha)
-                         : withAlpha(style.fill_color, fill_alpha);
-        ImGui::GetWindowDrawList()->AddConvexPolyFilled(px.data(), 4, fill);
+        ImGui::GetWindowDrawList()->AddConvexPolyFilled(px.data(), 4,
+                                                        withAlpha(style.fill_color, fill_alpha));
     }
     strokePolylinePrefix(px, t, withAlpha(style.color, alpha),
                          pixelThickness(style.thickness), t >= 1);
@@ -236,16 +305,16 @@ vec2 Box2D::getSize() const {
                 (hi(1) - lo(1)) * Options::ScreenResolutionHeight);
 }
 
-void Box2D::draw(const TimeObject&, const StateInSlide& sis) {
-    drawBox(1, sis.getAlpha());
+void Box2D::draw(const TimeObject& t, const StateInSlide& sis) {
+    drawBox(t, 1, sis.getAlpha());
 }
 
 void Box2D::playIntro(const TimeObject& t, const StateInSlide& sis) {
-    drawBox(t.transition_parameter, sis.getAlpha());
+    drawBox(t, t.transition_parameter, sis.getAlpha());
 }
 
-void Box2D::playOutro(const TimeObject&, const StateInSlide& sis) {
-    drawBox(1, sis.getAlpha());
+void Box2D::playOutro(const TimeObject& t, const StateInSlide& sis) {
+    drawBox(t, 1, sis.getAlpha());
 }
 
 // ---------------------------------------------------------------- Arrow2D
@@ -316,7 +385,8 @@ vec2 Arrow2D::controlPoint(const vec2& a, const vec2& b) const {
     return mid + perp_px.cwiseQuotient(aspect);
 }
 
-void Arrow2D::drawArrow(parameter t, float alpha) const {
+void Arrow2D::drawArrow(const TimeObject& time, parameter t, float alpha) const {
+    const ShapeStyle style = restyles.at(this->style, time.slidePosition());
     vec2 ca = from.center(), cb = to.center();
     vec2 a = attachPoint(from, cb, margin) + from.offset;
     vec2 b = attachPoint(to, ca, margin) + to.offset;
@@ -387,16 +457,16 @@ vec2 Arrow2D::getSize() const {
                 (hi(1) - lo(1)) * Options::ScreenResolutionHeight);
 }
 
-void Arrow2D::draw(const TimeObject&, const StateInSlide& sis) {
-    drawArrow(1, sis.getAlpha());
+void Arrow2D::draw(const TimeObject& t, const StateInSlide& sis) {
+    drawArrow(t, 1, sis.getAlpha());
 }
 
 void Arrow2D::playIntro(const TimeObject& t, const StateInSlide& sis) {
-    drawArrow(t.transition_parameter, sis.getAlpha());
+    drawArrow(t, t.transition_parameter, sis.getAlpha());
 }
 
-void Arrow2D::playOutro(const TimeObject&, const StateInSlide& sis) {
-    drawArrow(1, sis.getAlpha());
+void Arrow2D::playOutro(const TimeObject& t, const StateInSlide& sis) {
+    drawArrow(t, 1, sis.getAlpha());
 }
 
 } // namespace slope

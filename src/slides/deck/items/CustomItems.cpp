@@ -21,7 +21,7 @@ std::vector<ItemSpec> customItemSpecs() {
         custom("remove", {}),
         custom("set", {"at", "transform", "offset", "on", "two_sided", "alpha", "rot", "zoom", "depth",
                        "below", "above", "right_of", "left_of", "padding",
-                       "reveal", "focus"}),
+                       "reveal", "focus", "color", "fill_color", "thickness", "filled"}),
         custom("replace", {"with"}),
         custom("object", {"id", "at", "transform", "follow", "offset", "alpha", "rot", "zoom", "view",
                           "on", "two_sided", "below", "above", "right_of", "left_of", "padding",

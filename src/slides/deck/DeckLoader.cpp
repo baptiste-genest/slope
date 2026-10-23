@@ -626,6 +626,7 @@ void DeckLoader::buildImpl(SlideManager& show) {
     show.clearKeyframes();
     Code::ClearAllCues();
     Algorithm::ClearAllCues();
+    ClearAllRestyles();
 
     // drop what an "object:" item no longer declares, and only that, the rest
     // of that shader's binds belong to its C++ owner
@@ -1134,6 +1135,33 @@ static ScreenPrimitiveInSlide placeOnPlane(ScreenPrimitivePtr prim, const json& 
 
 // applies the placement fields of a screen item, at (label, [x,y] or a named
 // position), on (a world plane) or below/above/right_of/left_of
+// "color", "fill_color", "thickness" and "filled" of a "set" blend into the new style
+static void restyleShape(SlideManager& show, const std::string& name, const ScreenPrimitivePtr& prim,
+                         const json& item) {
+    StyleChange c;
+    if (item.contains("color"))
+        c.color = readColor(item["color"], glm::vec4(0.f, 0.f, 0.f, 1.f));
+    if (item.contains("fill_color")) {
+        c.fill_color = readColor(item["fill_color"], glm::vec4(0.f, 0.f, 0.f, 0.25f));
+        c.filled = true;
+    }
+    if (item.contains("thickness"))
+        c.thickness = item["thickness"].get<float>();
+    if (item.contains("filled"))
+        c.filled = item["filled"].get<bool>();
+    if (!c.color && !c.fill_color && !c.thickness && !c.filled)
+        return;
+    if (auto a = std::dynamic_pointer_cast<Arrow2D>(prim))
+        show << a->restyle(c);
+    else if (auto b = std::dynamic_pointer_cast<Box2D>(prim))
+        show << b->restyle(c);
+    else if (auto sh = std::dynamic_pointer_cast<Shape2D>(prim))
+        show << sh->restyle(c);
+    else
+        throw std::runtime_error("\"set: " + name + "\" changes \"color\", \"fill_color\", "
+                                 "\"thickness\" or \"filled\" only on an arrow, a box or a shape");
+}
+
 // "reveal" and "focus" are slide state, so they are streamed for the frame
 // being composed rather than set on the primitive
 template <class Listing>
@@ -1492,6 +1520,7 @@ void DeckLoader::addItem(SlideManager& show, const json& item) {
         if (item.contains("depth"))
             prim->setDepth(item["depth"].get<int>());
         placeScreenItem(show, prim, item, "", true);
+        restyleShape(show, set_name, prim, item);
     } else if (item.contains("replace")) {
         if (!item.contains("with"))
             throw std::runtime_error("\"replace\" item needs a \"with\" sub-item");

@@ -3,6 +3,7 @@
 
 #include "content/screen_primitives/ScreenPrimitive.h"
 #include "content/authoring/color_tools.h"
+#include <map>
 #include <optional>
 
 namespace slope {
@@ -30,6 +31,26 @@ struct ShapeStyle {
     bool filled = false;
 };
 
+// A change of style from one slide on. Unset fields keep the style in force.
+//   show << arrow->restyle({.color = Color("red"), .thickness = 6});
+struct StyleChange {
+    std::optional<Color> color, fill_color;
+    std::optional<float> thickness;
+    std::optional<bool> filled;
+};
+
+// The style changes of a shape, keyed by slide. They blend during the transition into their slide.
+struct StyleTrack {
+    std::map<int, StyleChange> changes;
+    // Style in force on a slide, from base and the changes up to it.
+    ShapeStyle on(const ShapeStyle& base, int slide) const;
+    // Style at a continuous slide position.
+    ShapeStyle at(const ShapeStyle& base, parameter slide_position) const;
+};
+
+// Removes the style changes of every shape. A deck builds the whole show again at every reload.
+void ClearAllRestyles();
+
 class Shape2D;
 using Shape2DPtr = std::shared_ptr<Shape2D>;
 
@@ -37,6 +58,9 @@ using Shape2DPtr = std::shared_ptr<Shape2D>;
 class Shape2D : public ScreenPrimitive {
 public:
     ShapeStyle style;
+    // Changes the style from the slide being composed on.
+    SlideCue restyle(const StyleChange& change);
+    StyleTrack restyles;
 
     // Builds a shape from points in relative coordinates.
     // The points are recentered, so the shape is placed by its anchor like any screen primitive.
@@ -76,6 +100,9 @@ using Box2DPtr = std::shared_ptr<Box2D>;
 class Box2D : public ScreenPrimitive {
 public:
     ShapeStyle style;
+    // Changes the style from the slide being composed on.
+    SlideCue restyle(const StyleChange& change);
+    StyleTrack restyles;
     // Gap around the targets in relative units, one value per axis.
     // It is used on every side that has no value below.
     vec2 padding = vec2(0.02, 0.02);
@@ -123,7 +150,7 @@ protected:
     // Returns false when there is no target.
     bool bounds(vec2& lo, vec2& hi) const;
     // Draws the box at progress t, with opacity alpha.
-    void drawBox(parameter t, float alpha);
+    void drawBox(const TimeObject& time, parameter t, float alpha);
 };
 
 class Arrow2D;
@@ -133,6 +160,9 @@ using Arrow2DPtr = std::shared_ptr<Arrow2D>;
 class Arrow2D : public ScreenPrimitive {
 public:
     ShapeStyle style;
+    // Changes the style from the slide being composed on.
+    SlideCue restyle(const StyleChange& change);
+    StyleTrack restyles;
     // Curvature, given as the offset of the control point relative to the distance between the endpoints.
     scalar bend = 0;
     // Size of the arrowhead in relative units. 0 draws a plain line.
@@ -177,7 +207,7 @@ public:
 
 protected:
     // Draws the arrow at progress t, with opacity alpha.
-    void drawArrow(parameter t, float alpha) const;
+    void drawArrow(const TimeObject& time, parameter t, float alpha) const;
 
     // Clips the segment from the center of the endpoint to `other` against the bounding box of its target plus margin.
     // The arrow then starts at the edge of the target.
