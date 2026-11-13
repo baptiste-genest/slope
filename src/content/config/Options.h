@@ -35,6 +35,9 @@ struct Options {
     /// Report unused, duplicated or defaulted anchor labels at startup (--check_labels)
     static bool CheckLabels;
 
+    /// Compile every shader, report errors and quit (--compile_shaders)
+    static bool CompileShadersOnly;
+
     /// Rehearsal timer that records timings and compares them with the previous run
     static bool Rehearse;
 

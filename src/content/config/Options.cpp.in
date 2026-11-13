@@ -35,6 +35,7 @@ bool Options::RecordMode = false;
 int Options::RecordFPS = 30;
 double Options::RecordDwell = 2.0;
 bool Options::CheckLabels = false;
+bool Options::CompileShadersOnly = false;
 bool Options::Rehearse = false;
 bool Options::HideSlideNumbers = false;
 

@@ -364,7 +364,7 @@ void slope::Slideshow::init(std::string project_name, int argc, char** argv) {
         return frame;
     };
 
-    polyscope::options::allowHeadlessBackends = slope::Options::ExportMode;
+    polyscope::options::allowHeadlessBackends = slope::Options::ExportMode || slope::Options::CompileShadersOnly;
     polyscope::view::windowWidth = (int)Options::ScreenResolutionWidth;
     polyscope::view::windowHeight = (int)Options::ScreenResolutionHeight;
 
@@ -424,6 +424,12 @@ void slope::Slideshow::goToSlide(int slide_nb) {
 void slope::Slideshow::run() {
     if (help_wanted)
         return;
+    // keyframes are baked into the programs, so publish them before compiling
+    TimeObject::keyframes = &keyframes;
+    TimeObject::slide_times = &slide_times;
+    const int failed = Shader::CompileAll(); // at start, not as each shader first shows up
+    if (Options::CompileShadersOnly)
+        std::exit(failed ? 1 : 0);
     if (!Options::ExportMode) {
         polyscope::state::userCallback = [this]() {
             play();

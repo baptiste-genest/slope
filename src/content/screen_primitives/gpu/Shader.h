@@ -445,6 +445,9 @@ public:
     // and compiles every shader again when the keyframes of the deck move.
     static void HotReloadIfModified();
 
+    // Compiles every shader still waiting for its first compile, returns how many failed. Needs a current GL context.
+    static int CompileAll();
+
     // Absolute paths of the files watched for reload, without duplicates.
     // They are the source files and the headers they include.
     static std::vector<path> WatchedFiles();

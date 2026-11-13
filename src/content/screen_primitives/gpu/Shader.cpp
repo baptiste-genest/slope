@@ -2365,6 +2365,26 @@ std::vector<path> Shader::WatchedFiles() {
     return out;
 }
 
+int Shader::CompileAll() {
+    const auto start = Time::now();
+    int n = 0, failed = 0;
+    for (auto* s : all_shaders) {
+        if (s->from_file && s->load_failed)
+            s->reloadFromFile(); // the project path is known now
+        if (!s->needs_recompile)
+            continue;
+        s->recompile();
+        ++n;
+        if (!s->compiled || s->load_failed) {
+            ++failed;
+            spdlog::error("[shader] failed: {}", s->from_file ? s->source_file.string() : std::string("<inline>"));
+        }
+    }
+    if (n)
+        spdlog::info("[shader] compiled {} shader(s) in {:.2f}s, {} failed", n, TimeFrom(start), failed);
+    return failed;
+}
+
 void Shader::HotReloadIfModified() {
     static auto last_refresh = Time::now();
     if (TimeFrom(last_refresh) < 0.2)

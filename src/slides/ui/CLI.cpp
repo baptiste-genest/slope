@@ -50,6 +50,8 @@ int slope::parseCLI(int argc, char** argv) {
                 Options::RecordDwell = std::stod(argv[++i]);
             } else if (arg == "--check_labels") {
                 Options::CheckLabels = true;
+            } else if (arg == "--compile_shaders") {
+                Options::CompileShadersOnly = true;
             } else if (arg == "--rehearse") {
                 Options::Rehearse = true;
             } else if (arg == "--no_slide_numbers") {
