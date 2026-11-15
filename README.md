@@ -50,4 +50,4 @@ Build from a *Developer PowerShell for VS 2022* in a new terminal:
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
-The `Video` primitive and the webcam are not available on Windows yet.
+The webcam is not available on Windows yet.
