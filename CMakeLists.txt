@@ -40,14 +40,22 @@ find_package(OpenGL REQUIRED)
 
 ## External tools configuration
 find_package(LATEX COMPONENTS PDFLATEX REQUIRED)
-# on Windows 'magick' must win, System32 ships an unrelated convert.exe
+# on Windows only 'magick', System32 ships an unrelated convert.exe (a disk converter)
 if (WIN32)
-  find_program(SLOPE_CONVERT NAMES magick convert)
+  # a cache from before this check may still hold that convert.exe
+  file(TO_CMAKE_PATH "$ENV{SystemRoot}/" _slope_sysroot)
+  string(TOLOWER "${_slope_sysroot}" _slope_sysroot)
+  string(TOLOWER "${SLOPE_CONVERT}" _slope_convert)
+  string(FIND "${_slope_convert}" "${_slope_sysroot}" _slope_pos)
+  if (_slope_pos EQUAL 0)
+    unset(SLOPE_CONVERT CACHE)
+  endif()
+  find_program(SLOPE_CONVERT NAMES magick)
 else()
   find_program(SLOPE_CONVERT NAMES convert magick)
 endif()
 if (NOT SLOPE_CONVERT)
-  message(ERROR "Could not find the 'magick'/'convert' tool (imagemagick)")
+  message(WARNING "Could not find the 'magick'/'convert' tool (imagemagick), LaTeX and --export will fail")
 endif()
 set(SLOPE_PDFLATEX ${PDFLATEX_COMPILER})
 
