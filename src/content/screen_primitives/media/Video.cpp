@@ -20,7 +20,15 @@
 #include <thread>
 #include <vector>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
 #include <cerrno>
 #include <fcntl.h>
 #include <signal.h>
@@ -32,17 +40,136 @@ namespace slope {
 
 size_t Video::MemoryBudget = 96u << 20;
 
-// playback needs fork/pipe/execvp, so on Windows the primitive is unavailable
-#ifndef _WIN32
-
 namespace {
 
-// running ffmpeg without a shell
-// popen() hands back a FILE* and no pid, leaving no way to kill a decoder
-// stalled in a read. fork/exec gives both the pid and a literal argv.
+// ffmpeg without a shell, and with a pid to kill it, which popen() does not give
+#ifdef _WIN32
+struct Child {
+    HANDLE out = nullptr;
+    HANDLE process = nullptr;
+    // also holds the real ffmpeg a scoop shim starts
+    HANDLE job = nullptr;
+    bool running() const { return job != nullptr; }
+};
+
+// CommandLineToArgvW must give back the same argv
+void appendQuoted(std::string& cmd, const std::string& arg) {
+    if (!arg.empty() && arg.find_first_of(" \t\n\v\"") == std::string::npos) {
+        cmd += arg;
+        return;
+    }
+    cmd += '"';
+    for (size_t i = 0;; ++i) {
+        size_t slashes = 0;
+        while (i < arg.size() && arg[i] == '\\') {
+            ++slashes;
+            ++i;
+        }
+        if (i == arg.size()) {
+            cmd.append(slashes * 2, '\\');
+            break;
+        }
+        if (arg[i] == '"')
+            cmd.append(slashes * 2 + 1, '\\');
+        else
+            cmd.append(slashes, '\\');
+        cmd += arg[i];
+    }
+    cmd += '"';
+}
+
+bool spawn(const std::vector<std::string>& args, Child& c) {
+    std::string cmd;
+    for (const auto& a : args) {
+        if (!cmd.empty()) cmd += ' ';
+        appendQuoted(cmd, a);
+    }
+
+    SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
+    HANDLE rd = nullptr, wr = nullptr;
+    if (!CreatePipe(&rd, &wr, &sa, 1u << 20)) return false;
+    SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
+    HANDLE nul = CreateFileA("NUL", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             &sa, OPEN_EXISTING, 0, nullptr);
+
+    // never the pipe of another stream
+    HANDLE inherit[2] = {wr, nul};
+    SIZE_T attr_size = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &attr_size);
+    std::vector<char> attr_buf(attr_size);
+    auto attrs = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attr_buf.data());
+    bool ok = InitializeProcThreadAttributeList(attrs, 1, 0, &attr_size) &&
+              UpdateProcThreadAttribute(attrs, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, inherit,
+                                        (nul != INVALID_HANDLE_VALUE ? 2 : 1) * sizeof(HANDLE),
+                                        nullptr, nullptr);
+
+    STARTUPINFOEXA si{};
+    si.StartupInfo.cb = sizeof(si);
+    si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    si.StartupInfo.hStdOutput = wr;
+    si.StartupInfo.hStdInput = nul;
+    si.StartupInfo.hStdError = nul; // ffmpeg cries "broken pipe" on every seek
+    si.lpAttributeList = attrs;
+
+    // suspended until it is in the job
+    PROCESS_INFORMATION pi{};
+    ok = ok && CreateProcessA(nullptr, cmd.data(), nullptr, nullptr, TRUE,
+                              CREATE_NO_WINDOW | CREATE_SUSPENDED | EXTENDED_STARTUPINFO_PRESENT,
+                              nullptr, nullptr, &si.StartupInfo, &pi);
+    DeleteProcThreadAttributeList(attrs);
+    CloseHandle(wr);
+    if (nul != INVALID_HANDLE_VALUE) CloseHandle(nul);
+    if (!ok) {
+        CloseHandle(rd);
+        return false;
+    }
+
+    HANDLE job = CreateJobObjectA(nullptr, nullptr);
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    if (!job || !SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits)) ||
+        !AssignProcessToJobObject(job, pi.hProcess)) {
+        TerminateProcess(pi.hProcess, 1);
+        if (job) CloseHandle(job);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        CloseHandle(rd);
+        return false;
+    }
+    ResumeThread(pi.hThread);
+    CloseHandle(pi.hThread);
+
+    c.out = rd;
+    c.process = pi.hProcess;
+    c.job = job;
+    return true;
+}
+
+// bytes read, 0 once ffmpeg closed its end
+size_t readSome(const Child& c, uint8_t* dst, size_t n) {
+    DWORD got = 0;
+    if (!ReadFile(c.out, dst, DWORD(std::min<size_t>(n, 1u << 30)), &got, nullptr)) return 0;
+    return got;
+}
+
+// ends a blocked read
+void signalKill(const Child& c) {
+    if (c.job) TerminateJobObject(c.job, 1);
+}
+
+void reap(Child& c, bool kill) {
+    CloseHandle(c.out);
+    if (kill) signalKill(c);
+    WaitForSingleObject(c.process, INFINITE);
+    CloseHandle(c.process);
+    CloseHandle(c.job);
+    c = Child{};
+}
+#else
 struct Child {
     pid_t pid = -1;
     int fd = -1;
+    bool running() const { return pid > 0; }
 };
 
 bool spawn(const std::vector<std::string>& args, Child& c) {
@@ -83,18 +210,37 @@ bool spawn(const std::vector<std::string>& args, Child& c) {
     return true;
 }
 
+// bytes read, 0 once ffmpeg closed its end
+size_t readSome(const Child& c, uint8_t* dst, size_t n) {
+    while (true) {
+        ssize_t r = ::read(c.fd, dst, n);
+        if (r >= 0) return size_t(r);
+        if (errno != EINTR) return 0;
+    }
+}
+
+// ends a blocked read, a 4K frame can be 100 ms away
+void signalKill(const Child& c) {
+    if (c.pid > 0) ::kill(c.pid, SIGKILL);
+}
+
+void reap(Child& c, bool kill) {
+    ::close(c.fd);
+    if (kill) signalKill(c); // no-op once it has exited on its own
+    int st;
+    while (::waitpid(c.pid, &st, 0) < 0 && errno == EINTR) {
+    }
+    c = Child{};
+}
+#endif
+
 // a pipe read returns whatever is buffered, which is never a whole 4K frame
-bool readFull(int fd, uint8_t* dst, size_t n) {
+bool readFull(const Child& c, uint8_t* dst, size_t n) {
     size_t got = 0;
     while (got < n) {
-        ssize_t r = ::read(fd, dst + got, n - got);
-        if (r > 0) {
-            got += size_t(r);
-            continue;
-        }
-        if (r == 0) return false; // ffmpeg closed its end
-        if (errno == EINTR) continue;
-        return false;
+        size_t r = readSome(c, dst + got, n - got);
+        if (r == 0) return false;
+        got += r;
     }
     return true;
 }
@@ -104,20 +250,10 @@ std::string runCapture(const std::vector<std::string>& args) {
     if (!spawn(args, c)) return {};
 
     std::string out;
-    char buf[512];
-    while (true) {
-        ssize_t r = ::read(c.fd, buf, sizeof(buf));
-        if (r > 0) {
-            out.append(buf, size_t(r));
-            continue;
-        }
-        if (r < 0 && errno == EINTR) continue;
-        break;
-    }
-    close(c.fd);
-    int st;
-    while (::waitpid(c.pid, &st, 0) < 0 && errno == EINTR) {
-    }
+    uint8_t buf[512];
+    while (size_t r = readSome(c, buf, sizeof(buf)))
+        out.append(reinterpret_cast<const char*>(buf), r);
+    reap(c, false);
     return out;
 }
 
@@ -134,9 +270,7 @@ bool sane(const std::string& v) { return !v.empty() && v != "N/A" && v != "0/0";
 } // namespace
 
 // probing
-// key=value and not csv, ffprobe emits the fields in its own order. Both
-// durations are asked for, matroska leaves the stream one at N/A and without
-// one total_frames_ is 0, which disables looping and seeking.
+// both durations, matroska leaves the stream one at N/A
 VideoInfo probeVideo(const std::string& file) {
     VideoInfo info;
     std::string raw = runCapture({Options::PathToFFPROBE, "-v", "error", "-select_streams", "v:0",
@@ -172,8 +306,7 @@ VideoInfo probeVideo(const std::string& file) {
             r_rate = val;
         else if (key == "avg_frame_rate")
             avg_rate = val;
-        // ffprobe prints the stream section first, so the first duration seen
-        // is the stream's and the second the container's
+        // the stream's duration comes first, then the container's
         else if (key == "duration") {
             if (stream_duration == 0)
                 stream_duration = std::atof(val.c_str());
@@ -182,8 +315,7 @@ VideoInfo probeVideo(const std::string& file) {
         }
     }
 
-    // avg_frame_rate is the real average. r_frame_rate is a base rate, which a variable frame rate file can report
-    // as an absurd value such as 1000/1.
+    // r_frame_rate can be absurd on a variable frame rate file, such as 1000/1
     for (const std::string& cand : {avg_rate, r_rate}) {
         double f = parseRate(cand);
         if (f > 0 && f < 1000) {
@@ -205,8 +337,7 @@ struct Video::Frame {
     std::vector<uint8_t> rgba;
 };
 
-// Held by a shared_ptr the decode thread captures, so a seek abandons a stream
-// without ever joining it. The orphaned thread reaps itself and takes it along.
+// shared with the decode thread, so a seek drops a stream without joining it
 struct Video::Stream {
     std::mutex m;
     std::condition_variable room; // decoder waits for queue space
@@ -217,11 +348,9 @@ struct Video::Stream {
     size_t frame_bytes = 0;
     size_t max_queued = 4;
     int64_t stride = 1; // native frames between two frames it emits
-    pid_t pid = -1;
-    int fd = -1;
+    Child child;
 
-    // frame the render thread wants, the decoder drops what is older instead
-    // of queueing it, a queue of stale frames would block it for good
+    // frame the render thread wants, older ones are dropped
     int64_t target = -1;
     int64_t discarded = 0;
     int64_t produced = 0; // tells a working stream from a stillborn one
@@ -237,8 +366,7 @@ VideoPtr Video::Add(const std::string& file, int decode_width, bool loop, bool a
                                                        "(read with " +
                                  Options::PathToFFPROBE + ")");
 
-    // never decode more pixels than the screen shows, a 4K frame is 33 MB
-    // through the pipe and over the bus for pixels thrown away on arrival
+    // never decode more pixels than the screen shows
     int cap = (decode_width > 0) ? decode_width : int(Options::ScreenResolutionWidth);
     int w = std::min(cap, info.width);
     int h = int(std::lround(double(w) * info.height / info.width));
@@ -292,9 +420,8 @@ void Video::killStream(const std::shared_ptr<Stream>& s) {
     {
         std::lock_guard<std::mutex> lk(s->m);
         s->stop = true;
-        // SIGKILL, the decoder is usually blocked reading and a 4K frame can
-        // be 100 ms away. Under the reaper's lock, so no recycled pid is hit
-        if (s->pid > 0) ::kill(s->pid, SIGKILL);
+        // under the reaper's lock, so no recycled pid is hit
+        signalKill(s->child);
     }
     s->room.notify_all(); // the decode thread holds the last reference
 }
@@ -337,20 +464,18 @@ int64_t Video::wrap(int64_t frame) const {
     return (f < 0) ? f + total_frames_ : f;
 }
 
-// `-ss` before `-i` is the fast form and, since ffmpeg 2.1, an exact one.
-// `-stream_loop -1` makes the wrap point free, and its later iterations start
-// at 0 rather than at `-ss`, which is what makes file frame = wrap(index) hold.
+// -stream_loop restarts at 0 and not at -ss, so file frame = wrap(index)
 void Video::seek(int64_t start_frame) {
-    last_seek_ = std::chrono::steady_clock::now(); // set before the attempt, a
-    restart_now_ = false;                          // failed spawn must cool down too
+    // before the attempt, a failed spawn must cool down too
+    last_seek_ = std::chrono::steady_clock::now();
+    restart_now_ = false;
     if (!isValid()) return;
 
     auto s = startStream(start_frame);
     if (!s) return;
     ++seeks_;
 
-    // the old stream keeps feeding while the new one starts, which is the
-    // quarter second a seek used to freeze for. An export blocks, so it swaps
+    // the old stream plays until the new one has a frame, an export swaps at once
     if (stream_ && shown_ >= 0 && !Options::ExportMode) {
         killStream(warm_);
         warm_ = s;
@@ -449,8 +574,7 @@ std::shared_ptr<Video::Stream> Video::startStream(int64_t start_frame) {
         spdlog::error("[video] could not start {}", Options::PathToFFMPEG);
         return nullptr;
     }
-    s->pid = c.pid;
-    s->fd = c.fd;
+    s->child = c;
     s->target = start_frame;
 
     int64_t base = start_frame;
@@ -459,7 +583,7 @@ std::shared_ptr<Video::Stream> Video::startStream(int64_t start_frame) {
 }
 
 void Video::decodeLoop(std::shared_ptr<Stream> s, int64_t base) {
-    const int fd = s->fd;
+    const Child reader = s->child;
     const int64_t stride = s->stride;
     int64_t index = base;
 
@@ -480,7 +604,7 @@ void Video::decodeLoop(std::shared_ptr<Stream> s, int64_t base) {
         buf.resize(s->frame_bytes);
 
         // outside the lock, the render thread keeps draining the queue
-        if (!readFull(fd, buf.data(), s->frame_bytes)) {
+        if (!readFull(reader, buf.data(), s->frame_bytes)) {
             std::lock_guard<std::mutex> lk(s->m);
             s->eof = true;
             break;
@@ -488,9 +612,7 @@ void Video::decodeLoop(std::shared_ptr<Stream> s, int64_t base) {
 
         std::lock_guard<std::mutex> lk(s->m);
         if (s->stop) break;
-        // too late, and something newer is queued. The queue check matters, a
-        // decoder running at playback speed is always a little late and
-        // discarding on lateness alone would show nothing at all
+        // late and something newer is queued, lateness alone would drop every frame
         if (index < s->target && !s->ready.empty()) {
             index += stride;
             ++s->discarded;
@@ -502,20 +624,13 @@ void Video::decodeLoop(std::shared_ptr<Stream> s, int64_t base) {
         index += stride;
     }
 
-    pid_t pid;
+    Child c;
     {
         std::lock_guard<std::mutex> lk(s->m);
-        pid = s->pid;
-        s->pid = -1; // from here on closeStream() will not signal it
-        s->fd = -1;
+        c = s->child;
+        s->child = Child{}; // from here on closeStream() will not signal it
     }
-    ::close(fd);
-    if (pid > 0) {
-        ::kill(pid, SIGKILL); // no-op once it has exited on its own
-        int st;
-        while (::waitpid(pid, &st, 0) < 0 && errno == EINTR) {
-        }
-    }
+    if (c.running()) reap(c, true);
 }
 
 // the presentation side
@@ -569,8 +684,7 @@ void Video::sync(const TimeObject& t) {
     // a live source is started from its first frame, there is nothing to seek to
     const int64_t start = hasTimeline() ? want : 0;
 
-    // first draw, or a stream that died. The cooldown keeps a broken file from
-    // spawning one ffmpeg per rendered frame
+    // first draw or a dead stream, the cooldown spares a broken file one ffmpeg per frame
     if (!stream_) {
         if (finished_) return;
         if (!restart_now_ && !cooledDown()) return;
@@ -595,9 +709,7 @@ void Video::sync(const TimeObject& t) {
         }
         stream_->room.notify_all();
 
-        // Seeking is for jumps, not for lateness. Being behind is normal on a heavy
-        // slide and re-seeking on it only throws the queue away for another startup.
-        // Five wall seconds, or a fast playback would count as jumping right away
+        // seek on a jump only, five wall seconds so a fast playback is not one
         const int64_t jump = int64_t(5.0 * info_.fps * std::max(1.0, std::abs(sp)));
         // nothing before the stream's first frame can arrive, pending seek or not
         const bool unreachable = want < stream_base_;
@@ -611,9 +723,7 @@ void Video::sync(const TimeObject& t) {
     uploadWhenAvailable(want, Options::ExportMode);
 }
 
-// Pops up to `want` and uploads the newest. An empty queue leaves the previous
-// frame up rather than stalling the slideshow, which is how a loaded machine
-// degrades. Exports block instead, so a PNG never catches the pre-roll.
+// uploads the newest frame up to want, an export waits for it
 void Video::uploadWhenAvailable(int64_t want, bool blocking) {
     auto s = stream_;
     std::vector<uint8_t> chosen;
@@ -637,7 +747,9 @@ void Video::uploadWhenAvailable(int64_t want, bool blocking) {
             queue_depth_ = int(s->ready.size());
             discarded_ = s->discarded;
             produced = s->produced;
-            at_eof = s->eof && s->ready.empty();
+            // ffmpeg can round one frame past the end
+            const bool at_end = !loop_ && total_frames_ > 0 && want >= total_frames_ - 1;
+            at_eof = s->eof && (s->ready.empty() || at_end);
             if (chosen_index >= 0 || at_eof) break;
         }
         s->room.notify_all();
@@ -652,9 +764,7 @@ void Video::uploadWhenAvailable(int64_t want, bool blocking) {
     if (chosen_index < 0) {
         if (at_eof) {
             if (loop_) {
-                // ffmpeg stopped honouring -stream_loop. One that had been
-                // feeding restarts at once, the cooldown would show as a freeze,
-                // one that died young is a broken file and must wait it out
+                // ffmpeg left -stream_loop, restart at once unless it died young
                 const bool worked = produced > int64_t(info_.fps);
                 closeStream();
                 restart_now_ = worked;
@@ -686,8 +796,7 @@ void Video::uploadWhenAvailable(int64_t want, bool blocking) {
     s->room.notify_all();
 }
 
-// the texture holds what is on screen, so a snapshot is a read back and not
-// another decode, and it is the displayed frame and not a nearby one
+// read back from the texture, so it is the frame on screen
 std::vector<unsigned char> Video::framePixels() const {
     if (!isValid() || shown_ < 0) return {};
     std::vector<unsigned char> px(size_t(w_) * size_t(h_) * 4);
@@ -739,8 +848,7 @@ void Video::handleClick(const StateInSlide& sis) {
     if (!rect(sis, pmin, pmax)) return;
 
     const ImGuiIO& io = ImGui::GetIO();
-    // a modifier means the click is aimed at the placement tools, dragging a
-    // primitive or picking a group, and never at the clip
+    // with a modifier the click is for the placement tools
     if (io.KeyCtrl || io.KeyShift || io.KeyAlt) {
         press_inside_ = false;
         return;
@@ -790,8 +898,7 @@ void Video::drawStats() const {
 void Video::logStats(const TimeObject& t) {
     ++steps_;
     if (t.from_begin - last_log_ < 2.0) return;
-    // how often the slideshow asked for a frame, when playback stutters this
-    // separates "the decoder cannot keep up" from "the whole app is at 5 fps"
+    // requests per second, tells a slow decoder from a slow app
     double draw_fps = double(steps_) / (t.from_begin - last_log_);
     last_log_ = t.from_begin;
     steps_ = 0;
@@ -800,44 +907,5 @@ void Video::logStats(const TimeObject& t) {
                  shown_, queue_depth_, uploaded_, dropped_, discarded_, starves_, seeks_,
                  draw_fps);
 }
-
-#else // _WIN32
-
-VideoInfo probeVideo(const std::string&) { return VideoInfo{}; }
-
-// never holds anything here, it only has to be complete for the shared_ptr
-struct Video::Stream {};
-
-VideoPtr Video::Add(const std::string& file, int decode_width, bool loop, bool autoplay) {
-    std::string path = formatPath(file);
-    spdlog::error("[video] {} : video playback is not yet implemented on Windows, "
-                  "the slide will show nothing",
-                  path);
-    return NewPrimitive<Video>(path, VideoInfo{}, 0, 0, loop, autoplay);
-}
-
-Video::Video(const std::string& path, const VideoInfo& info,
-             int w, int h, bool loop, bool autoplay)
-    : path_(path), info_(info), w_(w), h_(h), loop_(loop),
-      autoplay_(autoplay), playing_(autoplay) {}
-
-Video::~Video() {}
-
-void Video::draw(const TimeObject&, const StateInSlide&) {}
-void Video::playIntro(const TimeObject&, const StateInSlide&) {}
-void Video::playOutro(const TimeObject&, const StateInSlide&) {}
-
-Primitive::Size Video::getSize() const { return Size::Zero(); }
-
-void Video::forceDisable() {}
-
-std::vector<std::string> Video::inputArgs(int64_t) const { return {}; }
-int64_t Video::wantedFrame(const TimeObject&) { return 0; }
-size_t Video::queueLimit(size_t) const { return 2; }
-
-std::vector<unsigned char> Video::framePixels() const { return {}; }
-bool Video::saveFrame(const std::string&) const { return false; }
-
-#endif // _WIN32
 
 } // namespace slope
