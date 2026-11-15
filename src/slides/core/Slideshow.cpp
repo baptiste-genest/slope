@@ -651,6 +651,7 @@ void slope::Slideshow::recordVideo() {
 
     const std::filesystem::path dir =
         std::filesystem::temp_directory_path() / ("slope_record_" + Options::ProjectName);
+    std::filesystem::remove_all(dir);
     std::filesystem::create_directories(dir);
 
     auto backdate = [](TimeTypeSec s) {
