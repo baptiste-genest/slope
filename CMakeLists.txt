@@ -40,9 +40,9 @@ find_package(OpenGL REQUIRED)
 
 ## External tools configuration
 find_package(LATEX COMPONENTS PDFLATEX REQUIRED)
-# on Windows only 'magick', System32 ships an unrelated convert.exe (a disk converter)
+# System32 ships an unrelated convert.exe
 if (WIN32)
-  # a cache from before this check may still hold that convert.exe
+  # purge a cached System32 convert.exe
   file(TO_CMAKE_PATH "$ENV{SystemRoot}/" _slope_sysroot)
   string(TOLOWER "${_slope_sysroot}" _slope_sysroot)
   string(TOLOWER "${SLOPE_CONVERT}" _slope_convert)
@@ -56,6 +56,11 @@ else()
 endif()
 if (NOT SLOPE_CONVERT)
   message(WARNING "Could not find the 'magick'/'convert' tool (imagemagick), LaTeX and --export will fail")
+endif()
+# imagemagick needs it to read pdf
+find_program(SLOPE_GHOSTSCRIPT NAMES gswin64c gswin32c gs)
+if (NOT SLOPE_GHOSTSCRIPT)
+  message(WARNING "Could not find ghostscript (gs/gswin64c), imagemagick cannot read pdf and LaTeX will fail")
 endif()
 set(SLOPE_PDFLATEX ${PDFLATEX_COMPILER})
 
@@ -77,14 +82,17 @@ set(SLOPE_SHADER_PATH "${PROJECT_SOURCE_DIR}/src/shaders/" CACHE PATH
 
 message(STATUS "pdflatex compiler: ${SLOPE_PDFLATEX}")
 message(STATUS "convert tool: ${SLOPE_CONVERT}")
+message(STATUS "ghostscript: ${SLOPE_GHOSTSCRIPT}")
 message(STATUS "ffmpeg: ${SLOPE_FFMPEG}")
 message(STATUS "shader stdlib: ${SLOPE_SHADER_PATH}")
 # the highlight queries assembled by cmake/treesitter.cmake
 set(SLOPE_QUERY_PATH "${SLOPE_QUERY_BUILD_DIR}/" CACHE PATH
     "where Code looks for the tree-sitter highlight queries")
 message(STATUS "highlight queries: ${SLOPE_QUERY_PATH}")
+# per build dir, it holds the tool paths
 configure_file(${PROJECT_SOURCE_DIR}/src/content/config/Options.cpp.in
-               ${PROJECT_SOURCE_DIR}/src/content/config/Options.cpp)
+               ${CMAKE_BINARY_DIR}/slope_generated/Options.cpp)
+list(APPEND SLOPE_GENERATED_SOURCES ${CMAKE_BINARY_DIR}/slope_generated/Options.cpp)
 
 
 file(GLOB SRC_lib
@@ -111,6 +119,8 @@ file(GLOB SRC_lib
      "src/slope.h"
      "src/extern/*"
 )
+# stale copy left by older configures
+list(REMOVE_ITEM SRC_lib ${PROJECT_SOURCE_DIR}/src/content/config/Options.cpp)
 file(GLOB HEADER_LIST CONFIGURE_DEPENDS "src/*.h*")
 
 ## The library
