@@ -160,6 +160,25 @@ void slope::Slideshow::play() {
     Canvas::BeginRenderFov();
 }
 
+// inverse of polyscope's tonemapping, so its clear colour lands on the slide colour
+static std::array<float, 4> inverseTonemap(std::array<float, 4> c) {
+    const auto& E = *polyscope::render::engine;
+    float rgb[3], lum = 0;
+    const float w[3] = {0.2126f, 0.7152f, 0.0722f};
+    for (int i = 0; i < 3; i++) {
+        rgb[i] = std::pow(std::clamp(c[i], 0.f, 1.f), E.gamma);
+        lum += w[i] * rgb[i];
+    }
+    if (lum <= 1e-6f)
+        return {0, 0, 0, c[3]};
+    // root of L²/wl² + (1-lum)L - lum = 0, the extended Reinhard solved for L
+    const float a = 1.f / (E.whiteLevel * E.whiteLevel), b = 1.f - lum;
+    const float L = (-b + std::sqrt(b * b + 4.f * a * lum)) / (2.f * a);
+    for (int i = 0; i < 3; i++)
+        c[i] = rgb[i] * (L / lum) / E.exposure;
+    return c;
+}
+
 void slope::Slideshow::updateBackground(parameter transition) {
     if (slides.empty())
         return;
@@ -170,10 +189,10 @@ void slope::Slideshow::updateBackground(parameter transition) {
     };
     const Color current = resolve(slides[state.current]);
     // lerping from the slide being left, which a primitive could never see
-    polyscope::view::bgColor =
-        (state.current > 0 && transition < 1)
-            ? Lerp(resolve(slides[state.current - 1]), current, transition).toArray()
-            : current.toArray();
+    Canvas::background = (state.current > 0 && transition < 1)
+                             ? Lerp(resolve(slides[state.current - 1]), current, transition).toArray()
+                             : current.toArray();
+    polyscope::view::bgColor = inverseTonemap(Canvas::background);
 }
 
 void slope::Slideshow::renderSlide(TimeTypeSec t, Slide& CS, TimeObject& T) {

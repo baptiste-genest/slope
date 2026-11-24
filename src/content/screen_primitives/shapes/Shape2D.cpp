@@ -275,8 +275,8 @@ void Box2D::drawBox(const TimeObject& time, parameter t, float alpha) {
         return;
     ShapeStyle base = this->style;
     if (use_background_fill)
-        base.fill_color = Color(polyscope::view::bgColor[0], polyscope::view::bgColor[1],
-                                polyscope::view::bgColor[2], 1.f);
+        base.fill_color = Color(Canvas::background[0], Canvas::background[1],
+                                Canvas::background[2], 1.f);
     const ShapeStyle style = restyles.at(base, time.slidePosition());
     updateAnchor((lo + hi) * 0.5); // so arrows can attach to the box
     std::vector<ImVec2> px = {

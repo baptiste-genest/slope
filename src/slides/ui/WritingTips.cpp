@@ -508,6 +508,7 @@ void shaderTips(ImFont* mono, float px) {
         apiRow("vec2 iMouseNorm", "cursor in 0..1 across the shader, y up", mono, px);
         apiRow("float iHovered", "1 while the cursor is over the shader", mono, px);
         apiRow("vec4 iDate", "year, month, day, seconds since midnight", mono, px);
+        apiRow("vec4 iBackground", "the slide background colour", mono, px);
         apiRow("uniform sampler2D name", "declare it yourself, bound by the deck's \"textures: {name: file}\"", mono, px);
         apiRow("uniform vec2 name_size", "optional, its size in pixels", mono, px);
         apiRow("sampler2D iChannel0..3", "textures set from C++", mono, px);

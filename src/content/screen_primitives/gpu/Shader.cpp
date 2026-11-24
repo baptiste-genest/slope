@@ -3,6 +3,7 @@
 #include "content/config/ReloadErrors.h"
 #include "GLFW/glfw3.h"
 #include "polyscope/view.h"
+#include "content/screen_primitives/layout/Canvas.h"
 #include "polyscope/polyscope.h"
 #include "polyscope/render/engine.h"
 #include <glm/gtc/matrix_inverse.hpp>
@@ -339,6 +340,7 @@ uniform vec4  iMouse;        // xy = cursor (px, y up); zw = last click, z<0 whe
 uniform vec2  iMouseNorm;    // cursor in 0..1 across the rect, y up
 uniform float iHovered;      // 1.0 while the cursor is over the rect, else 0.0
 uniform vec4  iDate;         // year, month(1-12), day(1-31), seconds since midnight
+uniform vec4  iBackground;   // the slide background colour, blended across slide changes
 // the shader's own world space, declared from C++ with setView/bindView.
 // Defaults to (0,0) and 1, which makes iWorld() the y-normalised uv.
 uniform vec2  iViewCenter;   // world point at the middle of the rect
@@ -1732,6 +1734,7 @@ void Shader::cacheUniformLocations() {
     uloc.iMouseNorm = L("iMouseNorm");
     uloc.iHovered = L("iHovered");
     uloc.iDate = L("iDate");
+    uloc.iBackground = L("iBackground");
 
     // Only the ShaderToy resolution array is a fixed built-in.
     // The samplers are named at runtime and resolved for each texture below.
@@ -1963,6 +1966,11 @@ void Shader::renderToTexture(const TimeObject& t, const StateInSlide& sis) {
             dtex && (polyscope::options::transparencyMode != polyscope::TransparencyMode::Pretty || polyscope::options::transparencyRenderPasses <= 1);
         if (int l = U.iSceneDepthValid; l >= 0) g.Uniform1f(l, depth_usable ? 1.f : 0.f);
         if (int l = U.iSceneDepthSize; l >= 0) g.Uniform2f(l, float(dw), float(dh));
+    }
+
+    if (int l = U.iBackground; l >= 0) {
+        const auto& bg = Canvas::background;
+        g.Uniform4f(l, bg[0], bg[1], bg[2], bg[3]);
     }
 
     if (int l = U.iDate; l >= 0) {

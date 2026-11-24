@@ -1,5 +1,5 @@
 #include "Legend.h"
-#include "polyscope/view.h"
+#include "content/screen_primitives/layout/Canvas.h"
 #include <algorithm>
 
 namespace slope {
@@ -118,7 +118,7 @@ void Legend::paint(const TimeObject& t, const StateInSlide& sis, float appeared)
     };
     auto* dl = ImGui::GetWindowDrawList();
 
-    const auto& bg = polyscope::view::bgColor;
+    const auto& bg = Canvas::background;
     const RGBA back = settings.ink("background", RGBA(bg[0], bg[1], bg[2], 0.85f));
     const RGBA edge = settings.ink("border", RGBA(0.35f, 0.38f, 0.45f, 0.5f));
     dl->AddRectFilled(bmin, bmax, ink(back, alpha), 4.f * float(sc));

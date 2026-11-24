@@ -32,6 +32,7 @@ namespace slope {
  *   uniform vec2  iMouseNorm;    // cursor in 0..1 across the rect, y up
  *   uniform float iHovered;      // 1.0 while the cursor is over the rect
  *   uniform vec4  iDate;         // year, month(1-12), day, seconds since midnight
+ *   uniform vec4  iBackground;   // the slide background colour
  *   out vec4 fragColor;          // write your result here
  *
  * The fields of the TimeObject of the primitive are also declared, with their C++ names,
@@ -605,7 +606,7 @@ private:
         int iCamPos = -1, iCamFov = -1, iScreenRect = -1, iWindowSize = -1, iCanvasInWindow = -1;
         int iViewCenter = -1, iViewHalf = -1;
         int iSceneDepth = -1, iSceneDepthValid = -1, iSceneDepthSize = -1;
-        int iMouse = -1, iMouseNorm = -1, iHovered = -1, iDate = -1;
+        int iMouse = -1, iMouseNorm = -1, iHovered = -1, iDate = -1, iBackground = -1;
         // The samplers are resolved for each texture, since they are named at runtime.
         // Only the ShaderToy resolution array is a fixed built-in.
         int iChannelRes[kChannels] = {-1, -1, -1, -1};

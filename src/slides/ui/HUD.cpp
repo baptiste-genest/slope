@@ -30,7 +30,7 @@ void slope::HUD::drawGizmoMode(const std::string& what) const {
     auto* dl = ImGui::GetWindowDrawList();
     auto S = Canvas::size();
 
-    auto& bg = polyscope::view::bgColor;
+    auto& bg = Canvas::background;
     auto inv = [](float f) { return (int)((1.0f - f) * 255 + 0.5f); };
     ImU32 col = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]), 200);
 
@@ -54,7 +54,7 @@ void slope::HUD::drawPauseIndicator(float elapsed, float duration) const {
     const ImVec2 O = Canvas::origin();
     ImVec2 center(O.x + S.x * (1.0f - padding) - radius, O.y + S.y * norm_y);
 
-    auto& bg = polyscope::view::bgColor;
+    auto& bg = Canvas::background;
     auto inv = [](float f) { return (int)((1.0f - f) * 255 + 0.5f); };
     ImU32 col_dim = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]), 50);
     ImU32 col_full = IM_COL32(inv(bg[0]), inv(bg[1]), inv(bg[2]), 220);

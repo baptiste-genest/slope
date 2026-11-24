@@ -2,6 +2,7 @@
 #define CANVAS_H
 
 #include "content/config/Options.h"
+#include <array>
 
 namespace slope {
 
@@ -13,6 +14,8 @@ public:
     // Width over height of the slides.
     static scalar aspect;
     static ImU32 bar_color;
+    // The slide background colour. polyscope::view::bgColor holds it pre-tonemapped.
+    static std::array<float, 4> background;
 
     // Fits the canvas in the window, once per frame before anything is drawn.
     static void Update();

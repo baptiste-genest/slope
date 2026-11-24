@@ -4,6 +4,7 @@ namespace slope {
 
 scalar Canvas::aspect = 16. / 9.;
 ImU32 Canvas::bar_color = IM_COL32(0, 0, 0, 255);
+std::array<float, 4> Canvas::background = {1, 1, 1, 1};
 
 ImVec2 Canvas::pos(0, 0);
 ImVec2 Canvas::extent(1920, 1080);
