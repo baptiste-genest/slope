@@ -368,7 +368,7 @@ void slope::Slideshow::init(std::string project_name, int argc, char** argv) {
         if (std::filesystem::weakly_canonical(file, a) != std::filesystem::weakly_canonical(getFrameDeck(), b))
             return;
         if (frame < (int)getFrameStarts().size())
-            goToSlide(getFrameStarts()[frame]);
+            goToSlide(std::min(getFrameStarts()[frame], getNumberSlides() - 1));
     };
 
     file_editor.currentFrameOf = [this](const path& file) {

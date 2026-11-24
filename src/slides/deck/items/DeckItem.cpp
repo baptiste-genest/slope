@@ -55,6 +55,7 @@ const KeyDoc& frameKeys() {
         {"frame", "the items of one slide"},
         {"same_title", "true keeps the previous title"},
         {"no_template", "true leaves the template out"},
+        {"skip", "true skips all slides in frame"},
     };
     return k;
 }

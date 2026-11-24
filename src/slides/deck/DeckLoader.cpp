@@ -662,6 +662,11 @@ void DeckLoader::buildImpl(SlideManager& show) {
             items = &frame["frame"];
             same_title = frame.value("same_title", false);
             no_template = frame.value("no_template", false);
+            // a skipped frame keeps its entry so the editor still counts it
+            if (frame.value("skip", false)) {
+                frame_starts.push_back(-1);
+                continue;
+            }
         } else
             throw std::runtime_error("each element of \"slides\" must be \"- frame:\" "
                                      "followed by a list of items");
@@ -689,6 +694,12 @@ void DeckLoader::buildImpl(SlideManager& show) {
     }
     if (show.getNumberSlides() == 0)
         show.addSlide(Slide());
+    // a skipped frame leads to the frame after it, or past the end
+    for (int i = int(frame_starts.size()) - 1, next = show.getNumberSlides(); i >= 0; --i)
+        if (frame_starts[i] < 0)
+            frame_starts[i] = next;
+        else
+            next = frame_starts[i];
     show.setFrameStarts(source_path, std::move(frame_starts));
     // an id is a name too, and a suggestion clashing with one is unusable
     std::set<std::string> taken;

@@ -165,6 +165,9 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *       - ...
  *     same_title: true                   # keep previous frame's title
  *     no_template: true                  # and skip the deck template
+ *   - frame:
+ *       - ...
+ *     skip: true                         # skips all slides in frame
  *
  * A "template:" list next to "slides:" is added to the first step of every frame, behind its own items.
  * It is built once and the same primitives are reused, so a footer or a logo stays in place
