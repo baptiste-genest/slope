@@ -565,6 +565,13 @@ static void CompileGroup(bool white, const std::vector<const slope::LatexJob*>& 
         ok = false;
     }
 
+    // some ImageMagick builds silently write only the first page
+    for (std::size_t i = 0; ok && i < group.size(); i++)
+        if (!io::file_exists(job + "-" + std::to_string(i) + ".png")) {
+            spdlog::warn("[latex] the converter dropped page {} of the batch", i);
+            ok = false;
+        }
+
     // one bad formula fails the document, so fall back to one by one
     if (!ok) {
         for (std::size_t i = 0; io::file_exists(job + "-" + std::to_string(i) + ".png"); i++)
