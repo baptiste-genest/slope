@@ -9,7 +9,6 @@ std::vector<slope::Image> slope::Image::images;
 #include "extern/stb_image.h"
 
 #include <spdlog/spdlog.h>
-#include <fmt/core.h>
 #include "extern/stb_image.h"
 
 slope::Image::ImagePtr slope::Image::Add(std::string file, scalar scale) {
@@ -389,67 +388,4 @@ void slope::DisplayImage(const ImageData& data, const StateInSlide& sis, scalar 
         ImGui::SetCursorScreenPos(P);
         ImGui::ImageWithBg(data.texture, ImVec2(data.width * scale, data.height * scale), ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f), ImVec4(0, 0, 0, 0), color_multiplier);
     }
-}
-
-slope::Gif::GifPtr slope::Gif::Add(std::string filename, int fps, scalar scale, bool loop) {
-    auto data = loadGif(formatPath(filename));
-    GifPtr rslt = NewPrimitive<Gif>(data, fps, scale, loop);
-    return rslt;
-}
-
-slope::Gif::Gif(const std::vector<ImageData>& images, int fps, scalar scale, bool loop) : images(images), fps(fps), scale(scale), loop(loop) {}
-
-bool slope::Gif::isValid() { return images[0].width != -1; }
-
-void slope::Gif::display(const StateInSlide& sis) const {
-    anchor->updatePos(sis.getPosition());
-    DisplayImage(images[current_img], sis, scale * sis.getScale());
-}
-
-void slope::Gif::draw(const TimeObject& t, const StateInSlide& sis) {
-    display(sis);
-    upframe(t);
-}
-
-void slope::Gif::playIntro(const TimeObject& t, const StateInSlide& sis) {
-    display(sis);
-    upframe(t);
-}
-
-void slope::Gif::playOutro(const TimeObject& t, const StateInSlide& sis) {
-    display(sis);
-    upframe(t);
-}
-
-slope::Primitive::Size slope::Gif::getSize() const {
-    return Image::getScaledSize(images[current_img], scale);
-}
-
-std::vector<slope::ImageData> slope::loadGif(path filename) {
-    auto H = std::to_string(std::hash<std::string>{}(filename.string()));
-    std::vector<slope::ImageData> data;
-    std::string folder = slope::Options::CachePath + H;
-    if (std::error_code ec; !std::filesystem::is_regular_file(filename, ec))
-        throw std::runtime_error("cannot open gif \"" + filename.string() + "\"");
-    if (!io::folder_exists(folder) || Options::ignore_cache) {
-        spdlog::info("Decomposing gif " + filename.string());
-        // std::filesystem instead of rm/mkdir, and the configured ImageMagick
-        std::error_code ec;
-        std::filesystem::remove_all(folder, ec);
-        std::filesystem::create_directories(folder, ec);
-        runCommand(fmt::format("\"{}\" \"{}\" -coalesce \"{}\"",
-                               Options::PathToCONVERT, filename.string(),
-                               (path(folder) / "gif_%05d.png").string()));
-    }
-    auto images = io::list_directory(folder);
-    for (auto& f : images) {
-        data.push_back(loadImage(f));
-    }
-    if (data.empty()) {
-        // an empty folder would be taken as a cached result on the next run
-        std::error_code ec;
-        std::filesystem::remove_all(folder, ec);
-        throw std::runtime_error("gif \"" + filename.string() + "\" gave no frame, see " + Options::LogPath);
-    }
-    return data;
 }

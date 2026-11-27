@@ -357,7 +357,9 @@ struct Video::Stream {
 };
 
 // construction
-VideoPtr Video::Add(const std::string& file, int decode_width, bool loop, bool autoplay) {
+// shared by Video::Add and Gif::Add, T is the class built
+template <class T>
+static std::shared_ptr<T> probeAndBuild(const std::string& file, int decode_width, bool loop, bool autoplay) {
     std::string path = formatPath(file);
     VideoInfo info = probeVideo(path);
 
@@ -378,7 +380,18 @@ VideoPtr Video::Add(const std::string& file, int decode_width, bool loop, bool a
     spdlog::info("[video] {}, {}x{} @ {:.3f} fps, {:.2f} s -> decoding {}x{}",
                  path, info.width, info.height, info.fps, info.duration, w, h);
 
-    return NewPrimitive<Video>(path, info, w, h, loop, autoplay);
+    return NewPrimitive<T>(path, info, w, h, loop, autoplay);
+}
+
+VideoPtr Video::Add(const std::string& file, int decode_width, bool loop, bool autoplay) {
+    return probeAndBuild<Video>(file, decode_width, loop, autoplay);
+}
+
+GifPtr Gif::Add(std::string filename, int fps, scalar scale, bool loop, int decode_width, bool autoplay) {
+    auto g = probeAndBuild<Gif>(filename, decode_width, loop, autoplay);
+    g->setFps(fps);
+    g->scale = scale;
+    return g;
 }
 
 Video::Video(const std::string& path, const VideoInfo& info,
@@ -435,6 +448,12 @@ void Video::closeStream() {
     shown_ = -1;
     seek_pending_ = false;
     queue_depth_ = 0;
+}
+
+void Video::setFps(double fps) {
+    if (fps <= 0 || info_.fps <= 0) return;
+    const scalar sp = scalar(fps / info_.fps);
+    speed = [sp] { return sp; };
 }
 
 int64_t Video::strideFor(double sp) {

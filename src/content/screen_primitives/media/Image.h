@@ -51,9 +51,6 @@ void DisplayImage(const ImageData& data, const StateInSlide& sis, scalar scale =
 // Draws a texture centered at `center`, rotated by angle in radians.
 void ImageRotated(ImTextureID tex_id, ImVec2 center, ImVec2 size, float angle, const RGBA& color_mult);
 
-// Loads every frame of a gif.
-std::vector<ImageData> loadGif(path filename);
-
 // An image drawn on the screen.
 class Image : public ScreenPrimitive {
 public:
@@ -102,50 +99,6 @@ public:
     // Size in pixels.
     Size getSize() const override;
     bool canRotate() const override { return true; }
-};
-
-// An animated image. All frames are kept as textures.
-class Gif : public ScreenPrimitive {
-public:
-    using GifPtr = std::shared_ptr<Gif>;
-
-    // Builds a gif from its frames, played at fps frames per second.
-    Gif(const std::vector<ImageData>& images, int fps, scalar scale, bool loop);
-    // True when the frames were loaded.
-    bool isValid();
-
-    // Draws the current frame with the state of the slide.
-    void display(const StateInSlide& sis) const;
-
-    // Loads a gif file. When loop is false, the last frame stays after the end.
-    static GifPtr Add(std::string filename, int fps = 10, scalar scale = 1., bool loop = true);
-
-    void draw(const TimeObject& t, const StateInSlide& sis) override;
-
-    void playIntro(const TimeObject& t, const StateInSlide& sis) override;
-
-    void playOutro(const TimeObject& t, const StateInSlide& sis) override;
-
-    // Size in pixels.
-    Size getSize() const override;
-
-    bool canRotate() const override { return true; }
-
-    // Index of the frame shown.
-    int current_img = 0;
-
-private:
-    // Chooses the frame for the inner time.
-    void upframe(const TimeObject& t) {
-        if (loop)
-            current_img = (int)std::floor(t.inner_time * fps) % int(images.size());
-        else
-            current_img = std::min((int)std::floor(t.inner_time * fps), int(images.size()) - 1);
-    }
-    bool loop;
-    int fps = 24;
-    std::vector<ImageData> images;
-    scalar scale = 1;
 };
 
 } // namespace slope

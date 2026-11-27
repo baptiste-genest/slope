@@ -28,19 +28,25 @@ std::vector<ItemSpec> mediaItemSpecs() {
         [](const json& i) { return fileStem(i, "image"); },
     });
 
-    // every frame is held as a texture, so the fps and the loop flag shape it
+    // a gif is a video, fps overrides the rate stored in the file
     specs.push_back({
         "gif",
         ItemSpec::Kind::Screen,
-        {"scale", "fps", "loop"},
+        {"scale", "fps", "loop", "autoplay", "decode_width", "stats"},
         [](const json& i) {
-            return "gif:" + i["gif"].get<std::string>() + ":" + std::to_string(i.value("fps", 10)) + ":" + std::to_string(i.value("scale", 1.)) + (i.value("loop", true) ? ":loop" : "");
+            return "gif:" + i["gif"].get<std::string>() + ":" + std::to_string(i.value("decode_width", 0)) + (i.value("loop", true) ? ":loop" : "") + (i.value("autoplay", true) ? ":auto" : "");
         },
         [](const json& i) -> PrimitivePtr {
-            return Gif::Add(i["gif"].get<std::string>(), i.value("fps", 10),
-                            i.value("scale", 1.), i.value("loop", true));
+            return Gif::Add(i["gif"].get<std::string>(), 0, i.value("scale", 1.), i.value("loop", true),
+                            i.value("decode_width", 0), i.value("autoplay", true));
         },
-        nullptr,
+        [](const PrimitivePtr& p, const json& i, const std::string&) {
+            auto vid = std::static_pointer_cast<Gif>(p);
+            vid->speed = [] { return scalar(1); };
+            if (i.contains("fps")) vid->setFps(i["fps"].get<double>());
+            vid->show_stats = i.value("stats", false);
+            vid->scale = i.value("scale", 1.);
+        },
         [](const json& i) { return fileStem(i, "gif"); },
     });
 

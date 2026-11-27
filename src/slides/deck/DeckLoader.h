@@ -67,8 +67,8 @@ using PolyscopePrimitivePtr = std::shared_ptr<PolyscopePrimitive>;
  *       - image: figure.png
  *         at: fig
  *         scale: 0.5                    # default size, before any state scale
- *       - gif: loop.gif                 # every frame held as a texture
- *         fps: 10                       # scale and loop as for an image
+ *       - gif: loop.gif                 # played as a video, fps overrides
+ *         fps: 10                       # the rate stored in the file
  *       - video: clip.mp4               # streamed from disk, one ffmpeg pipe
  *         at: vid                       # decode_width caps the decode (the
  *         decode_width: 960             # window width by default), loop and

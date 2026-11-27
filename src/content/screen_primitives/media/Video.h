@@ -32,7 +32,7 @@ VideoInfo probeVideo(const std::string& file);
 class Video;
 using VideoPtr = std::shared_ptr<Video>;
 
-/// A video read from disk while it plays. A Gif, by contrast, keeps every frame as a texture.
+/// A video read from disk while it plays, gifs included.
 /// One ffmpeg process sends raw RGBA frames, a decoding thread fills a short queue and one texture is refilled in place.
 /// The memory used depends on the size of the queue and not on the length of the clip.
 ///
@@ -69,6 +69,9 @@ public:
     /// Playback speed, read every frame so a Params handle can change it while playing.
     /// It scales the elapsed time and not the clock, so a change continues from the frame on screen.
     std::function<scalar()> speed = [] { return scalar(1); };
+
+    /// Plays at fps frames per second whatever the rate of the file, by setting speed. 0 or less changes nothing.
+    void setFps(double fps);
 
     // Playback controls.
     void play() { playing_ = true; }
@@ -208,6 +211,21 @@ private:
     std::chrono::steady_clock::time_point last_seek_{};
     // Counters. dropped_ counts frames skipped by the render thread and discarded_ those skipped by the decoder.
     int64_t uploaded_ = 0, dropped_ = 0, discarded_ = 0, starves_ = 0, seeks_ = 0;
+};
+
+class Gif;
+using GifPtr = std::shared_ptr<Gif>;
+
+/// A gif, played as a video, so it is streamed and never held in memory.
+class Gif : public Video {
+public:
+    using GifPtr = slope::GifPtr;
+    using Video::Video;
+
+    /// Loads a gif file played at fps frames per second, 0 keeps the rate stored in the file.
+    /// When loop is false, the last frame stays after the end.
+    static GifPtr Add(std::string filename, int fps = 10, scalar scale = 1., bool loop = true,
+                      int decode_width = 0, bool autoplay = true);
 };
 
 } // namespace slope
