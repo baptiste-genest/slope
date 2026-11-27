@@ -279,6 +279,25 @@ slides:
             CHECK((show3.getSlide(0)[shd].shift - vec2(0.1, 0.1)).norm() < 1e-9);
     }
 
+    // ── a set that moves an item keeps its offset, rot, zoom and alpha ──
+    {
+        SlideManager show;
+        CHECK(buildError("slides:\n  - frame:\n      - latex: $u$\n        id: u\n        at: [0.3, 0.5]\n"
+                         "        offset: [0, 0.2]\n        rot: 30\n        zoom: 2\n        alpha: 0.4\n"
+                         "      - step\n      - set: u\n        at: [0.7, 0.5]\n", show).empty());
+        if (show.getNumberSlides() >= 2) {
+            auto u = findTex(show, 1, "$u$");
+            CHECK(u != nullptr);
+            if (u) {
+                const auto& s = show.getSlide(1)[u];
+                CHECK((s.getPosition() - vec2(0.7, 0.7)).norm() < 1e-9);
+                CHECK(std::abs(s.angle - M_PI / 6) < 1e-9);
+                CHECK(s.scale == 2);
+                CHECK(s.alpha == 0.4);
+            }
+        }
+    }
+
     // ── scene groups and items : what the deck cannot do fails, a set keeps the rest ──
     {
         auto scene = NewPrimitive<FakeScene>();

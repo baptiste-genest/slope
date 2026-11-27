@@ -1220,10 +1220,28 @@ static void applyCodeCues(SlideManager& show, const ScreenPrimitivePtr& prim,
     throw std::runtime_error("\"reveal\" and \"focus\" belong to a \"code\" or \"algo\" item");
 }
 
+// a "set" that moves an item keeps what it does not say
+static void keepUnsaid(StateInSlide& sis, const std::optional<StateInSlide>& before, const json& item) {
+    if (!before)
+        return;
+    if (!item.contains("alpha"))
+        sis.alpha = before->alpha;
+    sis.angle = before->angle;
+    sis.scale = before->scale;
+    sis.shift = before->shift;
+}
+
 void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
                                  const json& item, const std::string& default_label,
                                  bool keep_placement, const StateInSlide* own) {
     scalar alpha = item.value("alpha", 1.);
+    std::optional<StateInSlide> before;
+    if (keep_placement) {
+        auto& slide = show.getLastSlide();
+        auto placed = slide.find(std::static_pointer_cast<Primitive>(prim));
+        if (placed != slide.end())
+            before = placed->second;
+    }
     // recorded against the slide being composed, so it happens before any of
     // the placement branches return
     applyCodeCues(show, prim, item);
@@ -1264,6 +1282,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         auto& slide = show.getLastSlide();
         auto placed = slide.find(std::static_pointer_cast<Primitive>(prim));
         if (placed != slide.end()) {
+            keepUnsaid(placed->second, before, item);
             applyStateOptions(placed->second, item);
             applyShift(placed->second, item);
         }
@@ -1334,6 +1353,7 @@ void DeckLoader::placeScreenItem(SlideManager& show, ScreenPrimitivePtr prim,
         markUsed(prim);
         return;
     }
+    keepUnsaid(pis.second, before, item);
     applyStateOptions(pis.second, item);
     applyShift(pis.second, item);
     if (own && item.contains("offset"))
